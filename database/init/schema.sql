@@ -62,6 +62,27 @@ CREATE TABLE IF NOT EXISTS iam_role_permission (
   CONSTRAINT fk_role_permission_permission FOREIGN KEY (permission_id) REFERENCES iam_permission(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS iam_role_data_scope (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  role_id BIGINT UNSIGNED NOT NULL,
+  scope_type VARCHAR(32) NOT NULL,
+  scope_value VARCHAR(255) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  CONSTRAINT fk_role_scope_role FOREIGN KEY (role_id) REFERENCES iam_role(id),
+  UNIQUE KEY uk_role_scope (role_id, scope_type, scope_value)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  role_id BIGINT UNSIGNED NOT NULL,
+  field_code VARCHAR(128) NOT NULL,
+  access_level VARCHAR(16) NOT NULL,
+  explicit_deny TINYINT(1) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  CONSTRAINT fk_sensitive_grant_role FOREIGN KEY (role_id) REFERENCES iam_role(id),
+  UNIQUE KEY uk_role_sensitive_field (role_id, field_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS sys_audit_log (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   request_id VARCHAR(64) NOT NULL,
@@ -294,6 +315,10 @@ CREATE TABLE IF NOT EXISTS sys_number_rule (
 
 INSERT INTO sys_number_rule (rule_code, prefix, current_year, updated_by)
 VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', YEAR(CURRENT_DATE), 0)
+  , ('COUNTERPARTY', 'DW', YEAR(CURRENT_DATE), 0)
+  , ('LEAD', 'XS', YEAR(CURRENT_DATE), 0)
+  , ('BID', 'TB', YEAR(CURRENT_DATE), 0)
+  , ('CONTRACT', 'HT', YEAR(CURRENT_DATE), 0)
 ON DUPLICATE KEY UPDATE rule_code = VALUES(rule_code);
 
 CREATE TABLE IF NOT EXISTS prj_project_application (
