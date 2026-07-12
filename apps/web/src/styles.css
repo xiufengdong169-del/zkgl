@@ -66,6 +66,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .empty-state > span { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 50%; color: #287b56; background: #e6f5ed; font-size: 24px; }
 .empty-state h2 { margin: 18px 0 6px; font-size: 18px; }
 .empty-state p { margin: 0; color: #748095; }
+.approval-list{display:grid;gap:12px;margin-top:20px}.approval-list article{display:flex;justify-content:space-between;gap:20px;padding:20px;border:1px solid #dfe6ef;border-radius:12px;background:#fff}.approval-list h2{margin:6px 0;font-size:17px}.approval-list p,.approval-list small{margin:0;color:#748095}.approval-actions{display:flex;align-items:center;gap:8px}.approval-actions button{width:auto;margin:0;padding:9px 14px}.approval-actions .secondary{color:#245f9f;background:#e6f0fa}.approval-actions .danger{background:#a33434}
 .contract-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 34px; }
 .contract-panels article { display: grid; gap: 8px; padding: 22px; border: 1px solid #dfe6ef; border-radius: 12px; background: #fff; }
 .contract-panels p { margin: 0; color: #637087; }

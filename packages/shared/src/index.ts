@@ -92,7 +92,7 @@ export type ApprovalInstanceStatus =
   | 'REJECTED'
   | 'WITHDRAWN'
 
-export type ApprovalTaskStatus = 'PENDING' | 'APPROVED' | 'CANCELLED'
+export type ApprovalTaskStatus = 'WAITING' | 'PENDING' | 'APPROVED' | 'CANCELLED'
 
 export type BidStatus =
   | 'DRAFT' | 'APPROVAL_PENDING' | 'PREPARING' | 'SUBMITTED' | 'OPENED'

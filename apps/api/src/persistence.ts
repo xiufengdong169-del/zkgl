@@ -5,6 +5,7 @@ import { AppError } from './errors.js'
 import { withTransaction } from './database.js'
 
 interface NumberRow extends RowDataPacket { id: number; prefix: string; serial_length: number; next_serial: number; current_year: number; version: number }
+interface ApprovalTaskRow extends RowDataPacket { task_id:string;instance_id:string;node_order:number;assignee_id:string;task_status:string;instance_status:string;current_node_order:number;applicant_id:string;configuration_snapshot:string|object }
 async function allocateNumber(connection: PoolConnection, ruleCode: string): Promise<string> {
   const [rows] = await connection.execute<NumberRow[]>('SELECT * FROM sys_number_rule WHERE rule_code=? AND status=\'ENABLED\' FOR UPDATE', [ruleCode])
   const row = rows[0]
@@ -85,6 +86,48 @@ export class MySqlActionExecutor {
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,[all?1:0,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
           return {items:rows,page,pageSize}
+        }
+        case 'approval.task.list': {
+          const page=input.page as number,pageSize=input.pageSize as number
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,
+                    i.business_type businessType,CAST(i.business_id AS CHAR) businessId,t.node_order nodeOrder,
+                    t.position_code positionCode,t.assigned_at assignedAt
+               FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id
+              WHERE t.assignee_id=? AND t.status='PENDING' AND i.status='PENDING'
+               ORDER BY t.assigned_at ASC LIMIT ? OFFSET ?`,[user.employeeId,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
+        }
+        case 'approval.task.action': {
+          const [existing]=await connection.execute<RowDataPacket[]>('SELECT id FROM wf_action_history WHERE action_key=? LIMIT 1',[input.actionKey])
+          if(existing[0])return {idempotent:true}
+          const [rows]=await connection.execute<ApprovalTaskRow[]>(
+            `SELECT CAST(t.id AS CHAR) task_id,CAST(t.instance_id AS CHAR) instance_id,t.node_order,CAST(t.assignee_id AS CHAR) assignee_id,
+                    t.status task_status,i.status instance_status,i.current_node_order,CAST(i.applicant_id AS CHAR) applicant_id,i.configuration_snapshot
+               FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.id=? FOR UPDATE`,[input.taskId])
+          const task=rows[0]
+          if(!task||task.assignee_id!==user.employeeId||task.task_status!=='PENDING'||task.instance_status!=='PENDING'||task.current_node_order!==task.node_order)throw new AppError('APPROVAL_TASK_NOT_ACTIVE','当前用户没有有效审批任务',403)
+          await connection.execute(`INSERT INTO wf_action_history(action_key,instance_id,task_id,node_order,action,operator_id,comment) VALUES(?,?,?,?,?,?,?)`,[input.actionKey,task.instance_id,task.task_id,task.node_order,input.action,user.id,input.comment??null])
+          if(input.action==='APPROVE'){
+            await connection.execute(`UPDATE wf_task SET status=CASE WHEN id=? THEN 'APPROVED' ELSE 'CANCELLED' END,completed_at=NOW(3),completed_by=? WHERE instance_id=? AND node_order=? AND status='PENDING'`,[task.task_id,user.employeeId,task.instance_id,task.node_order])
+            const [nextRows]=await connection.execute<RowDataPacket[]>(`SELECT MIN(node_order) next_order FROM wf_task WHERE instance_id=? AND node_order>? AND status='WAITING'`,[task.instance_id,task.node_order])
+            const next=nextRows[0]?.next_order as number|null
+            if(next==null)await connection.execute(`UPDATE wf_instance SET status='APPROVED',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,[task.instance_id])
+            else{await connection.execute(`UPDATE wf_task SET status='PENDING',assigned_at=NOW(3) WHERE instance_id=? AND node_order=? AND status='WAITING'`,[task.instance_id,next]);await connection.execute(`UPDATE wf_instance SET current_node_order=?,version=version+1 WHERE id=?`,[next,task.instance_id])}
+          }else{
+            const status=input.action==='RETURN'?'RETURNED':'REJECTED'
+            await connection.execute(`UPDATE wf_task SET status='CANCELLED',completed_at=NOW(3) WHERE instance_id=? AND status IN ('PENDING','WAITING')`,[task.instance_id])
+            await connection.execute(`UPDATE wf_instance SET status=?,current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,[status,task.instance_id])
+          }
+          return {idempotent:false,status:input.action}
+        }
+        case 'approval.instance.withdraw': {
+          const [existing]=await connection.execute<RowDataPacket[]>('SELECT id FROM wf_action_history WHERE action_key=? LIMIT 1',[input.actionKey]);if(existing[0])return{idempotent:true}
+          const [instances]=await connection.execute<RowDataPacket[]>(`SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status FROM wf_instance WHERE id=? FOR UPDATE`,[input.instanceId]);const instance=instances[0]
+          if(!instance||instance.applicantId!==user.id||instance.status!=='PENDING')throw new AppError('WITHDRAW_NOT_ALLOWED','仅申请人可撤回审批中的实例',403)
+          await connection.execute(`INSERT INTO wf_action_history(action_key,instance_id,action,operator_id,comment) VALUES(?,?,?,?,?)`,[input.actionKey,input.instanceId,'WITHDRAW',user.id,input.comment??null])
+          await connection.execute(`UPDATE wf_task SET status='CANCELLED',completed_at=NOW(3) WHERE instance_id=? AND status IN ('PENDING','WAITING')`,[input.instanceId]);await connection.execute(`UPDATE wf_instance SET status='WITHDRAWN',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,[input.instanceId])
+          return{idempotent:false,status:'WITHDRAWN'}
         }
         case 'crm.counterparty.create': {
           const code = await allocateNumber(connection, 'COUNTERPARTY')
