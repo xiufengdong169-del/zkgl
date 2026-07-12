@@ -68,5 +68,5 @@ button:disabled { opacity: .65; cursor: wait; }
 .delivery-timeline span { display: grid; min-width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: #245f9f; font-weight: 800; }
 .delivery-timeline h2 { margin: 0 0 4px; font-size: 16px; }.delivery-timeline p { margin: 0; color: #748095; }
 @media (max-width: 1050px) { .bid-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(8, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(9, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } }

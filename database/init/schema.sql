@@ -1022,3 +1022,175 @@ CREATE TABLE IF NOT EXISTS prj_acceptance (
   CONSTRAINT fk_acceptance_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
   INDEX idx_acceptance_project_status (project_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_invoice_application (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  application_code VARCHAR(64) NOT NULL UNIQUE,
+  project_id BIGINT UNSIGNED NOT NULL,
+  contract_id BIGINT UNSIGNED NOT NULL,
+  requested_amount DECIMAL(18,2) NOT NULL,
+  invoice_type VARCHAR(32) NOT NULL,
+  tax_rate DECIMAL(8,6) NOT NULL,
+  invoice_content TEXT NOT NULL,
+  buyer_information TEXT NOT NULL,
+  planned_invoice_on DATE NOT NULL,
+  collection_condition TEXT NULL,
+  applicant_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0, version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_invoice_app_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_invoice_app_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
+  CONSTRAINT chk_invoice_app_amount CHECK (requested_amount > 0),
+  INDEX idx_invoice_app_contract (contract_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_sales_invoice (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  application_id BIGINT UNSIGNED NOT NULL,
+  project_id BIGINT UNSIGNED NOT NULL,
+  contract_id BIGINT UNSIGNED NOT NULL,
+  invoice_number VARCHAR(64) NOT NULL,
+  invoice_code VARCHAR(64) NULL,
+  invoiced_on DATE NOT NULL,
+  tax_inclusive_amount DECIMAL(18,2) NOT NULL,
+  tax_exclusive_amount DECIMAL(18,2) NOT NULL,
+  tax_amount DECIMAL(18,2) NOT NULL,
+  buyer_name VARCHAR(255) NOT NULL,
+  is_reversed TINYINT(1) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'UNALLOCATED',
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_sales_invoice_app FOREIGN KEY (application_id) REFERENCES fin_invoice_application(id),
+  CONSTRAINT fk_sales_invoice_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_sales_invoice_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
+  CONSTRAINT chk_sales_invoice_tax CHECK (ABS(tax_inclusive_amount - tax_exclusive_amount - tax_amount) <= 0.02),
+  UNIQUE KEY uk_invoice_number_code (invoice_number, invoice_code),
+  INDEX idx_invoice_contract_date (contract_id, invoiced_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_receipt (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  receipt_code VARCHAR(64) NOT NULL UNIQUE,
+  project_id BIGINT UNSIGNED NOT NULL,
+  contract_id BIGINT UNSIGNED NOT NULL,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  received_on DATE NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  receiving_account VARCHAR(128) NOT NULL,
+  payer_name VARCHAR(255) NOT NULL,
+  payer_account VARCHAR(128) NULL,
+  receipt_type VARCHAR(32) NOT NULL,
+  voucher_number VARCHAR(128) NULL,
+  operator_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_receipt_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_receipt_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
+  CONSTRAINT fk_receipt_customer FOREIGN KEY (customer_id) REFERENCES crm_counterparty(id),
+  CONSTRAINT chk_receipt_amount CHECK (amount > 0),
+  INDEX idx_receipt_contract_date (contract_id, received_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_receipt_invoice_allocation (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  receipt_id BIGINT UNSIGNED NOT NULL,
+  invoice_id BIGINT UNSIGNED NOT NULL,
+  allocated_amount DECIMAL(18,2) NOT NULL,
+  allocated_on DATE NOT NULL,
+  operator_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_allocation_receipt FOREIGN KEY (receipt_id) REFERENCES fin_receipt(id),
+  CONSTRAINT fk_allocation_invoice FOREIGN KEY (invoice_id) REFERENCES fin_sales_invoice(id),
+  CONSTRAINT chk_allocation_amount CHECK (allocated_amount > 0),
+  UNIQUE KEY uk_receipt_invoice_active (receipt_id, invoice_id, status),
+  INDEX idx_allocation_invoice (invoice_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_reimbursement (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  reimbursement_code VARCHAR(64) NOT NULL UNIQUE,
+  claimant_id BIGINT UNSIGNED NOT NULL,
+  department_id BIGINT UNSIGNED NOT NULL,
+  project_id BIGINT UNSIGNED NULL,
+  reason TEXT NOT NULL,
+  payment_recipient VARCHAR(255) NOT NULL,
+  receiving_account VARCHAR(128) NOT NULL,
+  approval_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  payment_status VARCHAR(32) NOT NULL DEFAULT 'UNPAID',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0, version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_reimbursement_department FOREIGN KEY (department_id) REFERENCES org_department(id),
+  CONSTRAINT fk_reimbursement_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  INDEX idx_reimbursement_claimant (claimant_id, approval_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_reimbursement_detail (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  reimbursement_id BIGINT UNSIGNED NOT NULL,
+  expense_type VARCHAR(64) NOT NULL,
+  incurred_on DATE NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  description VARCHAR(1000) NOT NULL,
+  has_invoice TINYINT(1) NOT NULL DEFAULT 0,
+  invoice_number VARCHAR(128) NULL,
+  invoicing_party VARCHAR(255) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_reimbursement_detail_header FOREIGN KEY (reimbursement_id) REFERENCES fin_reimbursement(id),
+  CONSTRAINT chk_reimbursement_detail_amount CHECK (amount > 0),
+  INDEX idx_reimbursement_detail_header (reimbursement_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_payment_application (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  payment_code VARCHAR(64) NOT NULL UNIQUE,
+  project_id BIGINT UNSIGNED NOT NULL,
+  source_type VARCHAR(32) NOT NULL,
+  source_id BIGINT UNSIGNED NOT NULL,
+  recipient_name VARCHAR(255) NOT NULL,
+  payment_type VARCHAR(64) NOT NULL,
+  requested_amount DECIMAL(18,2) NOT NULL,
+  planned_on DATE NOT NULL,
+  payment_basis TEXT NOT NULL,
+  receiving_account VARCHAR(128) NOT NULL,
+  invoice_required TINYINT(1) NOT NULL DEFAULT 0,
+  operator_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_payment_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT chk_payment_requested CHECK (requested_amount > 0),
+  UNIQUE KEY uk_payment_source (source_type, source_id, payment_code),
+  INDEX idx_payment_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_payment_detail (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  payment_id BIGINT UNSIGNED NOT NULL,
+  project_id BIGINT UNSIGNED NOT NULL,
+  paid_on DATE NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  paying_account VARCHAR(128) NOT NULL,
+  receiving_account VARCHAR(128) NOT NULL,
+  bank_reference VARCHAR(128) NOT NULL,
+  recorder_id BIGINT UNSIGNED NOT NULL,
+  idempotency_key VARCHAR(128) NOT NULL UNIQUE,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_payment_detail_header FOREIGN KEY (payment_id) REFERENCES fin_payment_application(id),
+  CONSTRAINT fk_payment_detail_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT chk_payment_detail_amount CHECK (amount > 0),
+  INDEX idx_payment_detail_header (payment_id, status),
+  INDEX idx_payment_detail_project_date (project_id, paid_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

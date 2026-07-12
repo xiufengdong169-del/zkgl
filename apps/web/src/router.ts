@@ -11,6 +11,7 @@ export const router = createRouter({
     { path: '/approvals', name: 'approvals', component: () => import('./views/ApprovalsView.vue') },
     { path: '/bids', name: 'bids', component: () => import('./views/BidsView.vue') },
     { path: '/contracts', name: 'contracts', component: () => import('./views/ContractsView.vue') },
-    { path: '/delivery', name: 'delivery', component: () => import('./views/DeliveryView.vue') }
+    { path: '/delivery', name: 'delivery', component: () => import('./views/DeliveryView.vue') },
+    { path: '/finance', name: 'finance', component: () => import('./views/FinanceView.vue') }
   ]
 })
