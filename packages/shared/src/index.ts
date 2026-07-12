@@ -107,3 +107,7 @@ export type ContractStatus =
 export type ProjectStartType = 'NORMAL' | 'EARLY'
 export type StageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_CONFIRMATION' | 'COMPLETED' | 'DELAYED' | 'SUSPENDED' | 'CANCELLED'
 export type RiskStatus = 'PENDING' | 'IN_PROGRESS' | 'PENDING_VERIFICATION' | 'CLOSED' | 'REOPENED'
+
+export type SettlementBasis = 'FIXED' | 'CONTRACT_REVENUE_EX_TAX' | 'ACTUAL_RECEIPTS' | 'PROJECT_GROSS_PROFIT'
+export type DepositStatus = 'PENDING_PAYMENT' | 'PAID' | 'PENDING_RETURN' | 'RETURNED' | 'OVERDUE' | 'FORFEITED' | 'VOID'
+export type ProjectCloseStatus = 'DRAFT' | 'APPROVAL_PENDING' | 'FINANCE_REVIEW' | 'OPERATIONS_REVIEW' | 'PRINCIPAL_APPROVAL' | 'CLOSED' | 'RETURNED' | 'REJECTED' | 'WITHDRAWN'

@@ -1,0 +1,2 @@
+<script setup lang="ts">const cards=[['合作方案','版本与生效日期'],['结算单','冻结基数及规则快照'],['保证金','缴纳、退回与资金占用'],['项目结项','普通或带遗留事项结项']]</script>
+<template><main class="page"><header class="page-header"><div><p class="eyebrow">SETTLEMENT & CLOSE</p><h1>结算、保证金与结项</h1></div></header><section class="module-grid"><article v-for="([title,detail],i) in cards" :key="title" class="module-card"><span class="module-icon">{{i+1}}</span><h2>{{title}}</h2><p>{{detail}}</p></article></section></main></template>
