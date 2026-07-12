@@ -266,6 +266,28 @@ export class MySqlActionExecutor {
           const[closeRows]=await connection.execute<RowDataPacket[]>(`SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND ${access}`,[all?1:0,user.employeeId,user.employeeId])
           return{planCount:Number(planRows[0]?.count??0),settledAmount:settlementRows[0]?.amount??'0.00',occupiedDeposit:depositRows[0]?.amount??'0.00',pendingCloseCount:Number(closeRows[0]?.count??0)}
         }
+        case 'delivery.summary': {
+          const projectId=(input.projectId as string|undefined)??null,all=user.dataScopes.some((scope)=>scope.type==='ALL'),access=`(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`
+          const[stageRows]=await connection.execute<RowDataPacket[]>(`SELECT COUNT(*) count,COALESCE(AVG(completion_percentage),0) progress FROM prj_stage x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          const[riskRows]=await connection.execute<RowDataPacket[]>(`SELECT COUNT(*) count FROM prj_risk_issue x WHERE x.is_deleted=0 AND x.status<>'CLOSED' AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          const[deliverableRows]=await connection.execute<RowDataPacket[]>(`SELECT COUNT(*) count FROM prj_deliverable x WHERE x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          return{stageCount:Number(stageRows[0]?.count??0),averageProgress:Number(stageRows[0]?.progress??0),openRiskCount:Number(riskRows[0]?.count??0),confirmedDeliverableCount:Number(deliverableRows[0]?.count??0)}
+        }
+        case 'project.start.create': {
+          const[contractRows]=await connection.execute<RowDataPacket[]>(`SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,[input.projectId]);const hasContract=Number(contractRows[0]?.count??0)>0
+          if(input.startType==='NORMAL'&&!hasContract)throw new AppError('EFFECTIVE_CONTRACT_REQUIRED','正常启动必须存在有效合同',409)
+          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO prj_start(project_id,start_type,started_on,project_manager_id,objectives,scope_description,communication_mechanism,deliverables,risks,current_contract_status,early_start_reason,start_basis,estimated_contract_amount,expected_signing_on,contract_reminder_active,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[input.projectId,input.startType,input.startedOn,input.projectManagerId,input.objectives,input.scopeDescription,input.communicationMechanism,input.deliverables,input.risks??null,input.currentContractStatus??null,input.earlyStartReason??null,input.startBasis??null,input.estimatedContractAmount??null,input.expectedSigningOn??null,input.startType==='EARLY'&&!hasContract,user.id,user.id]);return{id:String(result.insertId),reminderRequired:input.startType==='EARLY'&&!hasContract}
+        }
+        case 'project.stage.create': {
+          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO prj_stage(project_id,stage_name,stage_order,planned_start_on,planned_end_on,owner_id,objective,deliverables,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?)`,[input.projectId,input.stageName,input.stageOrder,input.plannedStartOn,input.plannedEndOn,input.ownerId,input.objective,input.deliverables,user.id,user.id]);return{id:String(result.insertId)}
+        }
+        case 'project.progress.create': {
+          if(input.stageId){const[stages]=await connection.execute<RowDataPacket[]>(`SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0 FOR UPDATE`,[input.stageId,input.projectId]);if(!stages[0])throw new AppError('STAGE_PROJECT_MISMATCH','阶段不属于当前项目',409)}
+          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO prj_progress(project_id,stage_id,recorded_on,completed_work,current_progress,next_plan,deviation_description,coordination_needed,recorder_id) VALUES(?,?,?,?,?,?,?,?,?)`,[input.projectId,input.stageId??null,input.recordedOn,input.completedWork,input.currentProgress,input.nextPlan,input.deviationDescription??null,input.coordinationNeeded??null,input.recorderId]);if(input.stageId)await connection.execute(`UPDATE prj_stage SET completion_percentage=?,status=CASE WHEN ?=100 THEN 'PENDING_CONFIRMATION' WHEN status='NOT_STARTED' THEN 'IN_PROGRESS' ELSE status END,updated_by=?,version=version+1 WHERE id=?`,[input.currentProgress,input.currentProgress,user.id,input.stageId]);return{id:String(result.insertId)}
+        }
+        case 'project.risk.create': {
+          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO prj_risk_issue(project_id,item_type,title,description,severity,impact,owner_id,discovered_on,planned_resolution_on,measures,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,[input.projectId,input.itemType,input.title,input.description,input.severity,input.impact,input.ownerId,input.discoveredOn,input.plannedResolutionOn,input.measures,user.id,user.id]);return{id:String(result.insertId)}
+        }
         default: throw new AppError('ACTION_PERSISTENCE_NOT_IMPLEMENTED', `动作尚未接入持久化：${action}`, 501)
       }
     })

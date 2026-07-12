@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
-import { projectStartInput } from './delivery.js'
+import { progressInput, projectStartInput, riskInput, stageInput } from './delivery.js'
 import { invoiceApplicationInput, paymentApplicationInput, receiptInput, reimbursementInput } from './finance.js'
 import { closeApplicationInput, depositEventInput, depositInput, partnerPlanInput, settlementCreateInput } from './settlements.js'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
@@ -52,7 +52,11 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'project.application.create': { permission: 'project.application.create', input: projectApplicationInput },
   'bid.application.create': { permission: 'bid.application.create', input: bidApplicationInput },
   'contract.create': { permission: 'contract.create', input: contractInput },
-  'project.start.create': { permission: 'project.start.create', input: projectStartInput }
+  'project.start.create': { permission: 'project.start.create', input: projectStartInput },
+  'delivery.summary': { permission: 'project.delivery.read', input: z.object({ projectId:z.string().optional() }).default({}) },
+  'project.stage.create': { permission: 'project.stage.create', input: stageInput },
+  'project.progress.create': { permission: 'project.progress.create', input: progressInput },
+  'project.risk.create': { permission: 'project.risk.create', input: riskInput }
 }
 
 export function authorizeAndParseAction(user: SessionUser, action: string, payload: unknown): unknown {

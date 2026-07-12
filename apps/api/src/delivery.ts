@@ -16,6 +16,10 @@ export const projectStartInput = z.object({
   }
 })
 
+export const stageInput=z.object({projectId:z.string().min(1),stageName:z.string().trim().min(1).max(255),stageOrder:z.number().int().positive(),plannedStartOn:z.iso.date(),plannedEndOn:z.iso.date(),ownerId:z.string().min(1),objective:z.string().trim().min(1),deliverables:z.string().trim().min(1)}).refine(v=>v.plannedEndOn>=v.plannedStartOn,{path:['plannedEndOn'],message:'计划结束日期不得早于开始日期'})
+export const progressInput=z.object({projectId:z.string().min(1),stageId:z.string().nullable().optional(),recordedOn:z.iso.date(),completedWork:z.string().trim().min(1),currentProgress:z.number().min(0).max(100),nextPlan:z.string().trim().min(1),deviationDescription:z.string().trim().nullable().optional(),coordinationNeeded:z.string().trim().nullable().optional(),recorderId:z.string().min(1)})
+export const riskInput=z.object({projectId:z.string().min(1),itemType:z.enum(['ISSUE','RISK']),title:z.string().trim().min(1).max(255),description:z.string().trim().min(1),severity:z.enum(['LOW','MEDIUM','HIGH','CRITICAL']),impact:z.string().trim().min(1),ownerId:z.string().min(1),discoveredOn:z.iso.date(),plannedResolutionOn:z.iso.date(),measures:z.string().trim().min(1)})
+
 export function validateStartEligibility(type: ProjectStartType, hasEffectiveContract: boolean, approvalPassed: boolean): { reminderRequired: boolean } {
   if (type === 'NORMAL' && !hasEffectiveContract) throw new AppError('EFFECTIVE_CONTRACT_REQUIRED', '正常启动必须存在有效合同', 409)
   if (type === 'EARLY' && !approvalPassed) throw new AppError('EARLY_START_APPROVAL_REQUIRED', '提前启动必须审批通过', 409)
