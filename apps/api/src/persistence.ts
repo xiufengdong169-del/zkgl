@@ -22,6 +22,16 @@ export class MySqlActionExecutor {
     const input = value as Record<string, any>
     return withTransaction(this.pool, async (connection) => {
       switch (action) {
+        case 'crm.counterparty.list': {
+          const page=input.page as number, pageSize=input.pageSize as number, keyword=(input.keyword as string|undefined)??''
+          const pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus
+             FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
+             ORDER BY id DESC LIMIT ? OFFSET ?`, [keyword,pattern,pattern,pageSize,(page-1)*pageSize]
+          )
+          return { items: rows, page, pageSize }
+        }
         case 'crm.counterparty.create': {
           const code = await allocateNumber(connection, 'COUNTERPARTY')
           const [result] = await connection.execute<ResultSetHeader>(

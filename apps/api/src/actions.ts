@@ -1,5 +1,6 @@
 import type { SessionUser } from '@zkgl/shared'
 import type { ZodType } from 'zod'
+import { z } from 'zod'
 
 import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
@@ -15,6 +16,7 @@ interface ActionDefinition {
 }
 
 export const actionDefinitions: Record<string, ActionDefinition> = {
+  'crm.counterparty.list': { permission: 'crm.counterparty.read', input: z.object({ page: z.number().int().positive().default(1), pageSize: z.union([z.literal(20),z.literal(50)]).default(20), keyword: z.string().trim().max(100).optional() }).default({ page: 1, pageSize: 20 }) },
   'crm.counterparty.create': { permission: 'crm.counterparty.create', input: counterpartyInput },
   'crm.contact.create': { permission: 'crm.contact.create', input: contactInput },
   'crm.visit.create': { permission: 'crm.visit.create', input: visitInput },

@@ -41,6 +41,8 @@ button:disabled { opacity: .65; cursor: wait; }
 .module-card small, .pipeline-column small { color: #8490a1; }
 .bid-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .module-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; color: #245f9f; background: #e6f0fa; font-weight: 800; }
+.data-panel { margin-top:18px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; overflow-x:auto; }
+.data-panel h2 { margin-top:0; font-size:18px; }.data-panel table { width:100%; border-collapse:collapse; }.data-panel th,.data-panel td { padding:11px; border-bottom:1px solid #edf1f5; text-align:left; white-space:nowrap; }.data-panel th { color:#59667a; font-size:13px; }
 .pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
