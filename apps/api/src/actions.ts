@@ -29,6 +29,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'lead.list': { permission: 'lead.read', input: listInput },
   'project.application.list': { permission: 'project.application.read', input: listInput },
   'project.list': { permission: 'project.read', input: listInput },
+  'project.detail': { permission: 'project.read', input: z.object({projectId:z.string().min(1)}) },
   'bid.application.list': { permission: 'bid.application.read', input: listInput },
   'contract.list': { permission: 'contract.read', input: listInput },
   'approval.task.list': { permission: 'approval.task.read', input: listInput },
