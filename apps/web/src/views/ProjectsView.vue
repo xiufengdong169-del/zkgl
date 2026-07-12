@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'; import { callApi } from '../api'
+import { onMounted, ref } from 'vue'; import { callApi } from '../api';import {useAuthStore} from '../stores/auth'
 interface ProjectRow{id:string;code:string;projectName:string;status:string}
 interface ApplicationRow{id:string;code:string;projectName:string;estimatedProfit:string;status:string}
-const projects=ref<ProjectRow[]>([]),applications=ref<ApplicationRow[]>([]),error=ref<string|null>(null)
-onMounted(async()=>{try{const [p,a]=await Promise.all([callApi<{items:ProjectRow[]}>('project.list',{page:1,pageSize:20}),callApi<{items:ApplicationRow[]}>('project.application.list',{page:1,pageSize:20})]);projects.value=p.items;applications.value=a.items}catch(e){error.value=e instanceof Error?e.message:'加载失败'}})
+interface Customer{id:string;name:string};const auth=useAuthStore(),projects=ref<ProjectRow[]>([]),applications=ref<ApplicationRow[]>([]),customers=ref<Customer[]>([]),error=ref<string|null>(null),showForm=ref(false),saving=ref(false)
+const today=new Date().toISOString().slice(0,10),later=new Date(Date.now()+90*86400000).toISOString().slice(0,10)
+const form=ref({projectName:'',customerId:'',projectType:'CONSULTING',background:'',serviceScope:'',estimatedRevenue:0,estimatedCost:0,estimatedStartOn:today,estimatedEndOn:later,biddingMethod:'PUBLIC',riskDescription:'',necessity:''})
+async function load(){try{const [p,a,c]=await Promise.all([callApi<{items:ProjectRow[]}>('project.list',{page:1,pageSize:20}),callApi<{items:ApplicationRow[]}>('project.application.list',{page:1,pageSize:20}),callApi<{items:Customer[]}>('crm.counterparty.list',{page:1,pageSize:50})]);projects.value=p.items;applications.value=a.items;customers.value=c.items}catch(e){error.value=e instanceof Error?e.message:'加载失败'}}
+onMounted(load)
+async function createApplication(){if(!auth.user)return;saving.value=true;error.value=null;try{await callApi('project.application.create',{...form.value,background:form.value.background||null,sourceLeadId:null,proposedManagerId:auth.user.employeeId,memberSuggestions:[],riskDescription:form.value.riskDescription||null,applicantId:auth.user.id});showForm.value=false;await load()}catch(e){error.value=e instanceof Error?e.message:'保存失败'}finally{saving.value=false}}
 const workflow = [
   { number: '01', title: '立项申请', detail: '申请编号独立生成，驳回重提保持不变' },
   { number: '02', title: '审批确认', detail: '经营负责人及公司负责人按配置审批' },
@@ -15,8 +19,14 @@ const workflow = [
   <main class="page">
     <header class="page-header">
       <div><p class="eyebrow">PROJECT PORTFOLIO</p><h1>项目管理</h1></div>
-      <button class="primary-action">发起立项申请</button>
+      <button class="primary-action" @click="showForm=!showForm">{{showForm?'取消':'发起立项申请'}}</button>
     </header>
+    <form v-if="showForm" class="entity-form" @submit.prevent="createApplication">
+      <label>项目名称<input v-model="form.projectName" required minlength="2"></label><label>客户<select v-model="form.customerId" required><option value="" disabled>请选择</option><option v-for="c in customers" :key="c.id" :value="c.id">{{c.name}}</option></select></label><label>项目类型<select v-model="form.projectType"><option value="CONSULTING">咨询</option><option value="SUPERVISION">监理</option><option value="OTHER">其他</option></select></label>
+      <label>预计收入<input v-model.number="form.estimatedRevenue" type="number" min="0" step="0.01" required></label><label>预计成本<input v-model.number="form.estimatedCost" type="number" min="0" step="0.01" required></label><label>预计利润<input :value="(form.estimatedRevenue-form.estimatedCost).toFixed(2)" readonly></label>
+      <label>预计开始<input v-model="form.estimatedStartOn" type="date" required></label><label>预计结束<input v-model="form.estimatedEndOn" type="date" required></label><label>投标方式<select v-model="form.biddingMethod"><option value="PUBLIC">公开投标</option><option value="NEGOTIATION">商务洽谈</option><option value="NONE">无需投标</option></select></label>
+      <label class="wide">服务范围<textarea v-model="form.serviceScope" required minlength="2"></textarea></label><label class="wide">立项必要性<textarea v-model="form.necessity" required minlength="2"></textarea></label><label class="wide">背景与风险<textarea v-model="form.background"></textarea></label><button type="submit" :disabled="saving">{{saving?'提交中…':'保存立项申请'}}</button>
+    </form>
     <section class="project-summary">
       <div><strong>0</strong><span>审批中的立项</span></div>
       <div><strong>0</strong><span>实施中的项目</span></div>
