@@ -582,3 +582,57 @@ JOIN (
   UNION ALL SELECT 'PROJECT_CLOSE', 2, '经营审核', 'OPERATIONS_MANAGER', NULL
   UNION ALL SELECT 'PROJECT_CLOSE', 3, '负责人审批', 'COMPANY_PRINCIPAL', NULL
 ) AS node ON node.template_code = template.template_code;
+
+CREATE TABLE IF NOT EXISTS file_object (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  business_type VARCHAR(64) NOT NULL,
+  business_id BIGINT UNSIGNED NOT NULL,
+  project_id BIGINT UNSIGNED NULL,
+  logical_name VARCHAR(255) NOT NULL,
+  classification VARCHAR(32) NOT NULL DEFAULT 'INTERNAL',
+  current_version INT UNSIGNED NOT NULL DEFAULT 1,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  INDEX idx_file_business (business_type, business_id, status),
+  INDEX idx_file_project (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS file_version (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  file_id BIGINT UNSIGNED NOT NULL,
+  version_number INT UNSIGNED NOT NULL,
+  storage_key VARCHAR(512) NOT NULL UNIQUE,
+  original_name VARCHAR(255) NOT NULL,
+  extension VARCHAR(32) NOT NULL,
+  mime_type VARCHAR(128) NOT NULL,
+  size_bytes BIGINT UNSIGNED NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  uploaded_by BIGINT UNSIGNED NOT NULL,
+  uploaded_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  CONSTRAINT fk_file_version_file FOREIGN KEY (file_id) REFERENCES file_object(id),
+  UNIQUE KEY uk_file_version (file_id, version_number),
+  INDEX idx_file_version_hash (sha256)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS file_access_log (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  file_id BIGINT UNSIGNED NOT NULL,
+  version_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  action VARCHAR(32) NOT NULL,
+  outcome VARCHAR(16) NOT NULL,
+  denial_code VARCHAR(64) NULL,
+  request_id VARCHAR(64) NOT NULL,
+  ip_address VARCHAR(64) NULL,
+  accessed_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_file_access_file FOREIGN KEY (file_id) REFERENCES file_object(id),
+  CONSTRAINT fk_file_access_version FOREIGN KEY (version_id) REFERENCES file_version(id),
+  INDEX idx_file_access_user_time (user_id, accessed_at),
+  INDEX idx_file_access_file_time (file_id, accessed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
