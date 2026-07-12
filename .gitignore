@@ -1,0 +1,11 @@
+# Codex local working data
+.codex/
+
+# Microsoft Office temporary lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Operating-system metadata
+Thumbs.db
+.DS_Store
