@@ -39,6 +39,13 @@ export const reimbursementInput = z.object({
   reason: z.string().trim().min(2), paymentRecipient: z.string().trim().min(1), receivingAccount: z.string().trim().min(1),
   details: z.array(z.object({ expenseType: z.string().min(1), incurredOn: z.iso.date(), amount: z.number().positive(), description: z.string().min(1), hasInvoice: z.boolean(), invoiceNumber: z.string().nullable().optional(), invoicingParty: z.string().nullable().optional() })).min(1)
 })
+
+export const dailyPurchaseInput = z.object({
+  applicantId:z.string().min(1),departmentId:z.string().min(1),purchaseType:z.string().trim().min(1).max(64),
+  supplierId:z.string().nullable().optional(),itemDescription:z.string().trim().min(1),quantity:z.number().positive(),
+  budgetAmount:z.number().nonnegative(),purpose:z.string().trim().min(1),expectedOn:z.iso.date(),paymentMethod:z.string().trim().min(1).max(64),
+  contractRelated:z.boolean().default(false),contractId:z.string().nullable().optional()
+}).superRefine((value,ctx)=>{if(value.contractRelated&&!value.contractId)ctx.addIssue({code:'custom',path:['contractId'],message:'关联合同时必须选择合同'})})
 export function reimbursementTotal(details: Array<{ amount: number }>): number {
   return Math.round(details.reduce((sum, item) => sum + item.amount, 0) * 100) / 100
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateCostMetrics, reimbursementTotal, validateInvoiceCapacity, validateReceiptInvoiceAllocation } from './finance.js'
+import { calculateCostMetrics, dailyPurchaseInput, reimbursementTotal, validateInvoiceCapacity, validateReceiptInvoiceAllocation } from './finance.js'
 
 describe('finance invariants', () => {
   it('AC-01 阻止累计开票超过合同金额', () => {
@@ -16,5 +16,10 @@ describe('finance invariants', () => {
     const before = calculateCostMetrics({ approvedReimbursement: 0, approvedPartnerSettlement: 10, confirmedExpensePerformance: 0, confirmedDepositLoss: 0, actualOperatingPayments: 0 })
     const after = calculateCostMetrics({ approvedReimbursement: 0, approvedPartnerSettlement: 10, confirmedExpensePerformance: 0, confirmedDepositLoss: 0, actualOperatingPayments: 10 })
     expect(before.confirmedCost).toBe(10); expect(after.confirmedCost).toBe(10); expect(after.paidAmount).toBe(10)
+  })
+  it('日常采购关联合同时必须选择合同',()=>{
+    const base={applicantId:'e1',departmentId:'d1',purchaseType:'OFFICE',itemDescription:'办公用品',quantity:1,budgetAmount:100,purpose:'日常办公',expectedOn:'2026-07-20',paymentMethod:'TRANSFER'}
+    expect(()=>dailyPurchaseInput.parse({...base,contractRelated:true})).toThrow('必须选择合同')
+    expect(dailyPurchaseInput.parse({...base,contractRelated:false}).contractRelated).toBe(false)
   })
 })

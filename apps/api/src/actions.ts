@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
 import { progressInput, projectStartInput, riskInput, stageInput } from './delivery.js'
-import { invoiceApplicationInput, paymentApplicationInput, receiptInput, reimbursementInput } from './finance.js'
+import { dailyPurchaseInput, invoiceApplicationInput, paymentApplicationInput, receiptInput, reimbursementInput } from './finance.js'
 import { closeApplicationInput, depositEventInput, depositInput, partnerPlanInput, settlementCreateInput } from './settlements.js'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
@@ -38,6 +38,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'receipt.create': { permission: 'receipt.create', input: receiptInput },
   'reimbursement.create': { permission: 'reimbursement.create', input: reimbursementInput },
   'payment.application.create': { permission: 'payment.application.create', input: paymentApplicationInput },
+  'daily.purchase.create': { permission: 'daily.purchase.create', input: dailyPurchaseInput },
   'partner.plan.create': { permission: 'partner.plan.create', input: partnerPlanInput },
   'partner.settlement.create': { permission: 'partner.settlement.create', input: settlementCreateInput },
   'deposit.create': { permission: 'deposit.create', input: depositInput },

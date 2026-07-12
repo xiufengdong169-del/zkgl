@@ -159,6 +159,9 @@ export class MySqlActionExecutor {
         case 'payment.application.create': {
           const code=await allocateNumber(connection,'PAYMENT');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_payment_application(payment_code,project_id,source_type,source_id,recipient_name,payment_type,requested_amount,planned_on,payment_basis,receiving_account,invoice_required,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[code,input.projectId,input.sourceType,input.sourceId,input.recipientName,input.paymentType,input.requestedAmount,input.plannedOn,input.paymentBasis,input.receivingAccount,input.invoiceRequired,input.operatorId,user.id,user.id]);return{id:String(result.insertId),code}
         }
+        case 'daily.purchase.create': {
+          const code=await allocateNumber(connection,'DAILY_PURCHASE');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_daily_purchase(purchase_code,applicant_id,department_id,purchase_type,supplier_id,item_description,quantity,budget_amount,purpose,expected_on,payment_method,contract_related,contract_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[code,input.applicantId,input.departmentId,input.purchaseType,input.supplierId??null,input.itemDescription,input.quantity,input.budgetAmount,input.purpose,input.expectedOn,input.paymentMethod,input.contractRelated,input.contractId??null,user.id,user.id]);return{id:String(result.insertId),code}
+        }
         case 'crm.counterparty.create': {
           const code = await allocateNumber(connection, 'COUNTERPARTY')
           const [result] = await connection.execute<ResultSetHeader>(
