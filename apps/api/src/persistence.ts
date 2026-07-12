@@ -25,12 +25,66 @@ export class MySqlActionExecutor {
         case 'crm.counterparty.list': {
           const page=input.page as number, pageSize=input.pageSize as number, keyword=(input.keyword as string|undefined)??''
           const pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`
+          const all=user.dataScopes.some((scope)=>scope.type==='ALL')
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus
-             FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
-             ORDER BY id DESC LIMIT ? OFFSET ?`, [keyword,pattern,pattern,pageSize,(page-1)*pageSize]
+             FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
+              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
+             ORDER BY id DESC LIMIT ? OFFSET ?`, [all?1:0,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize]
           )
           return { items: rows, page, pageSize }
+        }
+        case 'lead.list': {
+          const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`
+          const all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,lead_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,
+                    CAST(owner_id AS CHAR) ownerId,success_probability successProbability,status,next_follow_up_at nextFollowUpAt
+               FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?)
+                AND (?='' OR project_name LIKE ? ESCAPE '\\\\' OR lead_code LIKE ? ESCAPE '\\\\')
+               ORDER BY id DESC LIMIT ? OFFSET ?`,[all?1:0,user.id,user.id,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
+        }
+        case 'project.application.list': {
+          const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`,all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,estimated_revenue estimatedRevenue,
+                    estimated_cost estimatedCost,estimated_profit estimatedProfit,status
+               FROM prj_project_application WHERE is_deleted=0 AND (?=1 OR applicant_id=? OR proposed_manager_id=?)
+                AND (?='' OR project_name LIKE ? ESCAPE '\\\\' OR application_code LIKE ? ESCAPE '\\\\')
+               ORDER BY id DESC LIMIT ? OFFSET ?`,[all?1:0,user.id,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
+        }
+        case 'project.list': {
+          const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`,all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT DISTINCT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
+                    CAST(p.project_manager_id AS CHAR) projectManagerId
+               FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE'
+              WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR m.employee_id=?)
+                AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR p.project_code LIKE ? ESCAPE '\\\\')
+               ORDER BY p.id DESC LIMIT ? OFFSET ?`,[all?1:0,user.employeeId,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
+        }
+        case 'bid.application.list': {
+          const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`,all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(b.id AS CHAR) id,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
+               FROM bid_application b JOIN prj_project p ON p.id=b.project_id
+              WHERE b.is_deleted=0 AND (?=1 OR b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=?)
+                AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR b.bid_code LIKE ? ESCAPE '\\\\')
+               ORDER BY b.id DESC LIMIT ? OFFSET ?`,[all?1:0,user.employeeId,user.employeeId,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
+        }
+        case 'contract.list': {
+          const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`,all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const [rows]=await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,
+                    c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status
+               FROM con_contract c WHERE c.is_deleted=0 AND (?=1 OR c.owner_id=?)
+                AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
+               ORDER BY c.id DESC LIMIT ? OFFSET ?`,[all?1:0,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
+          return {items:rows,page,pageSize}
         }
         case 'crm.counterparty.create': {
           const code = await allocateNumber(connection, 'COUNTERPARTY')
