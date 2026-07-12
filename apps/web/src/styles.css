@@ -12,6 +12,8 @@ input { width: 100%; padding: 12px 14px; border: 1px solid #cdd7e5; border-radiu
 input:focus { border-color: #3975bd; box-shadow: 0 0 0 3px rgba(57,117,189,.13); }
 button { width: 100%; margin-top: 24px; padding: 13px; border: 0; border-radius: 9px; color: #fff; background: #245f9f; font-weight: 750; cursor: pointer; }
 button:disabled { opacity: .65; cursor: wait; }
+.entity-form { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:24px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; }
+.entity-form label { margin:0; }.entity-form input,.entity-form select,.entity-form textarea { width:100%; padding:10px 12px; border:1px solid #cdd7e5; border-radius:8px; background:#fff; }.entity-form textarea{min-height:80px;resize:vertical}.entity-form .wide{grid-column:1/-1}.entity-form button{width:auto;margin:0;justify-self:start;padding-inline:24px}
 .app-frame { min-height: 100vh; display: grid; grid-template-columns: 230px 1fr; }
 .sidebar { padding: 28px 20px; color: #dce8f5; background: #102f53; }
 .brand { padding: 0 8px 24px; color: #fff; font-size: 18px; font-weight: 800; }
@@ -75,4 +77,4 @@ button:disabled { opacity: .65; cursor: wait; }
 .delivery-timeline h2 { margin: 0 0 4px; font-size: 16px; }.delivery-timeline p { margin: 0; color: #748095; }
 @media (max-width: 1050px) { .bid-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(10, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } .metric-strip { grid-template-columns:1fr; } }
+@media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } .metric-strip,.entity-form { grid-template-columns:1fr; }.entity-form .wide{grid-column:auto} }
