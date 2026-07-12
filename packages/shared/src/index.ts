@@ -84,3 +84,12 @@ export type ProjectStatus =
   | 'SUSPENDED'
   | 'TERMINATED'
   | 'CANCELLED'
+
+export type ApprovalInstanceStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'RETURNED'
+  | 'REJECTED'
+  | 'WITHDRAWN'
+
+export type ApprovalTaskStatus = 'PENDING' | 'APPROVED' | 'CANCELLED'

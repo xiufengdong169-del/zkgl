@@ -379,3 +379,206 @@ CREATE TABLE IF NOT EXISTS prj_project_member (
   CONSTRAINT fk_project_member_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id),
   INDEX idx_project_member_employee (employee_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS org_position (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  position_code VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS org_position_assignment (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  position_id BIGINT UNSIGNED NOT NULL,
+  employee_id BIGINT UNSIGNED NOT NULL,
+  starts_on DATE NOT NULL,
+  ends_on DATE NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  is_delegate TINYINT(1) NOT NULL DEFAULT 0,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_position_assignment_position FOREIGN KEY (position_id) REFERENCES org_position(id),
+  CONSTRAINT fk_position_assignment_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id),
+  UNIQUE KEY uk_position_employee_start (position_id, employee_id, starts_on),
+  INDEX idx_position_assignment_active (position_id, status, starts_on, ends_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_template (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  template_code VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  business_type VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_template_node (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  template_id BIGINT UNSIGNED NOT NULL,
+  node_order SMALLINT UNSIGNED NOT NULL,
+  node_name VARCHAR(128) NOT NULL,
+  position_code VARCHAR(64) NOT NULL,
+  minimum_amount DECIMAL(18,2) NULL,
+  maximum_amount DECIMAL(18,2) NULL,
+  is_cc TINYINT(1) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  CONSTRAINT fk_template_node_template FOREIGN KEY (template_id) REFERENCES wf_template(id),
+  UNIQUE KEY uk_template_node_order (template_id, node_order, is_cc),
+  INDEX idx_template_node_amount (template_id, minimum_amount, maximum_amount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_instance (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  instance_code VARCHAR(64) NOT NULL UNIQUE,
+  template_id BIGINT UNSIGNED NOT NULL,
+  business_type VARCHAR(64) NOT NULL,
+  business_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  amount DECIMAL(18,2) NULL,
+  applicant_id BIGINT UNSIGNED NOT NULL,
+  current_node_order SMALLINT UNSIGNED NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  configuration_snapshot JSON NOT NULL,
+  submitted_at DATETIME(3) NOT NULL,
+  completed_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_instance_template FOREIGN KEY (template_id) REFERENCES wf_template(id),
+  UNIQUE KEY uk_instance_business (business_type, business_id),
+  INDEX idx_instance_applicant_status (applicant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_task (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  instance_id BIGINT UNSIGNED NOT NULL,
+  node_order SMALLINT UNSIGNED NOT NULL,
+  position_code VARCHAR(64) NOT NULL,
+  assignee_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  assigned_at DATETIME(3) NOT NULL,
+  completed_at DATETIME(3) NULL,
+  completed_by BIGINT UNSIGNED NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_task_instance FOREIGN KEY (instance_id) REFERENCES wf_instance(id),
+  UNIQUE KEY uk_task_instance_node_assignee (instance_id, node_order, assignee_id),
+  INDEX idx_task_assignee_status (assignee_id, status, assigned_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_action_history (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  action_key VARCHAR(128) NOT NULL UNIQUE,
+  instance_id BIGINT UNSIGNED NOT NULL,
+  task_id BIGINT UNSIGNED NULL,
+  node_order SMALLINT UNSIGNED NULL,
+  action VARCHAR(32) NOT NULL,
+  operator_id BIGINT UNSIGNED NOT NULL,
+  comment VARCHAR(1000) NULL,
+  operated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_action_instance FOREIGN KEY (instance_id) REFERENCES wf_instance(id),
+  CONSTRAINT fk_action_task FOREIGN KEY (task_id) REFERENCES wf_task(id),
+  INDEX idx_action_instance_time (instance_id, operated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS wf_cc_recipient (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  instance_id BIGINT UNSIGNED NOT NULL,
+  position_code VARCHAR(64) NOT NULL,
+  recipient_id BIGINT UNSIGNED NOT NULL,
+  read_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_cc_instance FOREIGN KEY (instance_id) REFERENCES wf_instance(id),
+  UNIQUE KEY uk_cc_instance_recipient (instance_id, recipient_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS sys_message (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  recipient_id BIGINT UNSIGNED NOT NULL,
+  message_type VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content VARCHAR(2000) NOT NULL,
+  business_type VARCHAR(64) NULL,
+  business_id BIGINT UNSIGNED NULL,
+  read_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_message_recipient_read (recipient_id, read_at, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO org_position (position_code, name, created_by, updated_by)
+VALUES
+  ('OPERATIONS_MANAGER', '经营负责人', 0, 0),
+  ('COMPANY_PRINCIPAL', '公司负责人', 0, 0),
+  ('FINANCE_REVIEWER', '财务复核人', 0, 0),
+  ('PROJECT_MANAGER', '项目负责人', 0, 0),
+  ('DEPARTMENT_MANAGER', '部门负责人', 0, 0),
+  ('AUTHORIZED_MANAGER', '授权负责人', 0, 0),
+  ('PROCUREMENT_REVIEWER', '采购复核人', 0, 0)
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO wf_template (template_code, name, business_type, created_by, updated_by)
+VALUES
+  ('MARKET_REGISTRATION', '市场报备', 'LEAD', 0, 0),
+  ('PROJECT_ESTABLISHMENT', '项目立项', 'PROJECT_APPLICATION', 0, 0),
+  ('BID_APPLICATION', '投标申请', 'BID_APPLICATION', 0, 0),
+  ('CONTRACT_APPROVAL', '合同审批', 'CONTRACT', 0, 0),
+  ('PROJECT_START', '项目启动', 'PROJECT_START', 0, 0),
+  ('PROJECT_CHANGE', '项目变更', 'PROJECT_CHANGE', 0, 0),
+  ('INVOICE_APPLICATION', '开票申请', 'INVOICE_APPLICATION', 0, 0),
+  ('EXPENSE_REIMBURSEMENT', '费用报销', 'EXPENSE_REIMBURSEMENT', 0, 0),
+  ('PROJECT_PAYMENT', '项目付款', 'PROJECT_PAYMENT', 0, 0),
+  ('PARTNER_SETTLEMENT', '合作方结算', 'PARTNER_SETTLEMENT', 0, 0),
+  ('DEPOSIT_PAYMENT', '保证金', 'DEPOSIT', 0, 0),
+  ('DAILY_PURCHASE', '日常采购', 'DAILY_PURCHASE', 0, 0),
+  ('PROJECT_CLOSE', '项目结项', 'PROJECT_CLOSE', 0, 0)
+ON DUPLICATE KEY UPDATE name = VALUES(name), business_type = VALUES(business_type);
+
+INSERT IGNORE INTO wf_template_node
+  (template_id, node_order, node_name, position_code, minimum_amount, maximum_amount, is_cc)
+SELECT template.id, node.node_order, node.node_name, node.position_code, node.minimum_amount, NULL, 0
+FROM wf_template AS template
+JOIN (
+  SELECT 'MARKET_REGISTRATION' template_code, 1 node_order, '经营审核' node_name, 'OPERATIONS_MANAGER' position_code, NULL minimum_amount
+  UNION ALL SELECT 'MARKET_REGISTRATION', 2, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'PROJECT_ESTABLISHMENT', 1, '经营审核', 'OPERATIONS_MANAGER', NULL
+  UNION ALL SELECT 'PROJECT_ESTABLISHMENT', 2, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'BID_APPLICATION', 1, '经营审核', 'OPERATIONS_MANAGER', NULL
+  UNION ALL SELECT 'BID_APPLICATION', 2, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'CONTRACT_APPROVAL', 1, '项目审核', 'PROJECT_MANAGER', NULL
+  UNION ALL SELECT 'CONTRACT_APPROVAL', 2, '财务核对', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'CONTRACT_APPROVAL', 3, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'PROJECT_START', 1, '经营确认', 'OPERATIONS_MANAGER', NULL
+  UNION ALL SELECT 'PROJECT_START', 2, '负责人确认', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'PROJECT_CHANGE', 1, '经营审核', 'OPERATIONS_MANAGER', NULL
+  UNION ALL SELECT 'PROJECT_CHANGE', 2, '负责人审批', 'COMPANY_PRINCIPAL', 100000.00
+  UNION ALL SELECT 'INVOICE_APPLICATION', 1, '财务审核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'INVOICE_APPLICATION', 2, '授权审批', 'AUTHORIZED_MANAGER', NULL
+  UNION ALL SELECT 'EXPENSE_REIMBURSEMENT', 1, '部门审核', 'DEPARTMENT_MANAGER', NULL
+  UNION ALL SELECT 'EXPENSE_REIMBURSEMENT', 2, '财务审核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'EXPENSE_REIMBURSEMENT', 3, '负责人审批', 'COMPANY_PRINCIPAL', 100000.00
+  UNION ALL SELECT 'PROJECT_PAYMENT', 1, '项目审核', 'PROJECT_MANAGER', NULL
+  UNION ALL SELECT 'PROJECT_PAYMENT', 2, '财务审核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'PROJECT_PAYMENT', 3, '负责人审批', 'COMPANY_PRINCIPAL', 100000.00
+  UNION ALL SELECT 'PARTNER_SETTLEMENT', 1, '财务复核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'PARTNER_SETTLEMENT', 2, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'DEPOSIT_PAYMENT', 1, '项目审核', 'PROJECT_MANAGER', NULL
+  UNION ALL SELECT 'DEPOSIT_PAYMENT', 2, '财务审核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'DEPOSIT_PAYMENT', 3, '授权审批', 'AUTHORIZED_MANAGER', NULL
+  UNION ALL SELECT 'DAILY_PURCHASE', 1, '部门审核', 'DEPARTMENT_MANAGER', NULL
+  UNION ALL SELECT 'DAILY_PURCHASE', 2, '采购复核', 'PROCUREMENT_REVIEWER', NULL
+  UNION ALL SELECT 'DAILY_PURCHASE', 3, '财务审核', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'DAILY_PURCHASE', 4, '负责人审批', 'COMPANY_PRINCIPAL', 100000.00
+  UNION ALL SELECT 'PROJECT_CLOSE', 1, '财务核对', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'PROJECT_CLOSE', 2, '经营审核', 'OPERATIONS_MANAGER', NULL
+  UNION ALL SELECT 'PROJECT_CLOSE', 3, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+) AS node ON node.template_code = template.template_code;

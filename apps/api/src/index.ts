@@ -1,5 +1,6 @@
 export * from './audit.js'
 export * from './actions.js'
+export * from './approval.js'
 export * from './crm.js'
 export * from './errors.js'
 export * from './handler.js'
