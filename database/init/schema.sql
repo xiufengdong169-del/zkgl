@@ -1353,3 +1353,51 @@ CREATE TABLE IF NOT EXISTS prj_close_open_item (
   CONSTRAINT fk_close_item_application FOREIGN KEY (close_application_id) REFERENCES prj_close_application(id),
   INDEX idx_close_item_due (status, due_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS fin_daily_purchase (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  purchase_code VARCHAR(64) NOT NULL UNIQUE,
+  applicant_id BIGINT UNSIGNED NOT NULL,
+  department_id BIGINT UNSIGNED NOT NULL,
+  purchase_type VARCHAR(64) NOT NULL,
+  supplier_id BIGINT UNSIGNED NULL,
+  item_description TEXT NOT NULL,
+  quantity DECIMAL(18,4) NOT NULL,
+  budget_amount DECIMAL(18,2) NOT NULL,
+  purpose TEXT NOT NULL,
+  expected_on DATE NOT NULL,
+  payment_method VARCHAR(64) NOT NULL,
+  contract_related TINYINT(1) NOT NULL DEFAULT 0,
+  contract_id BIGINT UNSIGNED NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0, version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_purchase_department FOREIGN KEY (department_id) REFERENCES org_department(id),
+  CONSTRAINT fk_purchase_supplier FOREIGN KEY (supplier_id) REFERENCES crm_counterparty(id),
+  CONSTRAINT fk_purchase_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
+  CONSTRAINT chk_purchase_values CHECK (quantity > 0 AND budget_amount >= 0),
+  CONSTRAINT chk_purchase_contract CHECK (contract_related = 0 OR contract_id IS NOT NULL),
+  INDEX idx_purchase_applicant_status (applicant_id, status),
+  INDEX idx_purchase_expected (expected_on, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS sys_export_task (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  task_code VARCHAR(64) NOT NULL UNIQUE,
+  requester_id BIGINT UNSIGNED NOT NULL,
+  export_type VARCHAR(64) NOT NULL,
+  filter_snapshot JSON NOT NULL,
+  permission_snapshot JSON NOT NULL,
+  estimated_rows INT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  file_id BIGINT UNSIGNED NULL,
+  expires_at DATETIME(3) NULL,
+  failure_reason VARCHAR(1000) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  started_at DATETIME(3) NULL,
+  completed_at DATETIME(3) NULL,
+  CONSTRAINT fk_export_file FOREIGN KEY (file_id) REFERENCES file_object(id),
+  INDEX idx_export_requester (requester_id, status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

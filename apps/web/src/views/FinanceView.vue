@@ -1,2 +1,2 @@
-<script setup lang="ts">const modules=[['开票申请','合同额度控制'],['销项发票','开票与红冲'],['收款登记','预收与正常收款'],['发票核销','一收多票、一票多收'],['费用报销','主表与明细汇总'],['项目付款','多次付款明细']]</script>
+<script setup lang="ts">const modules=[['开票申请','合同额度控制'],['销项发票','开票与红冲'],['收款登记','预收与正常收款'],['发票核销','一收多票、一票多收'],['费用报销','主表与明细汇总'],['项目付款','多次付款明细'],['日常采购','非项目费用与采购审批']]</script>
 <template><main class="page"><header class="page-header"><div><p class="eyebrow">CASH & BILLING</p><h1>收支管理</h1></div></header><section class="module-grid"><article v-for="([title,detail],i) in modules" :key="title" class="module-card"><span class="module-icon">{{i+1}}</span><h2>{{title}}</h2><p>{{detail}}</p></article></section></main></template>
