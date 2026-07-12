@@ -1454,6 +1454,7 @@ VALUES
 ('deposit.create','创建保证金','WRITE'),('deposit.event.create','登记保证金事件','WRITE'),('project.close.create','创建结项申请','WRITE'),('daily.purchase.create','创建日常采购','WRITE'),
 ('project.start.create','创建项目启动','WRITE'),('project.delivery.read','查看项目实施','READ'),('project.stage.create','创建项目阶段','WRITE'),('project.progress.create','记录项目进展','WRITE'),('project.risk.create','登记问题风险','WRITE')
 ,('file.read','查看附件','READ'),('file.upload','上传附件','WRITE'),('file.download','下载附件','READ'),('file.sensitive.read','查看敏感附件','READ')
+,('system.admin','系统管理','ADMIN')
 ON DUPLICATE KEY UPDATE name=VALUES(name),permission_type=VALUES(permission_type);
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)

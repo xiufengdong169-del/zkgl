@@ -63,6 +63,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   ,'file.upload.prepare': { permission: 'file.upload', input: fileUploadInput }
   ,'file.upload.complete': { permission: 'file.upload', input: fileCompleteInput }
   ,'file.download': { permission: 'file.download', input: fileDownloadInput }
+  ,'admin.overview': { permission: 'system.admin', input: z.object({}).default({}) }
+  ,'admin.department.create': { permission: 'system.admin', input: z.object({code:z.string().trim().min(2).max(64),name:z.string().trim().min(2).max(128)}) }
+  ,'admin.employee.create': { permission: 'system.admin', input: z.object({employeeCode:z.string().trim().min(2).max(64),name:z.string().trim().min(2).max(128),employeeType:z.enum(['EMPLOYEE','PARTNER','EXTERNAL']),departmentId:z.string().min(1),positionName:z.string().trim().max(128).nullable().optional(),mobile:z.string().trim().max(32).nullable().optional(),email:z.email().nullable().optional(),joinedOn:z.iso.date().nullable().optional()}) }
+  ,'admin.user.role.set': { permission: 'system.admin', input: z.object({userId:z.string().min(1),roleIds:z.array(z.string().min(1)).max(20)}) }
 }
 
 export function authorizeAndParseAction(user: SessionUser, action: string, payload: unknown): unknown {
