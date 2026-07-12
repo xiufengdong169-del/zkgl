@@ -1455,6 +1455,8 @@ VALUES
 ('project.start.create','创建项目启动','WRITE'),('project.delivery.read','查看项目实施','READ'),('project.stage.create','创建项目阶段','WRITE'),('project.progress.create','记录项目进展','WRITE'),('project.risk.create','登记问题风险','WRITE')
 ,('file.read','查看附件','READ'),('file.upload','上传附件','WRITE'),('file.download','下载附件','READ'),('file.sensitive.read','查看敏感附件','READ')
 ,('system.admin','系统管理','ADMIN')
+,('report.financial.read','查看经营看板','READ'),('project.export','导出项目经营数据','EXPORT')
+,('message.read','查看站内提醒','READ')
 ON DUPLICATE KEY UPDATE name=VALUES(name),permission_type=VALUES(permission_type);
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
@@ -1462,37 +1464,37 @@ SELECT r.id,p.id FROM iam_role r CROSS JOIN iam_permission p WHERE r.code='ADMIN
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.application.read','project.read','bid.application.read','contract.read','approval.task.read','approval.task.process','finance.read','settlement.read','project.delivery.read')
+('crm.counterparty.read','lead.read','project.application.read','project.read','bid.application.read','contract.read','approval.task.read','approval.task.process','finance.read','settlement.read','project.delivery.read','report.financial.read','project.export','message.read')
 WHERE r.code='COMPANY_PRINCIPAL';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','crm.counterparty.create','crm.contact.create','crm.visit.create','lead.read','lead.create','lead.followUp.create','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','deposit.create','deposit.event.create')
+('crm.counterparty.read','crm.counterparty.create','crm.contact.create','crm.visit.create','lead.read','lead.create','lead.followUp.create','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','deposit.create','deposit.event.create','message.read')
 WHERE r.code='MARKET_BUSINESS';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','reimbursement.create','payment.application.create','daily.purchase.create','partner.plan.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','project.close.create','project.start.create','project.delivery.read','project.stage.create','project.progress.create','project.risk.create','file.read','file.upload','file.download')
+('crm.counterparty.read','lead.read','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','reimbursement.create','payment.application.create','daily.purchase.create','partner.plan.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','project.close.create','project.start.create','project.delivery.read','project.stage.create','project.progress.create','project.risk.create','file.read','file.upload','file.download','report.financial.read','project.export','message.read')
 WHERE r.code='PROJECT_MANAGER';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.read','approval.task.read','approval.task.process','approval.instance.withdraw','project.delivery.read','project.progress.create','project.risk.create','reimbursement.create','daily.purchase.create','file.read','file.upload','file.download')
+('crm.counterparty.read','lead.read','project.read','approval.task.read','approval.task.process','approval.instance.withdraw','project.delivery.read','project.progress.create','project.risk.create','reimbursement.create','daily.purchase.create','file.read','file.upload','file.download','message.read')
 WHERE r.code='PROJECT_MEMBER';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('project.read','bid.application.read','bid.application.create','approval.task.read','approval.task.process','approval.instance.withdraw','deposit.create','deposit.event.create')
+('project.read','bid.application.read','bid.application.create','approval.task.read','approval.task.process','approval.instance.withdraw','deposit.create','deposit.event.create','message.read')
 WHERE r.code='BID_STAFF';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','receipt.create','reimbursement.create','payment.application.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create')
+('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','receipt.create','reimbursement.create','payment.application.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','report.financial.read','project.export','message.read')
 WHERE r.code='FINANCE';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('project.read','approval.task.read','approval.instance.withdraw','reimbursement.create') WHERE r.code='EMPLOYEE';
+('project.read','approval.task.read','approval.instance.withdraw','reimbursement.create','message.read') WHERE r.code='EMPLOYEE';
 
 INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
 SELECT id,'ALL','' FROM iam_role WHERE code IN('ADMIN','COMPANY_PRINCIPAL','FINANCE');

@@ -1,21 +1,9 @@
-<template>
-  <main class="shell">
-    <header>
-      <div>
-        <p class="eyebrow">WORKSPACE</p>
-        <h1>项目全过程管理</h1>
-      </div>
-      <span class="badge">V2.2 开发基线</span>
-    </header>
-    <section class="hero">
-      <h2>工程骨架已就绪</h2>
-      <p>当前阶段正在建设身份认证、RBAC、数据库初始化与审计日志。</p>
-    </section>
-    <section class="metric-strip">
-      <article><span>预计利润</span><strong>¥ 0.00</strong></article>
-      <article><span>合同经营利润</span><strong>¥ 0.00</strong></article>
-      <article><span>现金贡献</span><strong>¥ 0.00</strong></article>
-    </section>
-    <p class="accounting-disclaimer">内部项目经营口径，不属于会计利润</p>
-  </main>
-</template>
+<script setup lang="ts">
+import{onMounted,ref}from'vue';import{callApi}from'../api'
+interface Message{id:string;title:string;content:string;createdAt:string}
+const summary=ref({expectedProfit:'0.00',contractOperatingProfit:'0.00',cashContribution:'0.00',projectCount:0,disclaimer:'内部项目经营口径，不属于会计利润'}),messages=ref<Message[]>([]),error=ref<string|null>(null),exporting=ref(false)
+onMounted(async()=>{const[report,notice]=await Promise.allSettled([callApi<typeof summary.value>('report.dashboard',{}),callApi<{items:Message[]}>('message.list',{page:1,pageSize:20})]);if(report.status==='fulfilled')summary.value=report.value;if(notice.status==='fulfilled')messages.value=notice.value.items;if(report.status==='rejected'&&notice.status==='rejected')error.value='工作台加载失败'})
+const safe=(value:unknown)=>{const text=String(value??'');return /^[=+\-@]/.test(text)?`'${text}`:text}
+async function exportProjects(){exporting.value=true;error.value=null;try{const data=await callApi<{rows:Record<string,unknown>[];disclaimer:string}>('report.project.export',{}),headers:Array<[string,string]> =[['projectCode','项目编号'],['projectName','项目名称'],['customerName','客户'],['status','状态'],['estimatedRevenue','预计收入'],['estimatedCost','预计成本'],['confirmedIncome','已确认合同收入'],['receivedAmount','已收款']];const quote=(v:unknown)=>`"${safe(v).replaceAll('"','""')}"`,csv=['\uFEFF'+headers.map(x=>quote(x[1])).join(','),...data.rows.map(row=>headers.map(x=>quote(row[x[0]])).join(',')),quote(data.disclaimer)].join('\r\n'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`项目经营数据-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url)}catch(e){error.value=e instanceof Error?e.message:'导出失败'}finally{exporting.value=false}}
+</script>
+<template><main class="shell"><header><div><p class="eyebrow">WORKSPACE</p><h1>项目全过程管理</h1></div><button class="primary-action" :disabled="exporting" @click="exportProjects">{{exporting?'导出中…':'导出项目数据'}}</button></header><p v-if="error" class="error">{{error}}</p><section class="hero"><h2>经营工作台</h2><p>当前数据范围内共 {{summary.projectCount}} 个项目。</p></section><section class="metric-strip"><article><span>预计利润</span><strong>¥ {{summary.expectedProfit}}</strong></article><article><span>合同经营利润</span><strong>¥ {{summary.contractOperatingProfit}}</strong></article><article><span>现金贡献</span><strong>¥ {{summary.cashContribution}}</strong></article></section><p class="accounting-disclaimer">{{summary.disclaimer}}</p><section class="data-list"><h2>临期与异常</h2><article v-for="m in messages" :key="m.id" class="data-row"><div><strong>{{m.title}}</strong><p>{{m.content}}</p></div></article><p v-if="!messages.length">暂无提醒</p></section></main></template>
