@@ -1,5 +1,22 @@
 import type { SettlementBasis } from '@zkgl/shared'
+import { z } from 'zod'
 import { AppError } from './errors.js'
+
+export const partnerPlanInput=z.object({
+  projectId:z.string().min(1),partnerId:z.string().min(1),ownerId:z.string().min(1),
+  settlementMethod:z.enum(['FIXED','RATIO']),fixedAmount:z.number().nonnegative().nullable().optional(),ratio:z.number().min(0).max(1).nullable().optional(),
+  calculationBasis:z.enum(['FIXED','CONTRACT_REVENUE_EX_TAX','ACTUAL_RECEIPTS','PROJECT_GROSS_PROFIT']),
+  deductibleCostScope:z.array(z.string()).default([]),upperLimit:z.number().nonnegative().nullable().optional(),lowerLimit:z.number().nonnegative().nullable().optional(),
+  effectiveFrom:z.iso.date(),effectiveTo:z.iso.date().nullable().optional(),conditions:z.string().trim().nullable().optional()
+}).superRefine((value,ctx)=>{
+  if(value.settlementMethod==='FIXED'&&value.fixedAmount==null)ctx.addIssue({code:'custom',path:['fixedAmount'],message:'固定金额方案必须填写金额'})
+  if(value.settlementMethod==='RATIO'&&value.ratio==null)ctx.addIssue({code:'custom',path:['ratio'],message:'比例方案必须填写比例'})
+})
+
+export const settlementCreateInput=z.object({planId:z.string().min(1),periodStartOn:z.iso.date(),periodEndOn:z.iso.date(),deductionAmount:z.number().nonnegative().default(0),invoiceRequirement:z.string().trim().nullable().optional()})
+export const depositInput=z.object({projectId:z.string().min(1),bidId:z.string().nullable().optional(),contractId:z.string().nullable().optional(),depositType:z.string().min(1),direction:z.enum(['PAY','RECEIVE']),counterpartyId:z.string().min(1),amount:z.number().positive(),duePaymentOn:z.iso.date(),dueReturnOn:z.iso.date().nullable().optional(),account:z.string().trim().max(128).nullable().optional()})
+export const depositEventInput=z.object({depositId:z.string().min(1),eventType:z.enum(['PAY','RETURN','FORFEIT','CONFIRM_LOSS','VOID']),amount:z.number().positive(),occurredOn:z.iso.date(),description:z.string().trim().max(1000).nullable().optional(),idempotencyKey:z.string().min(8).max(128),lossApprovalPassed:z.boolean().default(false)})
+export const closeApplicationInput=z.object({projectId:z.string().min(1),appliedOn:z.iso.date(),completionSummary:z.string().min(2),acceptanceConclusion:z.string().min(2),archiveCheckPassed:z.boolean(),closeDescription:z.string().min(2),closeType:z.enum(['NORMAL','WITH_OPEN_ITEMS']),specialApprovalComment:z.string().nullable().optional(),openItems:z.array(z.object({type:z.string().min(1),description:z.string().min(1),responsibleId:z.string().min(1),dueOn:z.iso.date()})).default([]),approverRole:z.string().optional()})
 
 export function roundHalfUpFraction(numerator: bigint, denominator: bigint): bigint {
   if (denominator <= 0n || numerator < 0n) throw new AppError('INVALID_ROUNDING_INPUT', '舍入参数非法')

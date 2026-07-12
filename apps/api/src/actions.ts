@@ -6,6 +6,7 @@ import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
 import { projectStartInput } from './delivery.js'
 import { invoiceApplicationInput, paymentApplicationInput, receiptInput, reimbursementInput } from './finance.js'
+import { closeApplicationInput, depositEventInput, depositInput, partnerPlanInput, settlementCreateInput } from './settlements.js'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
 import { projectApplicationInput } from './project-applications.js'
@@ -37,6 +38,12 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'receipt.create': { permission: 'receipt.create', input: receiptInput },
   'reimbursement.create': { permission: 'reimbursement.create', input: reimbursementInput },
   'payment.application.create': { permission: 'payment.application.create', input: paymentApplicationInput },
+  'partner.plan.create': { permission: 'partner.plan.create', input: partnerPlanInput },
+  'partner.settlement.create': { permission: 'partner.settlement.create', input: settlementCreateInput },
+  'deposit.create': { permission: 'deposit.create', input: depositInput },
+  'deposit.event.create': { permission: 'deposit.event.create', input: depositEventInput },
+  'project.close.create': { permission: 'project.close.create', input: closeApplicationInput },
+  'settlement.summary': { permission: 'settlement.read', input: z.object({}).default({}) },
   'crm.counterparty.create': { permission: 'crm.counterparty.create', input: counterpartyInput },
   'crm.contact.create': { permission: 'crm.contact.create', input: contactInput },
   'crm.visit.create': { permission: 'crm.visit.create', input: visitInput },
