@@ -63,3 +63,24 @@ export interface LeadSummary {
   status: LeadStatus
   nextFollowUpAt: string | null
 }
+
+export type ProjectApplicationStatus =
+  | 'DRAFT'
+  | 'APPROVAL_PENDING'
+  | 'RETURNED'
+  | 'REJECTED'
+  | 'WITHDRAWN'
+  | 'APPROVED'
+
+export type ProjectStatus =
+  | 'ESTABLISHED'
+  | 'PREPARING'
+  | 'PENDING_START'
+  | 'IN_PROGRESS'
+  | 'PENDING_ACCEPTANCE'
+  | 'ACCEPTED'
+  | 'PENDING_CLOSE'
+  | 'CLOSED'
+  | 'SUSPENDED'
+  | 'TERMINATED'
+  | 'CANCELLED'

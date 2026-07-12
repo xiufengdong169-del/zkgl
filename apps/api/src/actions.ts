@@ -3,6 +3,7 @@ import type { ZodType } from 'zod'
 
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
+import { projectApplicationInput } from './project-applications.js'
 import { requirePermission } from './rbac.js'
 
 interface ActionDefinition {
@@ -15,7 +16,8 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'crm.contact.create': { permission: 'crm.contact.create', input: contactInput },
   'crm.visit.create': { permission: 'crm.visit.create', input: visitInput },
   'lead.create': { permission: 'lead.create', input: leadInput },
-  'lead.followUp.create': { permission: 'lead.followUp.create', input: followUpInput }
+  'lead.followUp.create': { permission: 'lead.followUp.create', input: followUpInput },
+  'project.application.create': { permission: 'project.application.create', input: projectApplicationInput }
 }
 
 export function authorizeAndParseAction(user: SessionUser, action: string, payload: unknown): unknown {

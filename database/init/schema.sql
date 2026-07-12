@@ -277,3 +277,105 @@ CREATE TABLE IF NOT EXISTS sys_status_history (
   operated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_status_history_object (object_type, object_id, operated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS sys_number_rule (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  rule_code VARCHAR(64) NOT NULL UNIQUE,
+  prefix VARCHAR(32) NOT NULL,
+  year_pattern VARCHAR(16) NOT NULL DEFAULT 'YYYY',
+  serial_length TINYINT UNSIGNED NOT NULL DEFAULT 4,
+  next_serial INT UNSIGNED NOT NULL DEFAULT 1,
+  current_year SMALLINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO sys_number_rule (rule_code, prefix, current_year, updated_by)
+VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', YEAR(CURRENT_DATE), 0)
+ON DUPLICATE KEY UPDATE rule_code = VALUES(rule_code);
+
+CREATE TABLE IF NOT EXISTS prj_project_application (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  application_code VARCHAR(64) NOT NULL UNIQUE,
+  project_name VARCHAR(255) NOT NULL,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  source_lead_id BIGINT UNSIGNED NULL,
+  project_type VARCHAR(64) NOT NULL,
+  background TEXT NULL,
+  service_scope TEXT NOT NULL,
+  estimated_revenue DECIMAL(18,2) NOT NULL,
+  estimated_cost DECIMAL(18,2) NOT NULL,
+  estimated_profit DECIMAL(18,2) GENERATED ALWAYS AS (estimated_revenue - estimated_cost) STORED,
+  estimated_start_on DATE NOT NULL,
+  estimated_end_on DATE NOT NULL,
+  proposed_manager_id BIGINT UNSIGNED NOT NULL,
+  bidding_method VARCHAR(64) NULL,
+  risk_description TEXT NULL,
+  necessity TEXT NOT NULL,
+  applicant_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT chk_application_amounts CHECK (estimated_revenue >= 0 AND estimated_cost >= 0),
+  CONSTRAINT chk_application_dates CHECK (estimated_end_on >= estimated_start_on),
+  CONSTRAINT fk_application_customer FOREIGN KEY (customer_id) REFERENCES crm_counterparty(id),
+  CONSTRAINT fk_application_lead FOREIGN KEY (source_lead_id) REFERENCES mkt_lead(id),
+  INDEX idx_application_status (status, applicant_id),
+  INDEX idx_application_customer (customer_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_application_member_suggestion (
+  application_id BIGINT UNSIGNED NOT NULL,
+  employee_id BIGINT UNSIGNED NOT NULL,
+  proposed_role VARCHAR(64) NOT NULL,
+  PRIMARY KEY (application_id, employee_id),
+  CONSTRAINT fk_suggestion_application FOREIGN KEY (application_id) REFERENCES prj_project_application(id),
+  CONSTRAINT fk_suggestion_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_project (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_code VARCHAR(64) NOT NULL UNIQUE,
+  application_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  project_name VARCHAR(255) NOT NULL,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  project_type VARCHAR(64) NOT NULL,
+  service_scope TEXT NOT NULL,
+  project_manager_id BIGINT UNSIGNED NOT NULL,
+  estimated_revenue DECIMAL(18,2) NOT NULL,
+  estimated_cost DECIMAL(18,2) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ESTABLISHED',
+  original_status VARCHAR(32) NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_project_application FOREIGN KEY (application_id) REFERENCES prj_project_application(id),
+  CONSTRAINT fk_project_customer FOREIGN KEY (customer_id) REFERENCES crm_counterparty(id),
+  INDEX idx_project_manager_status (project_manager_id, status),
+  INDEX idx_project_customer (customer_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_project_member (
+  project_id BIGINT UNSIGNED NOT NULL,
+  employee_id BIGINT UNSIGNED NOT NULL,
+  project_role VARCHAR(64) NOT NULL,
+  joined_on DATE NOT NULL,
+  left_on DATE NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (project_id, employee_id),
+  CONSTRAINT fk_project_member_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_project_member_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id),
+  INDEX idx_project_member_employee (employee_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -40,5 +40,15 @@ button:disabled { opacity: .65; cursor: wait; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
 .pipeline-column span { min-width: 28px; padding: 4px 8px; border-radius: 999px; text-align: center; background: #edf2f7; }
-@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(3, 1fr); } .module-grid { grid-template-columns: 1fr; } }
+.project-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; }
+.project-summary > div { display: grid; gap: 6px; padding: 22px; border: 1px solid #dfe6ef; border-radius: 12px; background: #fff; }
+.project-summary strong { color: #173c68; font-size: 28px; }
+.project-summary span { color: #6b7689; font-size: 13px; }
+.workflow-card { margin-top: 20px; padding: 28px; border-radius: 14px; color: #fff; background: #173c68; }
+.workflow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
+.workflow-steps article { padding: 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.06); }
+.workflow-steps span { color: #8fc0ee; font-weight: 800; }
+.workflow-steps h2 { margin: 14px 0 8px; font-size: 18px; }
+.workflow-steps p { margin: 0; color: #dbe9f8; line-height: 1.55; }
+@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(4, 1fr); } .module-grid, .project-summary, .workflow-steps { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } }
