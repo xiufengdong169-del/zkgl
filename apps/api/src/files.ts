@@ -23,6 +23,10 @@ export const fileUploadInput = z.object({
   classification: z.enum(['INTERNAL', 'SENSITIVE']).default('INTERNAL')
 })
 
+export const fileListInput=z.object({businessType:z.string().trim().min(1).max(64),businessId:z.string().min(1)})
+export const fileCompleteInput=z.object({fileId:z.string().min(1),cloudFileId:z.string().regex(/^cloud:\/\//)})
+export const fileDownloadInput=z.object({fileId:z.string().min(1)})
+
 export interface FileRecord {
   id: string
   businessType: string

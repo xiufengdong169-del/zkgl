@@ -1,6 +1,7 @@
 import { getPool, findSessionUserByCloudbaseUid, MySqlAuditWriter } from './database.js'
 import { handle, type FunctionEvent } from './handler.js'
 import { MySqlActionExecutor } from './persistence.js'
+import tcb from '@cloudbase/node-sdk'
 
 interface CloudContext { auth?: { uid?: string }; requestId?: string }
 interface HttpLikeEvent extends FunctionEvent {
@@ -10,7 +11,8 @@ interface HttpLikeEvent extends FunctionEvent {
 
 export async function main(rawEvent: HttpLikeEvent, context: CloudContext = {}) {
   const pool = getPool()
-  const executor = new MySqlActionExecutor(pool)
+  const storage=tcb.init({env:process.env.CLOUDBASE_ENV_ID||tcb.SYMBOL_CURRENT_ENV})
+  const executor = new MySqlActionExecutor(pool,async(fileId,maxAge)=>{const result=await storage.getTempFileURL({fileList:[{fileID:fileId,maxAge}]});const url=result.fileList?.[0]?.tempFileURL;if(!url)throw new Error('未获取到文件临时地址');return url})
   let body: Partial<FunctionEvent> = {}
   if (typeof rawEvent.body === 'string') {
     try { body = JSON.parse(rawEvent.body) as Partial<FunctionEvent> } catch { body = {} }

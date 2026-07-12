@@ -10,6 +10,7 @@ import { closeApplicationInput, depositEventInput, depositInput, partnerPlanInpu
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
 import { projectApplicationInput } from './project-applications.js'
+import { fileCompleteInput, fileDownloadInput, fileListInput, fileUploadInput } from './files.js'
 import { requirePermission } from './rbac.js'
 
 interface ActionDefinition {
@@ -58,6 +59,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'project.stage.create': { permission: 'project.stage.create', input: stageInput },
   'project.progress.create': { permission: 'project.progress.create', input: progressInput },
   'project.risk.create': { permission: 'project.risk.create', input: riskInput }
+  ,'file.list': { permission: 'file.read', input: fileListInput }
+  ,'file.upload.prepare': { permission: 'file.upload', input: fileUploadInput }
+  ,'file.upload.complete': { permission: 'file.upload', input: fileCompleteInput }
+  ,'file.download': { permission: 'file.download', input: fileDownloadInput }
 }
 
 export function authorizeAndParseAction(user: SessionUser, action: string, payload: unknown): unknown {

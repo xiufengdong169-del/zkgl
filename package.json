@@ -2,11 +2,19 @@
   "name": "zkgl",
   "version": "0.1.0",
   "private": true,
+  "dependencies": {
+    "@cloudbase/node-sdk": "^4.0.3"
+  },
   "description": "众肯科技项目全过程管理系统",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "@cloudbase/node-sdk@^4.0.3": {
+      "axios": "^1.12.2"
+    }
+  },
   "scripts": {
     "dev": "npm run dev -w @zkgl/web",
     "build": "npm run build -ws --if-present",

@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 import { AppError } from './errors.js'
 import { withTransaction } from './database.js'
 import { calculateSettlement, validateProjectClose } from './settlements.js'
+import { buildPrivateStorageKey, DOWNLOAD_URL_TTL_SECONDS, validateUpload } from './files.js'
 
 const toCents=(value:unknown)=>BigInt(Math.round(Number(value??0)*100))
 const fromCents=(value:bigint)=>(Number(value)/100).toFixed(2)
@@ -22,12 +23,25 @@ async function allocateNumber(connection: PoolConnection, ruleCode: string): Pro
 }
 
 export class MySqlActionExecutor {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool,private readonly createTemporaryUrl?: (fileId:string,maxAge:number)=>Promise<string>) {}
 
   async execute(action: string, value: unknown, user: SessionUser): Promise<unknown> {
     const input = value as Record<string, any>
     return withTransaction(this.pool, async (connection) => {
       switch (action) {
+        case 'file.list': {
+          const all=user.dataScopes.some((scope)=>scope.type==='ALL'),[rows]=await connection.execute<RowDataPacket[]>(`SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?)))) ORDER BY f.id DESC`,[input.businessType,input.businessId,all?1:0,user.id,user.employeeId,user.employeeId]);return{items:rows}
+        }
+        case 'file.upload.prepare': {
+          const file=validateUpload(input);if(file.projectId){const all=user.dataScopes.some((scope)=>scope.type==='ALL'),[access]=await connection.execute<RowDataPacket[]>(`SELECT p.id FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=? AND (?=1 OR p.project_manager_id=? OR m.employee_id=?) LIMIT 1`,[file.projectId,all?1:0,user.employeeId,user.employeeId]);if(!access[0])throw new AppError('FILE_BUSINESS_ACCESS_DENIED','无权向该项目上传文件',403)}
+          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO file_object(business_type,business_id,project_id,logical_name,classification,status,created_by,updated_by) VALUES(?,?,?,?,?,'UPLOADING',?,?)`,[file.businessType,file.businessId,file.projectId??null,file.logicalName,file.classification,user.id,user.id]);const id=String(result.insertId),storageKey=buildPrivateStorageKey(id,1,file.sha256,file.extension);await connection.execute(`INSERT INTO file_version(file_id,version_number,storage_key,original_name,extension,mime_type,size_bytes,sha256,uploaded_by,status) VALUES(?,?,?,?,?,?,?,?,?,'UPLOADING')`,[id,1,storageKey,file.originalName,file.extension,file.mimeType,file.sizeBytes,file.sha256,user.id]);return{id,storageKey}
+        }
+        case 'file.upload.complete': {
+          const[rows]=await connection.execute<RowDataPacket[]>(`SELECT f.id,v.id versionId,v.storage_key expectedStorageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.created_by=? AND f.status='UPLOADING' FOR UPDATE`,[input.fileId,user.id]);const row=rows[0];if(!row)throw new AppError('FILE_UPLOAD_NOT_PENDING','待完成的文件不存在',409);if(!input.cloudFileId.endsWith(`/${row.expectedStorageKey}`))throw new AppError('FILE_STORAGE_KEY_MISMATCH','上传文件与预分配路径不一致',409);await connection.execute(`UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=?`,[input.cloudFileId,row.versionId]);await connection.execute(`UPDATE file_object SET status='ACTIVE',updated_by=?,version=version+1 WHERE id=?`,[user.id,input.fileId]);return{id:input.fileId,status:'ACTIVE'}
+        }
+        case 'file.download': {
+          if(!this.createTemporaryUrl)throw new AppError('FILE_STORAGE_UNAVAILABLE','文件存储服务未配置',503);const all=user.dataScopes.some((scope)=>scope.type==='ALL'),[rows]=await connection.execute<RowDataPacket[]>(`SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,[input.fileId,all?1:0,user.id,user.employeeId,user.employeeId]);const file=rows[0];if(!file)throw new AppError('BUSINESS_ACCESS_DENIED','无权下载该文件',403);if(file.classification==='SENSITIVE'&&!user.permissionCodes.includes('file.sensitive.read')){await connection.execute(`INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,denial_code,request_id) VALUES(?,?,?,'DOWNLOAD','DENIED','SENSITIVE_FILE_DENIED',?)`,[file.id,file.versionId,user.id,crypto.randomUUID()]);throw new AppError('SENSITIVE_FILE_DENIED','无权下载该文件',403)}const url=await this.createTemporaryUrl(file.storageKey,DOWNLOAD_URL_TTL_SECONDS);await connection.execute(`INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,request_id) VALUES(?,?,?,'DOWNLOAD','SUCCESS',?)`,[file.id,file.versionId,user.id,crypto.randomUUID()]);return{url,expiresInSeconds:DOWNLOAD_URL_TTL_SECONDS}
+        }
         case 'crm.counterparty.list': {
           const page=input.page as number, pageSize=input.pageSize as number, keyword=(input.keyword as string|undefined)??''
           const pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`
