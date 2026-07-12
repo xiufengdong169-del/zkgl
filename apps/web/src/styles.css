@@ -36,6 +36,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .page { max-width: 1180px; margin: 0 auto; padding: 44px 28px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .primary-action { width: auto; margin: 0; padding-inline: 18px; }
+.header-actions{display:flex;gap:8px}.secondary-button{width:auto!important;margin:0!important;color:#245f9f!important;background:#e6f0fa!important}
 .module-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 38px; }
 .module-card, .pipeline-column { padding: 24px; border: 1px solid #dfe6ef; border-radius: 14px; background: #fff; }
 .module-card h2, .pipeline-column h2 { margin: 18px 0 8px; font-size: 18px; }

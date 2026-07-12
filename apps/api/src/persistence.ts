@@ -86,7 +86,8 @@ export class MySqlActionExecutor {
           const page=input.page as number,pageSize=input.pageSize as number,keyword=(input.keyword as string|undefined)??'',pattern=`%${keyword.replace(/[\\%_]/g,'\\$&')}%`,all=user.dataScopes.some((scope)=>scope.type==='ALL')
           const [rows]=await connection.execute<RowDataPacket[]>(
             `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,
-                    c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status
+                    CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
+                    c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status
                FROM con_contract c WHERE c.is_deleted=0 AND (?=1 OR c.owner_id=?)
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,[all?1:0,user.employeeId,keyword,pattern,pattern,pageSize,(page-1)*pageSize])
