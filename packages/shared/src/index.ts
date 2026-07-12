@@ -99,3 +99,7 @@ export type BidStatus =
   | 'WON' | 'LOST' | 'FAILED' | 'ABANDONED'
 
 export type BidTaskStatus = 'UNASSIGNED' | 'PENDING' | 'IN_PROGRESS' | 'PENDING_CHECK' | 'COMPLETED' | 'OVERDUE' | 'CANCELLED'
+
+export type ContractStatus =
+  | 'DRAFT' | 'APPROVAL_PENDING' | 'PENDING_SIGNATURE' | 'PERFORMING' | 'COMPLETED'
+  | 'RETURNED' | 'REJECTED' | 'CHANGED' | 'TERMINATED' | 'VOID'

@@ -16,6 +16,7 @@ const showNavigation = computed(() => route.name !== 'login')
         <RouterLink to="/leads">市场线索</RouterLink>
         <RouterLink to="/projects">项目管理</RouterLink>
         <RouterLink to="/bids">投标管理</RouterLink>
+        <RouterLink to="/contracts">合同管理</RouterLink>
         <RouterLink to="/approvals">审批待办</RouterLink>
       </nav>
     </aside>
