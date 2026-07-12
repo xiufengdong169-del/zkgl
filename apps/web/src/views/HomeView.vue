@@ -9,7 +9,7 @@
     </header>
     <section class="hero">
       <h2>工程骨架已就绪</h2>
-      <p>当前阶段正在建设身份认证、RBAC、迁移框架与审计日志。</p>
+      <p>当前阶段正在建设身份认证、RBAC、数据库初始化与审计日志。</p>
     </section>
   </main>
 </template>

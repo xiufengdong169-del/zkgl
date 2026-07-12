@@ -1,13 +1,5 @@
--- V2.2 phase 1: identity, RBAC, migration history and immutable audit trail.
-CREATE TABLE IF NOT EXISTS sys_schema_migration (
-  version VARCHAR(64) PRIMARY KEY,
-  description VARCHAR(255) NOT NULL,
-  checksum CHAR(64) NOT NULL,
-  applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  execution_ms INT UNSIGNED NOT NULL,
-  success TINYINT(1) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
+-- V2.2 phase 1: initialize a new empty database.
+-- There is no historical database or existing data migration.
 CREATE TABLE IF NOT EXISTS org_department (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   code VARCHAR(64) NOT NULL UNIQUE,
