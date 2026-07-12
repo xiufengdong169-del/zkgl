@@ -27,4 +27,9 @@ describe('RBAC', () => {
   it('按项目数据范围拒绝无关项目', () => {
     expect(() => requireDataAccess(user, { projectId: 'p-2' })).toThrow(ForbiddenError)
   })
+
+  it('允许本人创建的数据范围', () => {
+    const creator = { ...user, dataScopes: [{ type: 'CREATOR' as const, userId: 'u-1' }] }
+    expect(() => requireDataAccess(creator, { creatorId: 'u-1' })).not.toThrow()
+  })
 })

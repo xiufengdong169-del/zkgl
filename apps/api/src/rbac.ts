@@ -4,6 +4,8 @@ import { ForbiddenError, UnauthorizedError } from './errors.js'
 
 export interface ResourceContext {
   ownerId?: string
+  creatorId?: string
+  participantIds?: string[]
   departmentId?: string
   projectId?: string
 }
@@ -23,6 +25,9 @@ function scopeAllows(scope: DataScope, resource: ResourceContext): boolean {
   switch (scope.type) {
     case 'ALL': return true
     case 'SELF': return resource.ownerId === scope.userId
+    case 'OWNER': return resource.ownerId === scope.userId
+    case 'CREATOR': return resource.creatorId === scope.userId
+    case 'PARTICIPANT': return Boolean(resource.participantIds?.includes(scope.userId))
     case 'DEPARTMENT': return Boolean(resource.departmentId && scope.departmentIds.includes(resource.departmentId))
     case 'PROJECT': return Boolean(resource.projectId && scope.projectIds.includes(resource.projectId))
   }
