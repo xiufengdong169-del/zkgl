@@ -19,3 +19,6 @@ coverage/
 .env.*
 !.env.example
 npm-debug.log*
+
+# Generated CloudBase function package
+functions/zkgl-api/
