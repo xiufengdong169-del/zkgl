@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS iam_role_data_scope (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   role_id BIGINT UNSIGNED NOT NULL,
   scope_type VARCHAR(32) NOT NULL,
-  scope_value VARCHAR(255) NULL,
+  scope_value VARCHAR(255) NOT NULL DEFAULT '',
   status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
   CONSTRAINT fk_role_scope_role FOREIGN KEY (role_id) REFERENCES iam_role(id),
   UNIQUE KEY uk_role_scope (role_id, scope_type, scope_value)
@@ -1434,3 +1434,69 @@ CREATE TABLE IF NOT EXISTS sys_export_task (
   CONSTRAINT fk_export_file FOREIGN KEY (file_id) REFERENCES file_object(id),
   INDEX idx_export_requester (requester_id, status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO iam_role(code,name,status,created_at,updated_at)
+VALUES ('ADMIN','系统管理员','ENABLED',NOW(3),NOW(3)),('COMPANY_PRINCIPAL','公司负责人','ENABLED',NOW(3),NOW(3)),
+('MARKET_BUSINESS','市场商务','ENABLED',NOW(3),NOW(3)),('PROJECT_MANAGER','项目经理','ENABLED',NOW(3),NOW(3)),
+('PROJECT_MEMBER','项目成员','ENABLED',NOW(3),NOW(3)),('BID_STAFF','投标人员','ENABLED',NOW(3),NOW(3)),
+('FINANCE','财务资金','ENABLED',NOW(3),NOW(3)),('EMPLOYEE','普通员工','ENABLED',NOW(3),NOW(3))
+ON DUPLICATE KEY UPDATE name=VALUES(name),status='ENABLED';
+
+INSERT INTO iam_permission(code,name,permission_type)
+VALUES
+('crm.counterparty.read','查看往来单位','READ'),('crm.counterparty.create','创建往来单位','WRITE'),('crm.contact.create','创建联系人','WRITE'),('crm.visit.create','创建拜访','WRITE'),
+('lead.read','查看线索','READ'),('lead.create','创建线索','WRITE'),('lead.followUp.create','创建跟进','WRITE'),
+('project.application.read','查看立项申请','READ'),('project.application.create','创建立项申请','WRITE'),('project.read','查看项目','READ'),
+('bid.application.read','查看投标','READ'),('bid.application.create','创建投标','WRITE'),('contract.read','查看合同','READ'),('contract.create','创建合同','WRITE'),
+('approval.task.read','查看审批待办','READ'),('approval.task.process','处理审批','APPROVE'),('approval.instance.withdraw','撤回本人审批','WRITE'),
+('finance.read','查看收支','READ'),('invoice.application.create','申请开票','WRITE'),('receipt.create','登记收款','WRITE'),('reimbursement.create','创建报销','WRITE'),('payment.application.create','创建付款','WRITE'),
+('partner.plan.create','创建合作方案','WRITE'),('partner.settlement.create','创建合作结算','WRITE'),('settlement.read','查看结算保证金','READ'),
+('deposit.create','创建保证金','WRITE'),('deposit.event.create','登记保证金事件','WRITE'),('project.close.create','创建结项申请','WRITE'),
+('project.start.create','创建项目启动','WRITE'),('project.delivery.read','查看项目实施','READ'),('project.stage.create','创建项目阶段','WRITE'),('project.progress.create','记录项目进展','WRITE'),('project.risk.create','登记问题风险','WRITE')
+ON DUPLICATE KEY UPDATE name=VALUES(name),permission_type=VALUES(permission_type);
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r CROSS JOIN iam_permission p WHERE r.code='ADMIN';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('crm.counterparty.read','lead.read','project.application.read','project.read','bid.application.read','contract.read','approval.task.read','approval.task.process','finance.read','settlement.read','project.delivery.read')
+WHERE r.code='COMPANY_PRINCIPAL';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('crm.counterparty.read','crm.counterparty.create','crm.contact.create','crm.visit.create','lead.read','lead.create','lead.followUp.create','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','deposit.create','deposit.event.create')
+WHERE r.code='MARKET_BUSINESS';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('crm.counterparty.read','lead.read','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','reimbursement.create','payment.application.create','partner.plan.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','project.close.create','project.start.create','project.delivery.read','project.stage.create','project.progress.create','project.risk.create')
+WHERE r.code='PROJECT_MANAGER';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('crm.counterparty.read','lead.read','project.read','approval.task.read','approval.task.process','approval.instance.withdraw','project.delivery.read','project.progress.create','project.risk.create','reimbursement.create')
+WHERE r.code='PROJECT_MEMBER';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('project.read','bid.application.read','bid.application.create','approval.task.read','approval.task.process','approval.instance.withdraw','deposit.create','deposit.event.create')
+WHERE r.code='BID_STAFF';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','receipt.create','reimbursement.create','payment.application.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create')
+WHERE r.code='FINANCE';
+
+INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
+SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
+('project.read','approval.task.read','approval.instance.withdraw','reimbursement.create') WHERE r.code='EMPLOYEE';
+
+INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
+SELECT id,'ALL','' FROM iam_role WHERE code IN('ADMIN','COMPANY_PRINCIPAL','FINANCE');
+INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
+SELECT id,'OWNER','' FROM iam_role WHERE code IN('MARKET_BUSINESS','PROJECT_MANAGER','BID_STAFF');
+INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
+SELECT id,'CREATOR','' FROM iam_role WHERE code IN('MARKET_BUSINESS','PROJECT_MANAGER','PROJECT_MEMBER','BID_STAFF','EMPLOYEE');
+INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
+SELECT id,'PARTICIPANT','' FROM iam_role WHERE code IN('PROJECT_MANAGER','PROJECT_MEMBER');
