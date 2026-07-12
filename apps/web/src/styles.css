@@ -35,6 +35,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .module-card h2, .pipeline-column h2 { margin: 18px 0 8px; font-size: 18px; }
 .module-card p, .pipeline-column p { color: #6b7689; line-height: 1.6; }
 .module-card small, .pipeline-column small { color: #8490a1; }
+.bid-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .module-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; color: #245f9f; background: #e6f0fa; font-weight: 800; }
 .pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
@@ -57,5 +58,6 @@ button:disabled { opacity: .65; cursor: wait; }
 .empty-state > span { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 50%; color: #287b56; background: #e6f5ed; font-size: 24px; }
 .empty-state h2 { margin: 18px 0 6px; font-size: 18px; }
 .empty-state p { margin: 0; color: #748095; }
-@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(5, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps { grid-template-columns: 1fr; } }
+@media (max-width: 1050px) { .bid-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(6, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } }

@@ -8,6 +8,7 @@ export const router = createRouter({
     { path: '/customers', name: 'customers', component: () => import('./views/CustomersView.vue') },
     { path: '/leads', name: 'leads', component: () => import('./views/LeadsView.vue') },
     { path: '/projects', name: 'projects', component: () => import('./views/ProjectsView.vue') },
-    { path: '/approvals', name: 'approvals', component: () => import('./views/ApprovalsView.vue') }
+    { path: '/approvals', name: 'approvals', component: () => import('./views/ApprovalsView.vue') },
+    { path: '/bids', name: 'bids', component: () => import('./views/BidsView.vue') }
   ]
 })
