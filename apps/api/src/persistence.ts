@@ -129,6 +129,30 @@ export class MySqlActionExecutor {
           await connection.execute(`UPDATE wf_task SET status='CANCELLED',completed_at=NOW(3) WHERE instance_id=? AND status IN ('PENDING','WAITING')`,[input.instanceId]);await connection.execute(`UPDATE wf_instance SET status='WITHDRAWN',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,[input.instanceId])
           return{idempotent:false,status:'WITHDRAWN'}
         }
+        case 'finance.summary': {
+          const projectId=(input.projectId as string|undefined)??null,all=user.dataScopes.some((scope)=>scope.type==='ALL')
+          const access=`(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`
+          const [invoiceRows]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(x.tax_inclusive_amount),0) amount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          const [receiptRows]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(x.amount),0) amount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          const [paymentRows]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(x.amount),0) amount FROM fin_payment_detail x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access}`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId])
+          return {invoicedAmount:invoiceRows[0]?.amount??'0.00',receivedAmount:receiptRows[0]?.amount??'0.00',paidAmount:paymentRows[0]?.amount??'0.00'}
+        }
+        case 'invoice.application.create': {
+          const [contracts]=await connection.execute<RowDataPacket[]>(`SELECT tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,[input.contractId]);const contract=contracts[0]
+          if(!contract||['VOID','REJECTED','TERMINATED'].includes(contract.status))throw new AppError('INCOME_CONTRACT_INVALID','收入合同无效',409)
+          const [usedRows]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,[input.contractId]);const available=Number(contract.amount)-Number(usedRows[0]?.used??0)
+          if(Number(input.requestedAmount)>available)throw new AppError('INVOICE_CAPACITY_EXCEEDED','申请开票金额超过合同可开票余额',409)
+          const code=await allocateNumber(connection,'INVOICE_APPLICATION');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_invoice_application(application_code,project_id,contract_id,requested_amount,invoice_type,tax_rate,invoice_content,buyer_information,planned_invoice_on,collection_condition,applicant_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,[code,input.projectId,input.contractId,input.requestedAmount,input.invoiceType,input.taxRate,input.invoiceContent,input.buyerInformation,input.plannedInvoiceOn,input.collectionCondition??null,input.applicantId,user.id,user.id]);return{id:String(result.insertId),code,availableBefore:available}
+        }
+        case 'receipt.create': {
+          const code=await allocateNumber(connection,'RECEIPT');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_receipt(receipt_code,project_id,contract_id,customer_id,received_on,amount,receiving_account,payer_name,payer_account,receipt_type,voucher_number,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[code,input.projectId,input.contractId,input.customerId,input.receivedOn,input.amount,input.receivingAccount,input.payerName,input.payerAccount??null,input.receiptType,input.voucherNumber??null,input.operatorId,user.id,user.id]);return{id:String(result.insertId),code}
+        }
+        case 'reimbursement.create': {
+          const code=await allocateNumber(connection,'REIMBURSEMENT');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_reimbursement(reimbursement_code,claimant_id,department_id,project_id,reason,payment_recipient,receiving_account,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?)`,[code,input.claimantId,input.departmentId,input.projectId??null,input.reason,input.paymentRecipient,input.receivingAccount,user.id,user.id]);for(const detail of input.details as Array<Record<string,any>>){await connection.execute(`INSERT INTO fin_reimbursement_detail(reimbursement_id,expense_type,incurred_on,amount,description,has_invoice,invoice_number,invoicing_party) VALUES(?,?,?,?,?,?,?,?)`,[result.insertId,detail.expenseType,detail.incurredOn,detail.amount,detail.description,detail.hasInvoice,detail.invoiceNumber??null,detail.invoicingParty??null])}return{id:String(result.insertId),code,detailCount:(input.details as unknown[]).length}
+        }
+        case 'payment.application.create': {
+          const code=await allocateNumber(connection,'PAYMENT');const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_payment_application(payment_code,project_id,source_type,source_id,recipient_name,payment_type,requested_amount,planned_on,payment_basis,receiving_account,invoice_required,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[code,input.projectId,input.sourceType,input.sourceId,input.recipientName,input.paymentType,input.requestedAmount,input.plannedOn,input.paymentBasis,input.receivingAccount,input.invoiceRequired,input.operatorId,user.id,user.id]);return{id:String(result.insertId),code}
+        }
         case 'crm.counterparty.create': {
           const code = await allocateNumber(connection, 'COUNTERPARTY')
           const [result] = await connection.execute<ResultSetHeader>(

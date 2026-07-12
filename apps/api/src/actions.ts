@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
 import { projectStartInput } from './delivery.js'
+import { invoiceApplicationInput, paymentApplicationInput, receiptInput, reimbursementInput } from './finance.js'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
 import { projectApplicationInput } from './project-applications.js'
@@ -31,6 +32,11 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'approval.task.list': { permission: 'approval.task.read', input: listInput },
   'approval.task.action': { permission: 'approval.task.process', input: z.object({ taskId: z.string().min(1), action: z.enum(['APPROVE','RETURN','REJECT']), actionKey: z.string().min(8).max(128), comment: z.string().trim().max(1000).nullable().optional() }) },
   'approval.instance.withdraw': { permission: 'approval.instance.withdraw', input: z.object({ instanceId: z.string().min(1), actionKey: z.string().min(8).max(128), comment: z.string().trim().max(1000).nullable().optional() }) },
+  'finance.summary': { permission: 'finance.read', input: z.object({ projectId:z.string().optional() }).default({}) },
+  'invoice.application.create': { permission: 'invoice.application.create', input: invoiceApplicationInput },
+  'receipt.create': { permission: 'receipt.create', input: receiptInput },
+  'reimbursement.create': { permission: 'reimbursement.create', input: reimbursementInput },
+  'payment.application.create': { permission: 'payment.application.create', input: paymentApplicationInput },
   'crm.counterparty.create': { permission: 'crm.counterparty.create', input: counterpartyInput },
   'crm.contact.create': { permission: 'crm.contact.create', input: contactInput },
   'crm.visit.create': { permission: 'crm.visit.create', input: visitInput },

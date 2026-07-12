@@ -2,6 +2,25 @@ import { z } from 'zod'
 import { AppError } from './errors.js'
 
 export interface AllocationInput { receiptAmount: number; receiptAllocated: number; invoiceAmount: number; invoiceAllocated: number; allocationAmount: number; receiptType: 'ADVANCE' | 'NORMAL' | 'OTHER' }
+
+export const invoiceApplicationInput = z.object({
+  projectId:z.string().min(1),contractId:z.string().min(1),requestedAmount:z.number().positive(),
+  invoiceType:z.enum(['VAT_SPECIAL','VAT_NORMAL','OTHER']),taxRate:z.number().min(0).max(1),
+  invoiceContent:z.string().trim().min(1),buyerInformation:z.string().trim().min(1),plannedInvoiceOn:z.iso.date(),
+  collectionCondition:z.string().trim().nullable().optional(),applicantId:z.string().min(1)
+})
+
+export const receiptInput = z.object({
+  projectId:z.string().min(1),contractId:z.string().min(1),customerId:z.string().min(1),receivedOn:z.iso.date(),amount:z.number().positive(),
+  receivingAccount:z.string().trim().min(1).max(128),payerName:z.string().trim().min(1),payerAccount:z.string().trim().max(128).nullable().optional(),
+  receiptType:z.enum(['ADVANCE','NORMAL','OTHER']),voucherNumber:z.string().trim().max(128).nullable().optional(),operatorId:z.string().min(1)
+})
+
+export const paymentApplicationInput = z.object({
+  projectId:z.string().min(1),sourceType:z.enum(['EXPENSE_CONTRACT','REIMBURSEMENT','PARTNER_SETTLEMENT','DEPOSIT','PURCHASE']),sourceId:z.string().min(1),
+  recipientName:z.string().trim().min(1),paymentType:z.string().trim().min(1).max(64),requestedAmount:z.number().positive(),plannedOn:z.iso.date(),
+  paymentBasis:z.string().trim().min(1),receivingAccount:z.string().trim().min(1).max(128),invoiceRequired:z.boolean(),operatorId:z.string().min(1)
+})
 export function validateReceiptInvoiceAllocation(input: AllocationInput): void {
   if (input.receiptType === 'ADVANCE') throw new AppError('ADVANCE_RECEIPT_NOT_ALLOCATABLE', '预收款暂不允许核销发票', 409)
   if (input.allocationAmount <= 0) throw new AppError('ALLOCATION_AMOUNT_INVALID', '核销金额必须大于零')
