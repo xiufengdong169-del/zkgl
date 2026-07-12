@@ -48,7 +48,7 @@ function mapScope(row: ScopeRow, userId: string, departmentId: string): DataScop
     case 'OWNER': return { type: 'OWNER', userId }
     case 'CREATOR': return { type: 'CREATOR', userId }
     case 'PARTICIPANT': return { type: 'PARTICIPANT', userId }
-    case 'DEPARTMENT': return { type: 'DEPARTMENT', departmentIds: [row.scope_value ?? departmentId] }
+    case 'DEPARTMENT': return { type: 'DEPARTMENT', departmentIds: [row.scope_value || departmentId] }
     case 'PROJECT': return row.scope_value ? { type: 'PROJECT', projectIds: [row.scope_value] } : null
     default: return null
   }
