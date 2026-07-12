@@ -103,3 +103,7 @@ export type BidTaskStatus = 'UNASSIGNED' | 'PENDING' | 'IN_PROGRESS' | 'PENDING_
 export type ContractStatus =
   | 'DRAFT' | 'APPROVAL_PENDING' | 'PENDING_SIGNATURE' | 'PERFORMING' | 'COMPLETED'
   | 'RETURNED' | 'REJECTED' | 'CHANGED' | 'TERMINATED' | 'VOID'
+
+export type ProjectStartType = 'NORMAL' | 'EARLY'
+export type StageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_CONFIRMATION' | 'COMPLETED' | 'DELAYED' | 'SUSPENDED' | 'CANCELLED'
+export type RiskStatus = 'PENDING' | 'IN_PROGRESS' | 'PENDING_VERIFICATION' | 'CLOSED' | 'REOPENED'

@@ -63,6 +63,10 @@ button:disabled { opacity: .65; cursor: wait; }
 .contract-panels p { margin: 0; color: #637087; }
 .contract-panels strong { color: #173c68; font-size: 24px; }
 .contract-panels small { color: #8a95a7; }
+.delivery-timeline { display: grid; gap: 10px; margin-top: 34px; }
+.delivery-timeline article { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border: 1px solid #dfe6ef; border-radius: 11px; background: #fff; }
+.delivery-timeline span { display: grid; min-width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: #245f9f; font-weight: 800; }
+.delivery-timeline h2 { margin: 0 0 4px; font-size: 16px; }.delivery-timeline p { margin: 0; color: #748095; }
 @media (max-width: 1050px) { .bid-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(7, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(8, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } }

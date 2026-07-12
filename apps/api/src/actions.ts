@@ -3,6 +3,7 @@ import type { ZodType } from 'zod'
 
 import { bidApplicationInput } from './bids.js'
 import { contractInput } from './contracts.js'
+import { projectStartInput } from './delivery.js'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 import { followUpInput, leadInput } from './leads.js'
 import { projectApplicationInput } from './project-applications.js'
@@ -21,7 +22,8 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   'lead.followUp.create': { permission: 'lead.followUp.create', input: followUpInput },
   'project.application.create': { permission: 'project.application.create', input: projectApplicationInput },
   'bid.application.create': { permission: 'bid.application.create', input: bidApplicationInput },
-  'contract.create': { permission: 'contract.create', input: contractInput }
+  'contract.create': { permission: 'contract.create', input: contractInput },
+  'project.start.create': { permission: 'project.start.create', input: projectStartInput }
 }
 
 export function authorizeAndParseAction(user: SessionUser, action: string, payload: unknown): unknown {

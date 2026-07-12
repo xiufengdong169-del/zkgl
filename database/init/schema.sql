@@ -858,3 +858,167 @@ CREATE TABLE IF NOT EXISTS con_contract_milestone (
   CONSTRAINT fk_contract_milestone_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
   INDEX idx_contract_milestone_due (planned_on, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_start (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  start_type VARCHAR(16) NOT NULL,
+  started_on DATE NOT NULL,
+  project_manager_id BIGINT UNSIGNED NOT NULL,
+  objectives TEXT NOT NULL,
+  scope_description TEXT NOT NULL,
+  communication_mechanism TEXT NOT NULL,
+  deliverables TEXT NOT NULL,
+  risks TEXT NULL,
+  current_contract_status VARCHAR(32) NULL,
+  early_start_reason TEXT NULL,
+  start_basis TEXT NULL,
+  estimated_contract_amount DECIMAL(18,2) NULL,
+  expected_signing_on DATE NULL,
+  contract_reminder_active TINYINT(1) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_start_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT chk_early_start_fields CHECK (
+    start_type = 'NORMAL' OR (early_start_reason IS NOT NULL AND start_basis IS NOT NULL AND expected_signing_on IS NOT NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_stage (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  stage_name VARCHAR(255) NOT NULL,
+  stage_order SMALLINT UNSIGNED NOT NULL,
+  planned_start_on DATE NOT NULL,
+  planned_end_on DATE NOT NULL,
+  actual_start_on DATE NULL,
+  actual_end_on DATE NULL,
+  owner_id BIGINT UNSIGNED NOT NULL,
+  objective TEXT NOT NULL,
+  deliverables TEXT NOT NULL,
+  completion_percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'NOT_STARTED',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_stage_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT chk_stage_dates CHECK (planned_end_on >= planned_start_on),
+  CONSTRAINT chk_stage_percentage CHECK (completion_percentage BETWEEN 0 AND 100),
+  UNIQUE KEY uk_project_stage_order (project_id, stage_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_progress (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  stage_id BIGINT UNSIGNED NULL,
+  recorded_on DATE NOT NULL,
+  completed_work TEXT NOT NULL,
+  current_progress DECIMAL(5,2) NOT NULL,
+  next_plan TEXT NOT NULL,
+  deviation_description TEXT NULL,
+  coordination_needed TEXT NULL,
+  recorder_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_progress_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_progress_stage FOREIGN KEY (stage_id) REFERENCES prj_stage(id),
+  CONSTRAINT chk_progress_percentage CHECK (current_progress BETWEEN 0 AND 100),
+  INDEX idx_progress_project_date (project_id, recorded_on)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_risk_issue (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  item_type VARCHAR(16) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  severity VARCHAR(16) NOT NULL,
+  impact TEXT NOT NULL,
+  owner_id BIGINT UNSIGNED NOT NULL,
+  discovered_on DATE NOT NULL,
+  planned_resolution_on DATE NOT NULL,
+  measures TEXT NOT NULL,
+  actual_resolution_on DATE NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_risk_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  INDEX idx_risk_project_status (project_id, status, severity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_change (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  change_type VARCHAR(64) NOT NULL,
+  original_content TEXT NOT NULL,
+  new_content TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  impact_scope TEXT NOT NULL,
+  schedule_impact_days INT NOT NULL DEFAULT 0,
+  amount_impact DECIMAL(18,2) NOT NULL DEFAULT 0,
+  applicant_id BIGINT UNSIGNED NOT NULL,
+  effective_on DATE NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_project_change_project FOREIGN KEY (project_id) REFERENCES prj_project(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_deliverable (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  stage_id BIGINT UNSIGNED NULL,
+  deliverable_name VARCHAR(255) NOT NULL,
+  deliverable_type VARCHAR(64) NOT NULL,
+  deliverable_version VARCHAR(64) NOT NULL,
+  submitted_on DATE NOT NULL,
+  submitter_id BIGINT UNSIGNED NOT NULL,
+  recipient VARCHAR(255) NULL,
+  description TEXT NULL,
+  confirmation_result VARCHAR(32) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_deliverable_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_deliverable_stage FOREIGN KEY (stage_id) REFERENCES prj_stage(id),
+  UNIQUE KEY uk_deliverable_version (project_id, deliverable_name, deliverable_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS prj_acceptance (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  contract_id BIGINT UNSIGNED NULL,
+  acceptance_type VARCHAR(64) NOT NULL,
+  applied_on DATE NOT NULL,
+  acceptance_scope TEXT NOT NULL,
+  acceptance_basis TEXT NOT NULL,
+  accepted_on DATE NULL,
+  acceptance_organization VARCHAR(255) NULL,
+  result VARCHAR(32) NULL,
+  remaining_issues TEXT NULL,
+  rectification_due_on DATE NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_acceptance_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_acceptance_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
+  INDEX idx_acceptance_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
