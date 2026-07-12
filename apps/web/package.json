@@ -1,0 +1,27 @@
+{
+  "name": "@zkgl/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "^3.6.2",
+    "@zkgl/shared": "0.1.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.39",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.0",
+    "vue-tsc": "^3.2.5",
+    "typescript": "^5.9.3"
+  }
+}

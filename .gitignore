@@ -9,3 +9,13 @@
 # Operating-system metadata
 Thumbs.db
 .DS_Store
+
+# JavaScript build output and local configuration
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+npm-debug.log*

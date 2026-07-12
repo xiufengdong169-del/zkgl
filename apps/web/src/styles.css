@@ -1,0 +1,22 @@
+:root { font-family: Inter, "Microsoft YaHei", sans-serif; color: #172033; background: #f3f6fa; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, #eaf1fb, #f8fafc 58%); }
+.auth-card { width: min(420px, 100%); padding: 42px; border: 1px solid #dfe7f2; border-radius: 18px; background: #fff; box-shadow: 0 22px 65px rgba(23, 52, 94, .12); }
+.eyebrow { margin: 0 0 8px; color: #356cad; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+h1 { margin: 0; font-size: 28px; }
+.muted { margin: 10px 0 28px; color: #6c778b; }
+label { display: grid; gap: 8px; margin-top: 18px; color: #344056; font-weight: 650; }
+input { width: 100%; padding: 12px 14px; border: 1px solid #cdd7e5; border-radius: 9px; outline: none; }
+input:focus { border-color: #3975bd; box-shadow: 0 0 0 3px rgba(57,117,189,.13); }
+button { width: 100%; margin-top: 24px; padding: 13px; border: 0; border-radius: 9px; color: #fff; background: #245f9f; font-weight: 750; cursor: pointer; }
+button:disabled { opacity: .65; cursor: wait; }
+.error { color: #a02727; font-size: 14px; }
+.shell { max-width: 1180px; margin: 0 auto; padding: 44px 28px; }
+.shell header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.badge { padding: 7px 11px; border-radius: 999px; color: #235c99; background: #e5effa; font-size: 13px; font-weight: 700; }
+.hero { margin-top: 54px; padding: 42px; border-radius: 18px; color: #fff; background: #173c68; }
+.hero h2 { margin-top: 0; font-size: 30px; }
+.hero p { margin-bottom: 0; color: #dbe9f8; }
+@media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header { align-items: flex-start; flex-direction: column; } }
