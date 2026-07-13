@@ -78,6 +78,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "contract.read",
     input: z.object({}).default({}),
   },
+  "contract.activate": {
+    permission: "contract.create",
+    input: z.object({
+      contractId: z.string().min(1),
+      signedOn: z.iso.date(),
+      effectiveOn: z.iso.date(),
+    }),
+  },
   "approval.task.list": { permission: "approval.task.read", input: listInput },
   "approval.instance.submit": {
     permission: "approval.instance.submit",
@@ -217,6 +225,21 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "project.stage.create",
     input: stageInput,
   },
+  "project.stage.transition": {
+    permission: "project.stage.create",
+    input: z.object({
+      stageId: z.string().min(1),
+      action: z.enum([
+        "START",
+        "SUBMIT_CONFIRMATION",
+        "CONFIRM",
+        "DELAY",
+        "SUSPEND",
+        "RESUME",
+        "CANCEL",
+      ]),
+    }),
+  },
   "project.progress.create": {
     permission: "project.progress.create",
     input: progressInput,
@@ -224,6 +247,13 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "project.risk.create": {
     permission: "project.risk.create",
     input: riskInput,
+  },
+  "project.risk.transition": {
+    permission: "project.risk.create",
+    input: z.object({
+      riskId: z.string().min(1),
+      action: z.enum(["START", "SUBMIT_VERIFY", "CLOSE", "REOPEN"]),
+    }),
   },
   "project.deliverable.create": {
     permission: "project.deliverable.create",

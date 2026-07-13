@@ -106,6 +106,19 @@ async function submitContract(item: Row) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
   }
 }
+async function activateContract(item: Row) {
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    await callApi("contract.activate", {
+      contractId: item.id,
+      signedOn: date,
+      effectiveOn: date,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "确认生效失败";
+  }
+}
 </script>
 <template>
   <main class="page">
@@ -250,6 +263,13 @@ async function submitContract(item: Row) {
                 @click="submitContract(item)"
               >
                 提交审批
+              </button>
+              <button
+                v-if="item.status === 'PENDING_SIGNATURE'"
+                class="secondary-button"
+                @click="activateContract(item)"
+              >
+                确认签署生效
               </button>
             </td>
           </tr>

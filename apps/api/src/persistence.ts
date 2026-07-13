@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { AppError } from "./errors.js";
 import { withTransaction } from "./database.js";
 import { calculateSettlement, validateProjectClose } from "./settlements.js";
+import { transitionRisk, transitionStage } from "./delivery.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -678,6 +679,23 @@ export class MySqlActionExecutor {
               expiringCount: 0,
             }
           );
+        }
+        case "contract.activate": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.contractId],
+          );
+          if (!rows[0] || rows[0].status !== "PENDING_SIGNATURE")
+            throw new AppError(
+              "CONTRACT_NOT_ACTIVATABLE",
+              "只有待签署合同可确认生效",
+              409,
+            );
+          await connection.execute(
+            `UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
+            [input.signedOn, input.effectiveOn, user.id, input.contractId],
+          );
+          return { id: input.contractId, status: "PERFORMING" };
         }
         case "approval.instance.submit": {
           const businessMap: Record<
@@ -2159,11 +2177,19 @@ export class MySqlActionExecutor {
             `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
-          return { deliverables, acceptances };
+          const [stages] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access} ORDER BY x.project_id,x.stage_order`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          const [risks] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access} ORDER BY x.id DESC LIMIT 100`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return { deliverables, acceptances, stages, risks };
         }
         case "project.start.create": {
           const [contractRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
+            `SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PERFORMING','COMPLETED') AND effective_on IS NOT NULL AND effective_on<=CURDATE() AND is_deleted=0`,
             [input.projectId],
           );
           const hasContract = Number(contractRows[0]?.count ?? 0) > 0;
@@ -2217,6 +2243,20 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "project.stage.transition": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM prj_stage WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.stageId],
+          );
+          if (!rows[0])
+            throw new AppError("STAGE_NOT_FOUND", "阶段不存在", 404);
+          const status = transitionStage(rows[0].status, input.action);
+          await connection.execute(
+            `UPDATE prj_stage SET status=?,actual_start_on=CASE WHEN ?='IN_PROGRESS' AND actual_start_on IS NULL THEN CURDATE() ELSE actual_start_on END,actual_end_on=CASE WHEN ?='COMPLETED' THEN CURDATE() ELSE actual_end_on END,updated_by=?,version=version+1 WHERE id=?`,
+            [status, status, status, user.id, input.stageId],
+          );
+          return { id: input.stageId, status };
         }
         case "project.progress.create": {
           if (input.stageId) {
@@ -2276,6 +2316,20 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "project.risk.transition": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM prj_risk_issue WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.riskId],
+          );
+          if (!rows[0])
+            throw new AppError("RISK_NOT_FOUND", "问题风险不存在", 404);
+          const status = transitionRisk(rows[0].status, input.action);
+          await connection.execute(
+            `UPDATE prj_risk_issue SET status=?,actual_resolution_on=CASE WHEN ?='CLOSED' THEN CURDATE() ELSE actual_resolution_on END,updated_by=?,version=version+1 WHERE id=?`,
+            [status, status, user.id, input.riskId],
+          );
+          return { id: input.riskId, status };
         }
         case "project.deliverable.create": {
           if (input.stageId) {
