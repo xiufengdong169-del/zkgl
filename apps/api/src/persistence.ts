@@ -2719,6 +2719,23 @@ export class MySqlActionExecutor {
           }
           return { id: String(result.insertId), code, check, profit };
         }
+        case "project.close.list": {
+          const page = input.page as number,
+            pageSize = input.pageSize as number,
+            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [rows] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE (?=1 OR x.created_by=? OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
+              [
+                all ? 1 : 0,
+                user.id,
+                user.employeeId,
+                user.employeeId,
+                pageSize,
+                (page - 1) * pageSize,
+              ],
+            );
+          return { items: rows, page, pageSize };
+        }
         case "settlement.summary": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;

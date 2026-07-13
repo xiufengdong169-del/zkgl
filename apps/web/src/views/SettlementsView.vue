@@ -31,6 +31,17 @@ interface DepositDocument {
   lossAmount: string;
   status: string;
 }
+interface CloseDocument {
+  id: string;
+  code: string;
+  projectName: string;
+  appliedOn: string;
+  closeType: string;
+  contractAmount: string;
+  receivedAmount: string;
+  confirmedCost: string;
+  status: string;
+}
 const today = new Date().toISOString().slice(0, 10),
   auth = useAuthStore(),
   projects = ref<Option[]>([]),
@@ -38,6 +49,7 @@ const today = new Date().toISOString().slice(0, 10),
   plans = ref<PlanDocument[]>([]),
   settlements = ref<SettlementDocument[]>([]),
   deposits = ref<DepositDocument[]>([]),
+  closes = ref<CloseDocument[]>([]),
   summary = ref({
     planCount: 0,
     settledAmount: "0.00",
@@ -101,7 +113,7 @@ const depositEvent = ref({
 });
 async function load() {
   try {
-    const [s, p, c, operations] = await Promise.all([
+    const [s, p, c, operations, closeResult] = await Promise.all([
       callApi<typeof summary.value>("settlement.summary", {}),
       callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("crm.counterparty.list", {
@@ -113,6 +125,10 @@ async function load() {
         settlements: SettlementDocument[];
         deposits: DepositDocument[];
       }>("finance.operations", {}),
+      callApi<{ items: CloseDocument[] }>("project.close.list", {
+        page: 1,
+        pageSize: 50,
+      }),
     ]);
     summary.value = s;
     projects.value = p.items;
@@ -120,6 +136,7 @@ async function load() {
     plans.value = operations.plans;
     settlements.value = operations.settlements;
     deposits.value = operations.deposits;
+    closes.value = closeResult.items;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -175,7 +192,11 @@ async function createClose() {
   try {
     const f = close.value,
       withOpen = f.closeType === "WITH_OPEN_ITEMS";
-    await callApi("project.close.create", {
+    const result = await callApi<{
+      id: string;
+      code: string;
+      profit: { contractOperatingProfit: number };
+    }>("project.close.create", {
       projectId: f.projectId,
       appliedOn: f.appliedOn,
       completionSummary: f.completionSummary,
@@ -194,6 +215,12 @@ async function createClose() {
             },
           ]
         : [],
+    });
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_CLOSE",
+      businessId: result.id,
+      title: `项目结项：${result.code}`,
+      amount: Math.max(0, Number(result.profit.contractOperatingProfit)),
     });
     mode.value = null;
     await load();
@@ -248,6 +275,22 @@ async function submitSettlement(item: SettlementDocument) {
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
+  }
+}
+async function submitClose(item: CloseDocument) {
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_CLOSE",
+      businessId: item.id,
+      title: `项目结项：${item.projectName}`,
+      amount: Math.max(
+        0,
+        Number(item.contractAmount) - Number(item.confirmedCost),
+      ),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交结项审批失败";
   }
 }
 </script>
@@ -321,6 +364,48 @@ async function submitSettlement(item: SettlementDocument) {
                 "
                 class="secondary-button"
                 @click="submitSettlement(s)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="closes.length" class="data-panel">
+      <h2>项目结项申请</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>项目</th>
+            <th>申请日</th>
+            <th>类型</th>
+            <th>合同金额</th>
+            <th>已收款</th>
+            <th>确认成本</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in closes" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>{{ item.projectName }}</td>
+            <td>{{ item.appliedOn }}</td>
+            <td>{{ item.closeType }}</td>
+            <td>¥ {{ item.contractAmount }}</td>
+            <td>¥ {{ item.receivedAmount }}</td>
+            <td>¥ {{ item.confirmedCost }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                @click="submitClose(item)"
               >
                 提交审批
               </button>

@@ -239,6 +239,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "project.close.create",
     input: closeApplicationInput,
   },
+  "project.close.list": {
+    permission: "project.close.create",
+    input: listInput,
+  },
   "settlement.summary": {
     permission: "settlement.read",
     input: z.object({}).default({}),
