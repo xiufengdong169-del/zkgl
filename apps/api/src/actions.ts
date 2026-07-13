@@ -103,6 +103,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     }),
   },
   "approval.task.list": { permission: "approval.task.read", input: listInput },
+  "approval.inbox.list": {
+    permission: "approval.task.read",
+    input: z.object({
+      mode: z.enum(["PENDING", "INITIATED", "CC", "PROCESSED"]),
+      page: z.number().int().positive().default(1),
+      pageSize: z.union([z.literal(20), z.literal(50)]).default(20),
+    }),
+  },
   "approval.instance.submit": {
     permission: "approval.instance.submit",
     input: z.object({

@@ -1053,6 +1053,27 @@ export class MySqlActionExecutor {
           );
           return { items: rows, page, pageSize };
         }
+        case "approval.inbox.list": {
+          const page = input.page as number,
+            pageSize = input.pageSize as number,
+            offset = (page - 1) * pageSize;
+          let sql: string, params: Array<string | number>;
+          if (input.mode === "PENDING") {
+            sql = `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,t.status taskStatus,t.position_code positionCode,t.assigned_at occurredAt,1 canAct FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.assignee_id=? AND t.status='PENDING' AND i.status='PENDING' ORDER BY t.assigned_at ASC LIMIT ? OFFSET ?`;
+            params = [user.employeeId, pageSize, offset];
+          } else if (input.mode === "INITIATED") {
+            sql = `SELECT CAST(i.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,NULL taskStatus,NULL positionCode,i.submitted_at occurredAt,0 canAct FROM wf_instance i WHERE i.applicant_id=? ORDER BY i.submitted_at DESC LIMIT ? OFFSET ?`;
+            params = [user.id, pageSize, offset];
+          } else if (input.mode === "CC") {
+            sql = `SELECT CAST(c.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,NULL taskStatus,c.position_code positionCode,c.created_at occurredAt,0 canAct FROM wf_cc_recipient c JOIN wf_instance i ON i.id=c.instance_id WHERE c.recipient_id=? ORDER BY c.created_at DESC LIMIT ? OFFSET ?`;
+            params = [user.employeeId, pageSize, offset];
+          } else {
+            sql = `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,t.status taskStatus,t.position_code positionCode,t.completed_at occurredAt,0 canAct FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.completed_by=? AND t.status='APPROVED' ORDER BY t.completed_at DESC LIMIT ? OFFSET ?`;
+            params = [user.employeeId, pageSize, offset];
+          }
+          const [rows] = await connection.execute<RowDataPacket[]>(sql, params);
+          return { items: rows, page, pageSize };
+        }
         case "approval.task.action": {
           const [existing] = await connection.execute<RowDataPacket[]>(
             "SELECT id FROM wf_action_history WHERE action_key=? LIMIT 1",
