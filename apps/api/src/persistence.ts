@@ -96,6 +96,11 @@ async function applyBusinessApprovalResult(
       column: "status",
       approved: "PENDING_SIGNATURE",
     },
+    CONTRACT_CHANGE: {
+      table: "con_contract_change",
+      column: "status",
+      approved: "APPROVED",
+    },
     INVOICE_APPLICATION: {
       table: "fin_invoice_application",
       column: "status",
@@ -145,6 +150,27 @@ async function applyBusinessApprovalResult(
     [target, actorUserId, businessId],
   );
   if (status !== "APPROVED") return;
+  if (businessType === "CONTRACT_CHANGE") {
+    const [changes] = await connection.execute<RowDataPacket[]>(
+      `SELECT contract_id contractId,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=?`,
+      [businessId],
+    );
+    const change = changes[0];
+    if (!change)
+      throw new AppError("CONTRACT_CHANGE_NOT_FOUND", "合同变更不存在", 404);
+    await connection.execute(
+      `UPDATE con_contract SET tax_inclusive_amount=?,tax_exclusive_amount=?,tax_rate=?,tax_amount=?,expires_on=COALESCE(?,expires_on),contract_version=contract_version+1,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
+      [
+        change.taxInclusiveAmount,
+        change.taxExclusiveAmount,
+        change.taxRate,
+        change.taxAmount,
+        change.newEndOn,
+        actorUserId,
+        change.contractId,
+      ],
+    );
+  }
   if (businessType === "PROJECT_APPLICATION") {
     const [existing] = await connection.execute<RowDataPacket[]>(
       `SELECT id FROM prj_project WHERE application_id=?`,
@@ -905,6 +931,28 @@ export class MySqlActionExecutor {
           );
           return { items: rows, page, pageSize };
         }
+        case "contract.detail": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,contract_code code,contract_name contractName,contract_type contractType,tax_inclusive_amount taxInclusiveAmount,tax_exclusive_amount taxExclusiveAmount,tax_rate taxRate,tax_amount taxAmount,expires_on expiresOn,contract_version contractVersion,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              [input.contractId, all ? 1 : 0, user.employeeId],
+            );
+          if (!contracts[0])
+            throw new AppError(
+              "CONTRACT_NOT_FOUND",
+              "合同不存在或无权访问",
+              404,
+            );
+          const [changes] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,change_code changeCode,change_type changeType,original_tax_inclusive_amount originalTaxInclusiveAmount,new_tax_inclusive_amount newTaxInclusiveAmount,net_change_amount netChangeAmount,original_end_on originalEndOn,new_end_on newEndOn,change_content changeContent,reason,effective_on effectiveOn,status FROM con_contract_change WHERE contract_id=? AND is_deleted=0 ORDER BY id DESC`,
+              [input.contractId],
+            ),
+            [milestones] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,milestone_type milestoneType,milestone_name milestoneName,planned_on plannedOn,planned_amount plannedAmount,condition_description conditionDescription,completed_on completedOn,status FROM con_contract_milestone WHERE contract_id=? AND is_deleted=0 ORDER BY planned_on,id`,
+              [input.contractId],
+            );
+          return { contract: contracts[0], changes, milestones };
+        }
         case "contract.summary": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [rows] = await connection.execute<RowDataPacket[]>(
@@ -955,6 +1003,10 @@ export class MySqlActionExecutor {
               statusColumn: "status",
             },
             CONTRACT: { table: "con_contract", statusColumn: "status" },
+            CONTRACT_CHANGE: {
+              table: "con_contract_change",
+              statusColumn: "status",
+            },
             INVOICE_APPLICATION: {
               table: "fin_invoice_application",
               statusColumn: "status",
@@ -2148,6 +2200,120 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId), code };
+        }
+        case "contract.change.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?) FOR UPDATE`,
+              [input.contractId, all ? 1 : 0, user.employeeId],
+            );
+          const contract = contracts[0];
+          if (!contract)
+            throw new AppError(
+              "CONTRACT_NOT_FOUND",
+              "合同不存在或无权访问",
+              404,
+            );
+          if (contract.status !== "PERFORMING")
+            throw new AppError(
+              "CONTRACT_CHANGE_NOT_ALLOWED",
+              "只有履行中的合同可以申请变更",
+              409,
+            );
+          const [pending] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM con_contract_change WHERE contract_id=? AND status IN('DRAFT','APPROVAL_PENDING') AND is_deleted=0 LIMIT 1 FOR UPDATE`,
+            [input.contractId],
+          );
+          if (pending[0])
+            throw new AppError(
+              "CONTRACT_CHANGE_ALREADY_OPEN",
+              "该合同已有未完成的变更申请",
+              409,
+            );
+          const code = await allocateNumber(connection, "CONTRACT_CHANGE");
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO con_contract_change(contract_id,change_code,change_type,original_tax_inclusive_amount,new_tax_inclusive_amount,new_tax_exclusive_amount,new_tax_rate,new_tax_amount,original_end_on,new_end_on,change_content,reason,effective_on,applicant_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.contractId,
+              code,
+              input.changeType,
+              contract.taxInclusiveAmount,
+              input.newTaxInclusiveAmount,
+              input.newTaxExclusiveAmount,
+              input.newTaxRate,
+              input.newTaxAmount,
+              contract.expiresOn,
+              input.newEndOn ?? null,
+              input.changeContent,
+              input.reason,
+              input.effectiveOn,
+              user.employeeId,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId), code };
+        }
+        case "contract.milestone.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT id,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              [input.contractId, all ? 1 : 0, user.employeeId],
+            );
+          if (!contracts[0])
+            throw new AppError(
+              "CONTRACT_NOT_FOUND",
+              "合同不存在或无权访问",
+              404,
+            );
+          if (
+            !["PENDING_SIGNATURE", "PERFORMING", "CHANGED"].includes(
+              String(contracts[0].status),
+            )
+          )
+            throw new AppError(
+              "CONTRACT_MILESTONE_NOT_ALLOWED",
+              "当前合同状态不能新增履约节点",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO con_contract_milestone(contract_id,milestone_type,milestone_name,planned_on,planned_amount,condition_description,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)`,
+            [
+              input.contractId,
+              input.milestoneType,
+              input.milestoneName,
+              input.plannedOn,
+              input.plannedAmount ?? null,
+              input.conditionDescription ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "contract.milestone.complete": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [milestones] = await connection.execute<RowDataPacket[]>(
+              `SELECT m.id,m.status FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 AND (?=1 OR c.owner_id=?) FOR UPDATE`,
+              [input.milestoneId, all ? 1 : 0, user.employeeId],
+            );
+          if (!milestones[0])
+            throw new AppError(
+              "CONTRACT_MILESTONE_NOT_FOUND",
+              "履约节点不存在或无权访问",
+              404,
+            );
+          if (milestones[0].status !== "PENDING")
+            throw new AppError(
+              "CONTRACT_MILESTONE_COMPLETED",
+              "履约节点已完成",
+              409,
+            );
+          await connection.execute(
+            `UPDATE con_contract_milestone SET completed_on=?,status='COMPLETED',updated_by=?,version=version+1 WHERE id=?`,
+            [input.completedOn, user.id, input.milestoneId],
+          );
+          return { id: input.milestoneId, status: "COMPLETED" };
         }
         case "partner.plan.create": {
           if (input.settlementMethod === "RATIO") {

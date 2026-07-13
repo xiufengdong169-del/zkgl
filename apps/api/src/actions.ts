@@ -3,7 +3,11 @@ import type { ZodType } from "zod";
 import { z } from "zod";
 
 import { bidApplicationInput, bidResultInput } from "./bids.js";
-import { contractInput } from "./contracts.js";
+import {
+  contractChangeInput,
+  contractInput,
+  contractMilestoneInput,
+} from "./contracts.js";
 import {
   acceptanceInput,
   deliverableConfirmInput,
@@ -93,6 +97,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: listInput,
   },
   "contract.list": { permission: "contract.read", input: listInput },
+  "contract.detail": {
+    permission: "contract.read",
+    input: z.object({ contractId: z.string().min(1) }),
+  },
   "contract.summary": {
     permission: "contract.read",
     input: z.object({}).default({}),
@@ -103,6 +111,21 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       contractId: z.string().min(1),
       signedOn: z.iso.date(),
       effectiveOn: z.iso.date(),
+    }),
+  },
+  "contract.change.create": {
+    permission: "contract.change.create",
+    input: contractChangeInput,
+  },
+  "contract.milestone.create": {
+    permission: "contract.milestone.create",
+    input: contractMilestoneInput,
+  },
+  "contract.milestone.complete": {
+    permission: "contract.milestone.create",
+    input: z.object({
+      milestoneId: z.string().min(1),
+      completedOn: z.iso.date(),
     }),
   },
   "approval.task.list": { permission: "approval.task.read", input: listInput },
@@ -122,6 +145,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         "LEAD",
         "BID_APPLICATION",
         "CONTRACT",
+        "CONTRACT_CHANGE",
         "INVOICE_APPLICATION",
         "EXPENSE_REIMBURSEMENT",
         "PROJECT_PAYMENT",

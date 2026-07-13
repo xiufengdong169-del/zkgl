@@ -7,7 +7,8 @@ interface Row {
   code: string;
   contractName: string;
   contractType: string;
-  taxExclusiveAmount: string;
+  taxInclusiveAmount: number;
+  taxExclusiveAmount: number;
   amountStatus: string;
   status: string;
 }
@@ -16,18 +17,48 @@ interface Option {
   name?: string;
   projectName?: string;
 }
+interface Detail extends Row {
+  taxRate: number;
+  taxAmount: number;
+  expiresOn: string | null;
+  contractVersion: number;
+}
+interface Change {
+  id: string;
+  changeCode: string;
+  changeType: string;
+  originalTaxInclusiveAmount: number;
+  newTaxInclusiveAmount: number;
+  netChangeAmount: number;
+  effectiveOn: string;
+  changeContent: string;
+  reason: string;
+  status: string;
+}
+interface Milestone {
+  id: string;
+  milestoneType: string;
+  milestoneName: string;
+  plannedOn: string;
+  plannedAmount: number | null;
+  completedOn: string | null;
+  status: string;
+}
 const auth = useAuthStore(),
   items = ref<Row[]>([]),
-  summary = ref({
-    incomeAmount: "0.00",
-    expenseAmount: "0.00",
-    expiringCount: 0,
-  }),
   projects = ref<Option[]>([]),
   parties = ref<Option[]>([]),
   error = ref<string | null>(null),
+  saving = ref(false),
   showForm = ref(false),
-  saving = ref(false);
+  selected = ref<Detail | null>(null),
+  changes = ref<Change[]>([]),
+  milestones = ref<Milestone[]>([]);
+const summary = ref({
+  incomeAmount: "0.00",
+  expenseAmount: "0.00",
+  expiringCount: 0,
+});
 const form = ref({
   contractName: "",
   contractType: "INCOME",
@@ -45,10 +76,30 @@ const form = ref({
   paymentTerms: "",
   invoiceTerms: "",
 });
+const changeForm = ref({
+  changeType: "COMPOSITE",
+  newTaxInclusiveAmount: 0,
+  newTaxExclusiveAmount: 0,
+  newTaxRate: 0.06,
+  newTaxAmount: 0,
+  newEndOn: "",
+  changeContent: "",
+  reason: "",
+  effectiveOn: new Date().toISOString().slice(0, 10),
+});
+const milestoneForm = ref({
+  milestoneType: "DELIVERY",
+  milestoneName: "",
+  plannedOn: "",
+  plannedAmount: null as number | null,
+  conditionDescription: "",
+});
+
 async function load() {
+  error.value = null;
   try {
     const [c, p, o, s] = await Promise.all([
-      callApi<{ items: Row[] }>("contract.list", { page: 1, pageSize: 20 }),
+      callApi<{ items: Row[] }>("contract.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("crm.counterparty.list", {
         page: 1,
@@ -64,11 +115,32 @@ async function load() {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
 }
-onMounted(load);
+async function openDetail(id: string) {
+  try {
+    const data = await callApi<{
+      contract: Detail;
+      changes: Change[];
+      milestones: Milestone[];
+    }>("contract.detail", { contractId: id });
+    selected.value = data.contract;
+    changes.value = data.changes;
+    milestones.value = data.milestones;
+    changeForm.value.newTaxInclusiveAmount = Number(
+      data.contract.taxInclusiveAmount,
+    );
+    changeForm.value.newTaxExclusiveAmount = Number(
+      data.contract.taxExclusiveAmount,
+    );
+    changeForm.value.newTaxRate = Number(data.contract.taxRate);
+    changeForm.value.newTaxAmount = Number(data.contract.taxAmount);
+    changeForm.value.newEndOn = data.contract.expiresOn || "";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "详情加载失败";
+  }
+}
 async function createContract() {
   if (!auth.user) return;
   saving.value = true;
-  error.value = null;
   try {
     await callApi("contract.create", {
       ...form.value,
@@ -92,21 +164,26 @@ async function createContract() {
     saving.value = false;
   }
 }
-async function submitContract(item: Row) {
-  error.value = null;
+async function submitApproval(
+  type: "CONTRACT" | "CONTRACT_CHANGE",
+  id: string,
+  title: string,
+  amount: number,
+) {
   try {
     await callApi("approval.instance.submit", {
-      businessType: "CONTRACT",
-      businessId: item.id,
-      title: `合同审批：${item.contractName}`,
-      amount: Number(item.taxExclusiveAmount),
+      businessType: type,
+      businessId: id,
+      title,
+      amount,
     });
     await load();
+    if (selected.value) await openDetail(selected.value.id);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
   }
 }
-async function activateContract(item: Row) {
+async function activate(item: Row) {
   const date = new Date().toISOString().slice(0, 10);
   try {
     await callApi("contract.activate", {
@@ -115,10 +192,66 @@ async function activateContract(item: Row) {
       effectiveOn: date,
     });
     await load();
+    await openDetail(item.id);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "确认生效失败";
   }
 }
+async function createChange() {
+  if (!selected.value) return;
+  saving.value = true;
+  try {
+    const result = await callApi<{ id: string; code: string }>(
+      "contract.change.create",
+      {
+        ...changeForm.value,
+        contractId: selected.value.id,
+        newEndOn: changeForm.value.newEndOn || null,
+      },
+    );
+    await submitApproval(
+      "CONTRACT_CHANGE",
+      result.id,
+      `合同变更：${selected.value.contractName}`,
+      Number(changeForm.value.newTaxInclusiveAmount),
+    );
+    await openDetail(selected.value.id);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "变更申请失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createMilestone() {
+  if (!selected.value) return;
+  saving.value = true;
+  try {
+    await callApi("contract.milestone.create", {
+      ...milestoneForm.value,
+      contractId: selected.value.id,
+      plannedAmount: milestoneForm.value.plannedAmount,
+      conditionDescription: milestoneForm.value.conditionDescription || null,
+    });
+    milestoneForm.value.milestoneName = "";
+    await openDetail(selected.value.id);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "节点保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function completeMilestone(item: Milestone) {
+  try {
+    await callApi("contract.milestone.complete", {
+      milestoneId: item.id,
+      completedOn: new Date().toISOString().slice(0, 10),
+    });
+    if (selected.value) await openDetail(selected.value.id);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "节点完成失败";
+  }
+}
+onMounted(load);
 </script>
 <template>
   <main class="page">
@@ -131,6 +264,7 @@ async function activateContract(item: Row) {
         {{ showForm ? "取消" : "新增合同" }}
       </button>
     </header>
+    <p v-if="error" class="error">{{ error }}</p>
     <form v-if="showForm" class="entity-form" @submit.prevent="createContract">
       <label
         >合同名称<input
@@ -138,7 +272,7 @@ async function activateContract(item: Row) {
           required
           minlength="2" /></label
       ><label
-        >合同类型<select v-model="form.contractType">
+        >类型<select v-model="form.contractType">
           <option value="INCOME">收入合同</option>
           <option value="EXPENSE">支出合同</option>
         </select></label
@@ -207,34 +341,25 @@ async function activateContract(item: Row) {
         ></textarea></label
       ><label class="wide"
         >开票条件<textarea v-model="form.invoiceTerms"></textarea></label
-      ><button :disabled="saving">{{ saving ? "保存中…" : "保存合同" }}</button>
+      ><button :disabled="saving">保存合同</button>
     </form>
     <section class="contract-panels">
       <article>
         <p>收入合同</p>
-        <strong>¥ {{ summary.incomeAmount }}</strong
-        ><small>确认不含税金额</small>
+        <strong>¥ {{ summary.incomeAmount }}</strong>
       </article>
       <article>
         <p>支出合同</p>
-        <strong>¥ {{ summary.expenseAmount }}</strong
-        ><small>有效履约金额</small>
+        <strong>¥ {{ summary.expenseAmount }}</strong>
       </article>
       <article>
-        <p>临期提醒</p>
-        <strong>{{ summary.expiringCount }}</strong
-        ><small>未来 30 天到期</small>
+        <p>未来30天到期</p>
+        <strong>{{ summary.expiringCount }}</strong>
       </article>
     </section>
-    <section v-if="!items.length && !error" class="empty-state">
-      <span>合</span>
-      <h2>暂无合同记录</h2>
-      <p>合同审批、变更、履约节点和到期提醒将在这里统一管理。</p>
-    </section>
     <section class="data-panel">
-      <h2>最近合同</h2>
-      <p v-if="error" class="error">{{ error }}</p>
-      <table v-else-if="items.length">
+      <h2>合同列表</h2>
+      <table v-if="items.length">
         <thead>
           <tr>
             <th>编号</th>
@@ -248,34 +373,196 @@ async function activateContract(item: Row) {
         <tbody>
           <tr v-for="item in items" :key="item.id">
             <td>{{ item.code }}</td>
-            <td>{{ item.contractName }}</td>
+            <td>
+              <button @click="openDetail(item.id)">
+                {{ item.contractName }}
+              </button>
+            </td>
             <td>{{ item.contractType }}</td>
             <td>{{ item.taxExclusiveAmount }}</td>
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
+                v-if="['DRAFT', 'RETURNED'].includes(item.status)"
+                @click="
+                  submitApproval(
+                    'CONTRACT',
+                    item.id,
+                    `合同审批：${item.contractName}`,
+                    Number(item.taxExclusiveAmount),
                   )
                 "
-                class="secondary-button"
-                @click="submitContract(item)"
               >
-                提交审批
-              </button>
-              <button
+                提交审批</button
+              ><button
                 v-if="item.status === 'PENDING_SIGNATURE'"
-                class="secondary-button"
-                @click="activateContract(item)"
+                @click="activate(item)"
               >
-                确认签署生效
+                确认生效
               </button>
             </td>
           </tr>
         </tbody>
       </table>
       <p v-else>暂无合同</p>
+    </section>
+    <section v-if="selected" class="data-panel">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">
+            {{ selected.code }} · V{{ selected.contractVersion }}
+          </p>
+          <h2>{{ selected.contractName }}</h2>
+        </div>
+        <button @click="selected = null">关闭详情</button>
+      </header>
+      <p>
+        状态：{{ selected.status }}　含税金额：¥
+        {{ selected.taxInclusiveAmount }}　到期日：{{
+          selected.expiresOn || "未设置"
+        }}
+      </p>
+      <form
+        v-if="selected.status === 'PERFORMING'"
+        class="entity-form"
+        @submit.prevent="createChange"
+      >
+        <h3 class="wide">合同变更申请</h3>
+        <label
+          >变更类型<select v-model="changeForm.changeType">
+            <option value="AMOUNT">金额</option>
+            <option value="TERM">期限</option>
+            <option value="SCOPE">范围</option>
+            <option value="COMPOSITE">综合</option>
+          </select></label
+        ><label
+          >新含税金额<input
+            v-model.number="changeForm.newTaxInclusiveAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            required /></label
+        ><label
+          >新不含税金额<input
+            v-model.number="changeForm.newTaxExclusiveAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            required /></label
+        ><label
+          >新税率<input
+            v-model.number="changeForm.newTaxRate"
+            type="number"
+            min="0"
+            max="1"
+            step="0.000001"
+            required /></label
+        ><label
+          >新税额<input
+            v-model.number="changeForm.newTaxAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            required /></label
+        ><label
+          >新到期日<input v-model="changeForm.newEndOn" type="date" /></label
+        ><label
+          >生效日<input
+            v-model="changeForm.effectiveOn"
+            type="date"
+            required /></label
+        ><label class="wide"
+          >变更内容<textarea
+            v-model="changeForm.changeContent"
+            required
+            minlength="2"
+          ></textarea></label
+        ><label class="wide"
+          >变更原因<textarea
+            v-model="changeForm.reason"
+            required
+            minlength="2"
+          ></textarea></label
+        ><button :disabled="saving">创建并提交审批</button>
+      </form>
+      <h3>变更历史</h3>
+      <article v-for="change in changes" :key="change.id" class="data-row">
+        <div>
+          <strong>{{ change.changeCode }} · {{ change.status }}</strong>
+          <p>
+            ¥ {{ change.originalTaxInclusiveAmount }} → ¥
+            {{ change.newTaxInclusiveAmount }}（净变更
+            {{ change.netChangeAmount }}）
+          </p>
+          <small>{{ change.reason }}</small>
+        </div>
+      </article>
+      <p v-if="!changes.length">暂无变更</p>
+      <form
+        v-if="
+          ['PENDING_SIGNATURE', 'PERFORMING', 'CHANGED'].includes(
+            selected.status,
+          )
+        "
+        class="entity-form"
+        @submit.prevent="createMilestone"
+      >
+        <h3 class="wide">新增履约节点</h3>
+        <label
+          >类型<select v-model="milestoneForm.milestoneType">
+            <option value="DELIVERY">交付</option>
+            <option value="ACCEPTANCE">验收</option>
+            <option value="INVOICE">开票</option>
+            <option value="PAYMENT">收付款</option>
+            <option value="OTHER">其他</option>
+          </select></label
+        ><label
+          >名称<input
+            v-model="milestoneForm.milestoneName"
+            required
+            minlength="2" /></label
+        ><label
+          >计划日期<input
+            v-model="milestoneForm.plannedOn"
+            type="date"
+            required /></label
+        ><label
+          >计划金额<input
+            v-model.number="milestoneForm.plannedAmount"
+            type="number"
+            min="0"
+            step="0.01" /></label
+        ><label class="wide"
+          >完成条件<textarea
+            v-model="milestoneForm.conditionDescription"
+          ></textarea></label
+        ><button :disabled="saving">保存节点</button>
+      </form>
+      <h3>履约节点</h3>
+      <article
+        v-for="milestone in milestones"
+        :key="milestone.id"
+        class="data-row"
+      >
+        <div>
+          <strong
+            >{{ milestone.milestoneName }} · {{ milestone.status }}</strong
+          >
+          <p>
+            {{ milestone.milestoneType }} · 计划 {{ milestone.plannedOn
+            }}<span v-if="milestone.completedOn">
+              · 完成 {{ milestone.completedOn }}</span
+            >
+          </p>
+        </div>
+        <button
+          v-if="milestone.status === 'PENDING'"
+          @click="completeMilestone(milestone)"
+        >
+          确认完成
+        </button>
+      </article>
+      <p v-if="!milestones.length">暂无履约节点</p>
     </section>
   </main>
 </template>

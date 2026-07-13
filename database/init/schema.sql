@@ -320,6 +320,7 @@ VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', Y
   , ('VISIT', 'BF', YEAR(CURRENT_DATE), 0)
   , ('BID', 'TB', YEAR(CURRENT_DATE), 0)
   , ('CONTRACT', 'HT', YEAR(CURRENT_DATE), 0)
+  , ('CONTRACT_CHANGE', 'BG', YEAR(CURRENT_DATE), 0)
   , ('INVOICE_APPLICATION', 'KP', YEAR(CURRENT_DATE), 0)
   , ('RECEIPT', 'SK', YEAR(CURRENT_DATE), 0)
   , ('REIMBURSEMENT', 'BX', YEAR(CURRENT_DATE), 0)
@@ -566,6 +567,7 @@ VALUES
   ('PROJECT_ESTABLISHMENT', '项目立项', 'PROJECT_APPLICATION', 0, 0),
   ('BID_APPLICATION', '投标申请', 'BID_APPLICATION', 0, 0),
   ('CONTRACT_APPROVAL', '合同审批', 'CONTRACT', 0, 0),
+  ('CONTRACT_CHANGE', '合同变更', 'CONTRACT_CHANGE', 0, 0),
   ('PROJECT_START', '项目启动', 'PROJECT_START', 0, 0),
   ('PROJECT_CHANGE', '项目变更', 'PROJECT_CHANGE', 0, 0),
   ('INVOICE_APPLICATION', '开票申请', 'INVOICE_APPLICATION', 0, 0),
@@ -591,6 +593,9 @@ JOIN (
   UNION ALL SELECT 'CONTRACT_APPROVAL', 1, '项目审核', 'PROJECT_MANAGER', NULL
   UNION ALL SELECT 'CONTRACT_APPROVAL', 2, '财务核对', 'FINANCE_REVIEWER', NULL
   UNION ALL SELECT 'CONTRACT_APPROVAL', 3, '负责人审批', 'COMPANY_PRINCIPAL', NULL
+  UNION ALL SELECT 'CONTRACT_CHANGE', 1, '项目审核', 'PROJECT_MANAGER', NULL
+  UNION ALL SELECT 'CONTRACT_CHANGE', 2, '财务核对', 'FINANCE_REVIEWER', NULL
+  UNION ALL SELECT 'CONTRACT_CHANGE', 3, '负责人审批', 'COMPANY_PRINCIPAL', NULL
   UNION ALL SELECT 'PROJECT_START', 1, '经营确认', 'OPERATIONS_MANAGER', NULL
   UNION ALL SELECT 'PROJECT_START', 2, '负责人确认', 'COMPANY_PRINCIPAL', NULL
   UNION ALL SELECT 'PROJECT_CHANGE', 1, '经营审核', 'OPERATIONS_MANAGER', NULL
@@ -854,6 +859,9 @@ CREATE TABLE IF NOT EXISTS con_contract_change (
   change_type VARCHAR(64) NOT NULL,
   original_tax_inclusive_amount DECIMAL(18,2) NOT NULL,
   new_tax_inclusive_amount DECIMAL(18,2) NOT NULL,
+  new_tax_exclusive_amount DECIMAL(18,2) NOT NULL,
+  new_tax_rate DECIMAL(8,6) NOT NULL,
+  new_tax_amount DECIMAL(18,2) NOT NULL,
   net_change_amount DECIMAL(18,2) GENERATED ALWAYS AS (new_tax_inclusive_amount - original_tax_inclusive_amount) STORED,
   original_end_on DATE NULL,
   new_end_on DATE NULL,
@@ -1448,7 +1456,7 @@ VALUES
 ('crm.counterparty.read','查看往来单位','READ'),('crm.counterparty.create','创建往来单位','WRITE'),('crm.contact.create','创建联系人','WRITE'),('crm.visit.create','创建拜访','WRITE'),
 ('lead.read','查看线索','READ'),('lead.create','创建线索','WRITE'),('lead.followUp.create','创建跟进','WRITE'),
 ('project.application.read','查看立项申请','READ'),('project.application.create','创建立项申请','WRITE'),('project.read','查看项目','READ'),
-('bid.application.read','查看投标','READ'),('bid.application.create','创建投标','WRITE'),('contract.read','查看合同','READ'),('contract.create','创建合同','WRITE'),
+('bid.application.read','查看投标','READ'),('bid.application.create','创建投标','WRITE'),('contract.read','查看合同','READ'),('contract.create','创建合同','WRITE'),('contract.change.create','创建合同变更','WRITE'),('contract.milestone.create','维护合同履约节点','WRITE'),
 ('approval.task.read','查看审批待办','READ'),('approval.task.process','处理审批','APPROVE'),('approval.instance.withdraw','撤回本人审批','WRITE'),
 ('approval.instance.submit','提交审批','WRITE'),
 ('finance.read','查看收支','READ'),('invoice.application.create','申请开票','WRITE'),('receipt.create','登记收款','WRITE'),('reimbursement.create','创建报销','WRITE'),('payment.application.create','创建付款','WRITE'),
@@ -1480,7 +1488,7 @@ WHERE r.code='MARKET_BUSINESS';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','approval.task.read','approval.task.process','approval.instance.withdraw','approval.instance.submit','finance.read','invoice.application.create','reimbursement.create','payment.application.create','daily.purchase.create','partner.plan.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','project.close.create','project.start.create','project.delivery.read','project.stage.create','project.progress.create','project.risk.create','project.deliverable.create','project.deliverable.confirm','project.acceptance.create','project.change.create','file.read','file.upload','file.download','report.financial.read','project.export','message.read')
+('crm.counterparty.read','lead.read','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','contract.change.create','contract.milestone.create','approval.task.read','approval.task.process','approval.instance.withdraw','approval.instance.submit','finance.read','invoice.application.create','reimbursement.create','payment.application.create','daily.purchase.create','partner.plan.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','project.close.create','project.start.create','project.delivery.read','project.stage.create','project.progress.create','project.risk.create','project.deliverable.create','project.deliverable.confirm','project.acceptance.create','project.change.create','file.read','file.upload','file.download','report.financial.read','project.export','message.read')
 WHERE r.code='PROJECT_MANAGER';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
@@ -1495,7 +1503,7 @@ WHERE r.code='BID_STAFF';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','approval.instance.submit','finance.read','invoice.application.create','receipt.create','sales.invoice.create','receipt.invoice.allocate','reimbursement.create','payment.application.create','payment.detail.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','report.financial.read','project.export','message.read')
+('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','contract.change.create','contract.milestone.create','approval.task.read','approval.task.process','approval.instance.withdraw','approval.instance.submit','finance.read','invoice.application.create','receipt.create','sales.invoice.create','receipt.invoice.allocate','reimbursement.create','payment.application.create','payment.detail.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','report.financial.read','project.export','message.read')
 WHERE r.code='FINANCE';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
