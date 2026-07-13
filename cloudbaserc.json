@@ -12,6 +12,22 @@
       "timeout": 20,
       "memorySize": 512,
       "installDependency": true
+    },
+    {
+      "name": "zkgl-reminder",
+      "dir": "./zkgl-reminder",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 60,
+      "memorySize": 256,
+      "installDependency": true,
+      "triggers": [
+        {
+          "name": "zkglDailyReminder",
+          "type": "timer",
+          "config": "0 0 8 * * * *"
+        }
+      ]
     }
   ]
 }
