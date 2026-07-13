@@ -32,4 +32,15 @@ describe("scheduled reminders", () => {
     expect(execute).toHaveBeenCalledTimes(reminderStatements.length);
     for (const sql of reminderStatements) expect(sql).toContain("NOT EXISTS");
   });
+
+  it("覆盖合同、投标、保证金、先开工、结项和风险提醒", () => {
+    const sql = reminderStatements.join("\n");
+    expect(sql).toContain("'CONTRACT_EXPIRY'");
+    expect(sql).toContain("'BID_DEADLINE'");
+    expect(sql).toContain("'DEPOSIT_OVERDUE'");
+    expect(sql).toContain("'DEPOSIT_PAYMENT_OVERDUE'");
+    expect(sql).toContain("'EARLY_START_CONTRACT_MISSING'");
+    expect(sql).toContain("'CLOSE_OPEN_ITEM_OVERDUE'");
+    expect(sql).toContain("'RISK_DUE'");
+  });
 });

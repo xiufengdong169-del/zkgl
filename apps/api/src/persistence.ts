@@ -1270,7 +1270,7 @@ export class MySqlActionExecutor {
         }
         case "contract.activate": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT status,project_id projectId FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.contractId],
           );
           if (!rows[0] || rows[0].status !== "PENDING_SIGNATURE")
@@ -1282,6 +1282,10 @@ export class MySqlActionExecutor {
           await connection.execute(
             `UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
             [input.signedOn, input.effectiveOn, user.id, input.contractId],
+          );
+          await connection.execute(
+            `UPDATE prj_start SET contract_reminder_active=0,updated_by=?,version=version+1 WHERE project_id=? AND start_type='EARLY' AND contract_reminder_active=1`,
+            [user.id, rows[0].projectId],
           );
           return { id: input.contractId, status: "PERFORMING" };
         }
