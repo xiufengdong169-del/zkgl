@@ -4,6 +4,7 @@ import { callApi } from "../api";
 import { useAuthStore } from "../stores/auth";
 interface BidRow {
   id: string;
+  projectId: string;
   code: string;
   projectName: string;
   deadlineAt: string;
@@ -14,14 +15,79 @@ interface Option {
   projectName?: string;
   name?: string;
 }
+interface EmployeeOption {
+  id: string;
+  name: string;
+  positionName?: string;
+}
+interface BidTask {
+  id: string;
+  taskType: string;
+  taskName: string;
+  assigneeId: string;
+  dueAt: string;
+  deliveryRequirement: string;
+  completionDescription: string | null;
+  status: string;
+}
+interface BidCheck {
+  id: string;
+  checkItem: string;
+  checkStandard: string;
+  responsibleId: string;
+  result: string;
+  issueDescription: string | null;
+  rectifierId: string | null;
+  rectificationDueAt: string | null;
+  recheckResult: string | null;
+}
+interface PartnerBid {
+  id: string;
+  partnerName: string;
+  finalCustomerName: string;
+  cooperationType: string;
+  ourQuotation: number | null;
+  result: string | null;
+  description: string | null;
+}
 const auth = useAuthStore(),
   items = ref<BidRow[]>([]),
   projects = ref<Option[]>([]),
   customers = ref<Option[]>([]),
+  employees = ref<EmployeeOption[]>([]),
+  selected = ref<BidRow | null>(null),
+  tasks = ref<BidTask[]>([]),
+  checks = ref<BidCheck[]>([]),
+  partnerBids = ref<PartnerBid[]>([]),
   error = ref<string | null>(null),
   showForm = ref(false),
   showResult = ref(false),
+  showTask = ref(false),
+  showCheck = ref(false),
+  showPartner = ref(false),
   saving = ref(false);
+const taskForm = ref({
+  taskType: "TECHNICAL",
+  taskName: "",
+  assigneeId: "",
+  collaboratorIds: [] as string[],
+  startsAt: "",
+  dueAt: "",
+  deliveryRequirement: "",
+  checkerId: "",
+});
+const checkForm = ref({ checkItem: "", checkStandard: "", responsibleId: "" });
+const partnerForm = ref({
+  partnerId: "",
+  finalCustomerId: "",
+  cooperationType: "JOINT_BID",
+  registrationAt: "",
+  quotationAt: "",
+  biddingAt: "",
+  ourQuotation: null as number | null,
+  result: "",
+  description: "",
+});
 const form = ref({
   projectId: "",
   tendererId: "",
@@ -50,7 +116,7 @@ const resultForm = ref({
 });
 async function load() {
   try {
-    const [b, p, c] = await Promise.all([
+    const [b, p, c, e] = await Promise.all([
       callApi<{ items: BidRow[] }>("bid.application.list", {
         page: 1,
         pageSize: 20,
@@ -60,12 +126,158 @@ async function load() {
         page: 1,
         pageSize: 50,
       }),
+      callApi<{ items: EmployeeOption[] }>("organization.employee.options", {}),
     ]);
     items.value = b.items;
     projects.value = p.items;
     customers.value = c.items;
+    employees.value = e.items;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
+  }
+}
+async function openDetail(item: BidRow) {
+  try {
+    const data = await callApi<{
+      tasks: BidTask[];
+      checks: BidCheck[];
+      partners: PartnerBid[];
+    }>("bid.detail", { bidId: item.id });
+    selected.value = item;
+    tasks.value = data.tasks;
+    checks.value = data.checks;
+    partnerBids.value = data.partners;
+    if (auth.user) {
+      taskForm.value.assigneeId = auth.user.employeeId;
+      checkForm.value.responsibleId = auth.user.employeeId;
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "详情加载失败";
+  }
+}
+async function createTask() {
+  if (!selected.value) return;
+  saving.value = true;
+  try {
+    await callApi("bid.task.create", {
+      ...taskForm.value,
+      bidId: selected.value.id,
+      startsAt: taskForm.value.startsAt
+        ? new Date(taskForm.value.startsAt).toISOString()
+        : null,
+      dueAt: new Date(taskForm.value.dueAt).toISOString(),
+      checkerId: taskForm.value.checkerId || null,
+    });
+    showTask.value = false;
+    await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "任务保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function taskAction(task: BidTask, action: string) {
+  let completionDescription: null | string = null;
+  if (action === "SUBMIT_CHECK") {
+    completionDescription = window.prompt("请输入完成说明")?.trim() || null;
+    if (!completionDescription) return;
+  }
+  try {
+    await callApi("bid.task.transition", {
+      taskId: task.id,
+      action,
+      completionDescription,
+    });
+    if (selected.value) await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "任务操作失败";
+  }
+}
+async function createCheck() {
+  if (!selected.value) return;
+  saving.value = true;
+  try {
+    await callApi("bid.check.create", {
+      ...checkForm.value,
+      bidId: selected.value.id,
+    });
+    showCheck.value = false;
+    await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "检查项保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function checkResult(item: BidCheck, result: "PASSED" | "FAILED") {
+  let issueDescription: null | string = null,
+    rectifierId: null | string = null,
+    rectificationDueAt: null | string = null;
+  if (result === "FAILED") {
+    issueDescription = window.prompt("问题说明")?.trim() || null;
+    rectifierId = auth.user?.employeeId || null;
+    const due = window.prompt("整改期限（YYYY-MM-DD）")?.trim();
+    if (!issueDescription || !due) return;
+    rectificationDueAt = new Date(`${due}T18:00:00`).toISOString();
+  }
+  try {
+    await callApi("bid.check.result", {
+      checkId: item.id,
+      result,
+      issueDescription,
+      rectifierId,
+      rectificationDueAt,
+      recheckResult: null,
+    });
+    if (selected.value) await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "检查结果保存失败";
+  }
+}
+async function recheck(item: BidCheck, result: "PASSED" | "FAILED") {
+  try {
+    await callApi("bid.check.result", {
+      checkId: item.id,
+      result: item.result,
+      issueDescription: item.issueDescription,
+      rectifierId: item.rectifierId,
+      rectificationDueAt: item.rectificationDueAt
+        ? new Date(item.rectificationDueAt).toISOString()
+        : null,
+      recheckResult: result,
+    });
+    if (selected.value) await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "复查保存失败";
+  }
+}
+async function createPartner() {
+  if (!selected.value || !auth.user) return;
+  saving.value = true;
+  try {
+    const f = partnerForm.value;
+    await callApi("bid.partner.create", {
+      projectId: selected.value.projectId,
+      leadId: null,
+      partnerId: f.partnerId,
+      finalCustomerId: f.finalCustomerId,
+      cooperationType: f.cooperationType,
+      registrationAt: f.registrationAt
+        ? new Date(f.registrationAt).toISOString()
+        : null,
+      quotationAt: f.quotationAt ? new Date(f.quotationAt).toISOString() : null,
+      biddingAt: f.biddingAt ? new Date(f.biddingAt).toISOString() : null,
+      ourQuotation: f.ourQuotation,
+      ownerId: auth.user.employeeId,
+      result: f.result || null,
+      description: f.description || null,
+    });
+    showPartner.value = false;
+    await openDetail(selected.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "友商配合保存失败";
+  } finally {
+    saving.value = false;
   }
 }
 onMounted(load);
@@ -308,7 +520,9 @@ const areas = [
         <tbody>
           <tr v-for="item in items" :key="item.id">
             <td>{{ item.code }}</td>
-            <td>{{ item.projectName }}</td>
+            <td>
+              <button @click="openDetail(item)">{{ item.projectName }}</button>
+            </td>
             <td>{{ item.deadlineAt }}</td>
             <td>{{ item.status }}</td>
             <td>
@@ -347,6 +561,218 @@ const areas = [
         </tbody>
       </table>
       <p v-else>暂无投标申请</p>
+    </section>
+    <section v-if="selected" class="data-panel">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">{{ selected.code }}</p>
+          <h2>{{ selected.projectName }} · 执行详情</h2>
+        </div>
+        <div>
+          <button @click="showTask = !showTask">新增任务</button
+          ><button @click="showCheck = !showCheck">新增检查项</button
+          ><button @click="showPartner = !showPartner">友商配合</button
+          ><button @click="selected = null">关闭</button>
+        </div>
+      </header>
+      <form v-if="showTask" class="entity-form" @submit.prevent="createTask">
+        <label>任务类型<input v-model="taskForm.taskType" required /></label
+        ><label
+          >任务名称<input
+            v-model="taskForm.taskName"
+            required
+            minlength="2" /></label
+        ><label
+          >责任人<select v-model="taskForm.assigneeId" required>
+            <option
+              v-for="employee in employees"
+              :key="employee.id"
+              :value="employee.id"
+            >
+              {{ employee.name }}
+            </option>
+          </select></label
+        ><label
+          >检查人<select v-model="taskForm.checkerId">
+            <option value="">不指定</option>
+            <option
+              v-for="employee in employees"
+              :key="employee.id"
+              :value="employee.id"
+            >
+              {{ employee.name }}
+            </option>
+          </select></label
+        ><label
+          >开始时间<input
+            v-model="taskForm.startsAt"
+            type="datetime-local" /></label
+        ><label
+          >截止时间<input
+            v-model="taskForm.dueAt"
+            type="datetime-local"
+            required /></label
+        ><label class="wide"
+          >交付要求<textarea
+            v-model="taskForm.deliveryRequirement"
+            required
+            minlength="2"
+          ></textarea></label
+        ><button :disabled="saving">保存任务</button>
+      </form>
+      <h3>任务分工</h3>
+      <article v-for="task in tasks" :key="task.id" class="data-row">
+        <div>
+          <strong>{{ task.taskName }} · {{ task.status }}</strong>
+          <p>
+            {{ task.taskType }} · 截止
+            {{ new Date(task.dueAt).toLocaleString() }}
+          </p>
+          <small>{{ task.deliveryRequirement }}</small>
+        </div>
+        <div>
+          <button
+            v-if="['PENDING', 'OVERDUE'].includes(task.status)"
+            @click="taskAction(task, 'START')"
+          >
+            开始</button
+          ><button
+            v-if="task.status === 'IN_PROGRESS'"
+            @click="taskAction(task, 'SUBMIT_CHECK')"
+          >
+            提交检查</button
+          ><button
+            v-if="task.status === 'PENDING_CHECK'"
+            @click="taskAction(task, 'COMPLETE')"
+          >
+            检查完成</button
+          ><button
+            v-if="!['COMPLETED', 'CANCELLED'].includes(task.status)"
+            @click="taskAction(task, 'CANCEL')"
+          >
+            取消
+          </button>
+        </div>
+      </article>
+      <p v-if="!tasks.length">暂无任务</p>
+      <form v-if="showCheck" class="entity-form" @submit.prevent="createCheck">
+        <label
+          >检查项<input
+            v-model="checkForm.checkItem"
+            required
+            minlength="2" /></label
+        ><label
+          >责任人<select v-model="checkForm.responsibleId" required>
+            <option
+              v-for="employee in employees"
+              :key="employee.id"
+              :value="employee.id"
+            >
+              {{ employee.name }}
+            </option>
+          </select></label
+        ><label class="wide"
+          >检查标准<textarea
+            v-model="checkForm.checkStandard"
+            required
+            minlength="2"
+          ></textarea></label
+        ><button :disabled="saving">保存检查项</button>
+      </form>
+      <h3>文件检查与整改</h3>
+      <article v-for="check in checks" :key="check.id" class="data-row">
+        <div>
+          <strong>{{ check.checkItem }} · {{ check.result }}</strong>
+          <p>{{ check.checkStandard }}</p>
+          <small v-if="check.issueDescription"
+            >问题：{{ check.issueDescription }} · 复查
+            {{ check.recheckResult || "待复查" }}</small
+          >
+        </div>
+        <div>
+          <button
+            v-if="check.result === 'PENDING'"
+            @click="checkResult(check, 'PASSED')"
+          >
+            通过</button
+          ><button
+            v-if="check.result === 'PENDING'"
+            @click="checkResult(check, 'FAILED')"
+          >
+            不通过</button
+          ><button
+            v-if="check.result === 'FAILED' && !check.recheckResult"
+            @click="recheck(check, 'PASSED')"
+          >
+            复查通过</button
+          ><button
+            v-if="check.result === 'FAILED' && !check.recheckResult"
+            @click="recheck(check, 'FAILED')"
+          >
+            复查未通过
+          </button>
+        </div>
+      </article>
+      <p v-if="!checks.length">暂无检查项</p>
+      <form
+        v-if="showPartner"
+        class="entity-form"
+        @submit.prevent="createPartner"
+      >
+        <label
+          >友商<select v-model="partnerForm.partnerId" required>
+            <option
+              v-for="customer in customers"
+              :key="customer.id"
+              :value="customer.id"
+            >
+              {{ customer.name }}
+            </option>
+          </select></label
+        ><label
+          >最终客户<select v-model="partnerForm.finalCustomerId" required>
+            <option
+              v-for="customer in customers"
+              :key="customer.id"
+              :value="customer.id"
+            >
+              {{ customer.name }}
+            </option>
+          </select></label
+        ><label
+          >配合类型<input
+            v-model="partnerForm.cooperationType"
+            required /></label
+        ><label
+          >我方报价<input
+            v-model.number="partnerForm.ourQuotation"
+            type="number"
+            min="0"
+            step="0.01" /></label
+        ><label>结果<input v-model="partnerForm.result" /></label
+        ><label class="wide"
+          >说明<textarea v-model="partnerForm.description"></textarea></label
+        ><button :disabled="saving">保存友商配合</button>
+      </form>
+      <h3>友商配合投标</h3>
+      <article
+        v-for="partner in partnerBids"
+        :key="partner.id"
+        class="data-row"
+      >
+        <div>
+          <strong
+            >{{ partner.partnerName }} → {{ partner.finalCustomerName }}</strong
+          >
+          <p>
+            {{ partner.cooperationType }} · 报价
+            {{ partner.ourQuotation ?? "未填" }} ·
+            {{ partner.result || "进行中" }}
+          </p>
+          <small>{{ partner.description }}</small>
+        </div>
+      </article>
+      <p v-if="!partnerBids.length">暂无友商配合记录</p>
     </section>
   </main>
 </template>

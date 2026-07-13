@@ -11,7 +11,7 @@ import { AppError } from "./errors.js";
 import { withTransaction } from "./database.js";
 import { calculateSettlement, validateProjectClose } from "./settlements.js";
 import { transitionRisk, transitionStage } from "./delivery.js";
-import { transitionBid } from "./bids.js";
+import { transitionBid, transitionBidTask } from "./bids.js";
 import { transitionLead } from "./leads.js";
 import {
   buildPrivateStorageKey,
@@ -974,7 +974,7 @@ export class MySqlActionExecutor {
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(b.id AS CHAR) id,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
+            `SELECT CAST(b.id AS CHAR) id,CAST(b.project_id AS CHAR) projectId,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
                FROM bid_application b JOIN prj_project p ON p.id=b.project_id
               WHERE b.is_deleted=0 AND (?=1 OR b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=?)
                 AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR b.bid_code LIKE ? ESCAPE '\\\\')
@@ -992,6 +992,54 @@ export class MySqlActionExecutor {
             ],
           );
           return { items: rows, page, pageSize };
+        }
+        case "organization.employee.options": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name,position_name positionName FROM org_employee WHERE account_status='ENABLED' AND is_deleted=0 ORDER BY name LIMIT 500`,
+          );
+          return { items: rows };
+        }
+        case "bid.detail": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [bids] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id WHERE b.id=? AND b.is_deleted=0 AND (?=1 OR b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=?)`,
+              [
+                input.bidId,
+                all ? 1 : 0,
+                user.employeeId,
+                user.employeeId,
+                user.employeeId,
+              ],
+            );
+          if (!bids[0])
+            throw new AppError(
+              "BID_NOT_FOUND",
+              "投标申请不存在或无权访问",
+              404,
+            );
+          const [tasks] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,task_type taskType,task_name taskName,CAST(assignee_id AS CHAR) assigneeId,collaborator_ids collaboratorIds,starts_at startsAt,due_at dueAt,delivery_requirement deliveryRequirement,completion_description completionDescription,CAST(checker_id AS CHAR) checkerId,status FROM bid_task WHERE bid_id=? AND is_deleted=0 ORDER BY due_at,id`,
+              [input.bidId],
+            ),
+            [checks] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,check_item checkItem,check_standard checkStandard,CAST(responsible_id AS CHAR) responsibleId,result,issue_description issueDescription,CAST(rectifier_id AS CHAR) rectifierId,rectification_due_at rectificationDueAt,recheck_result recheckResult,version FROM bid_check WHERE bid_id=? AND is_deleted=0 ORDER BY id`,
+              [input.bidId],
+            ),
+            [results] = await connection.execute<RowDataPacket[]>(
+              `SELECT opened_on openedOn,quoted_amount quotedAmount,ranking,result,winning_amount winningAmount,loss_reason lossReason,retrospective FROM bid_result WHERE bid_id=?`,
+              [input.bidId],
+            ),
+            [partners] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(x.id AS CHAR) id,c.name partnerName,f.name finalCustomerName,x.cooperation_type cooperationType,x.our_quotation ourQuotation,x.result,x.description FROM bid_partner_cooperation x JOIN crm_counterparty c ON c.id=x.partner_id JOIN crm_counterparty f ON f.id=x.final_customer_id WHERE x.project_id=? AND x.is_deleted=0 ORDER BY x.id DESC`,
+              [bids[0].projectId],
+            );
+          return {
+            bid: bids[0],
+            tasks,
+            checks,
+            result: results[0] ?? null,
+            partners,
+          };
         }
         case "contract.list": {
           const page = input.page as number,
@@ -2267,6 +2315,139 @@ export class MySqlActionExecutor {
             [input.result, user.id, input.bidId],
           );
           return { id: String(result.insertId), status: input.result };
+        }
+        case "bid.task.create": {
+          const [bids] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0`,
+            [input.bidId],
+          );
+          if (!bids[0])
+            throw new AppError("BID_NOT_FOUND", "投标申请不存在", 404);
+          if (!["PREPARING", "SUBMITTED"].includes(String(bids[0].status)))
+            throw new AppError(
+              "BID_TASK_NOT_ALLOWED",
+              "当前投标状态不能新增任务",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO bid_task(bid_id,task_type,task_name,assignee_id,collaborator_ids,starts_at,due_at,delivery_requirement,checker_id,status,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,'PENDING',?,?)`,
+            [
+              input.bidId,
+              input.taskType,
+              input.taskName,
+              input.assigneeId,
+              JSON.stringify(input.collaboratorIds),
+              input.startsAt ?? null,
+              input.dueAt,
+              input.deliveryRequirement,
+              input.checkerId ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "bid.task.transition": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status,assignee_id assigneeId,checker_id checkerId FROM bid_task WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.taskId],
+          );
+          const task = rows[0];
+          if (!task)
+            throw new AppError("BID_TASK_NOT_FOUND", "投标任务不存在", 404);
+          if (
+            !user.dataScopes.some((scope) => scope.type === "ALL") &&
+            ![String(task.assigneeId), String(task.checkerId)].includes(
+              user.employeeId,
+            )
+          )
+            throw new AppError("BID_TASK_FORBIDDEN", "无权处理该投标任务", 403);
+          const status = transitionBidTask(task.status, input.action);
+          if (input.action === "SUBMIT_CHECK" && !input.completionDescription)
+            throw new AppError(
+              "BID_TASK_COMPLETION_REQUIRED",
+              "提交检查时必须填写完成说明",
+              409,
+            );
+          await connection.execute(
+            `UPDATE bid_task SET status=?,completion_description=COALESCE(?,completion_description),updated_by=?,version=version+1 WHERE id=?`,
+            [
+              status,
+              input.completionDescription ?? null,
+              user.id,
+              input.taskId,
+            ],
+          );
+          return { id: input.taskId, status };
+        }
+        case "bid.check.create": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO bid_check(bid_id,check_item,check_standard,responsible_id,created_by,updated_by) VALUES(?,?,?,?,?,?)`,
+            [
+              input.bidId,
+              input.checkItem,
+              input.checkStandard,
+              input.responsibleId,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "bid.check.result": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,responsible_id responsibleId,rectifier_id rectifierId FROM bid_check WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.checkId],
+          );
+          if (!rows[0])
+            throw new AppError("BID_CHECK_NOT_FOUND", "投标检查项不存在", 404);
+          if (
+            !user.dataScopes.some((scope) => scope.type === "ALL") &&
+            ![
+              String(rows[0].responsibleId),
+              String(rows[0].rectifierId),
+            ].includes(user.employeeId)
+          )
+            throw new AppError("BID_CHECK_FORBIDDEN", "无权处理该检查项", 403);
+          await connection.execute(
+            `UPDATE bid_check SET result=?,issue_description=?,rectifier_id=?,rectification_due_at=?,recheck_result=?,updated_by=?,version=version+1 WHERE id=?`,
+            [
+              input.result,
+              input.issueDescription ?? null,
+              input.rectifierId ?? null,
+              input.rectificationDueAt ?? null,
+              input.recheckResult ?? null,
+              user.id,
+              input.checkId,
+            ],
+          );
+          return {
+            id: input.checkId,
+            result: input.result,
+            recheckResult: input.recheckResult ?? null,
+          };
+        }
+        case "bid.partner.create": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO bid_partner_cooperation(project_id,lead_id,partner_id,final_customer_id,cooperation_type,registration_at,quotation_at,bidding_at,our_quotation,owner_id,result,description,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.projectId ?? null,
+              input.leadId ?? null,
+              input.partnerId,
+              input.finalCustomerId,
+              input.cooperationType,
+              input.registrationAt ?? null,
+              input.quotationAt ?? null,
+              input.biddingAt ?? null,
+              input.ourQuotation ?? null,
+              input.ownerId,
+              input.result ?? null,
+              input.description ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
         }
         case "contract.create": {
           const code = await allocateNumber(connection, "CONTRACT");

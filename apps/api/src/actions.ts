@@ -2,7 +2,14 @@ import type { SessionUser } from "@zkgl/shared";
 import type { ZodType } from "zod";
 import { z } from "zod";
 
-import { bidApplicationInput, bidResultInput } from "./bids.js";
+import {
+  bidApplicationInput,
+  bidCheckInput,
+  bidCheckResultInput,
+  bidPartnerInput,
+  bidResultInput,
+  bidTaskInput,
+} from "./bids.js";
 import {
   contractChangeInput,
   contractInput,
@@ -95,6 +102,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "bid.application.list": {
     permission: "bid.application.read",
     input: listInput,
+  },
+  "organization.employee.options": {
+    permission: "bid.application.read",
+    input: z.object({}).default({}),
+  },
+  "bid.detail": {
+    permission: "bid.application.read",
+    input: z.object({ bidId: z.string().min(1) }),
   },
   "contract.list": { permission: "contract.read", input: listInput },
   "contract.detail": {
@@ -279,6 +294,36 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "bid.result.create": {
     permission: "bid.application.create",
     input: bidResultInput,
+  },
+  "bid.task.create": {
+    permission: "bid.application.create",
+    input: bidTaskInput,
+  },
+  "bid.task.transition": {
+    permission: "bid.application.create",
+    input: z.object({
+      taskId: z.string().min(1),
+      action: z.enum([
+        "START",
+        "SUBMIT_CHECK",
+        "COMPLETE",
+        "MARK_OVERDUE",
+        "CANCEL",
+      ]),
+      completionDescription: z.string().trim().nullable().optional(),
+    }),
+  },
+  "bid.check.create": {
+    permission: "bid.application.create",
+    input: bidCheckInput,
+  },
+  "bid.check.result": {
+    permission: "bid.application.create",
+    input: bidCheckResultInput,
+  },
+  "bid.partner.create": {
+    permission: "bid.application.create",
+    input: bidPartnerInput,
   },
   "contract.create": { permission: "contract.create", input: contractInput },
   "project.start.create": {

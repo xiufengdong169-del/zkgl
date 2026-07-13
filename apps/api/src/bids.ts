@@ -57,6 +57,64 @@ export const bidResultInput = z
       });
   });
 
+export const bidTaskInput = z.object({
+  bidId: z.string().min(1),
+  taskType: z.string().trim().min(1).max(64),
+  taskName: z.string().trim().min(2).max(255),
+  assigneeId: z.string().min(1),
+  collaboratorIds: z.array(z.string().min(1)).default([]),
+  startsAt: z.iso.datetime().nullable().optional(),
+  dueAt: z.iso.datetime(),
+  deliveryRequirement: z.string().trim().min(2),
+  checkerId: z.string().min(1).nullable().optional(),
+});
+export const bidCheckInput = z.object({
+  bidId: z.string().min(1),
+  checkItem: z.string().trim().min(2).max(255),
+  checkStandard: z.string().trim().min(2),
+  responsibleId: z.string().min(1),
+});
+export const bidCheckResultInput = z
+  .object({
+    checkId: z.string().min(1),
+    result: z.enum(["PASSED", "FAILED"]),
+    issueDescription: z.string().trim().nullable().optional(),
+    rectifierId: z.string().min(1).nullable().optional(),
+    rectificationDueAt: z.iso.datetime().nullable().optional(),
+    recheckResult: z.enum(["PASSED", "FAILED"]).nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.result === "FAILED" &&
+      (!value.issueDescription ||
+        !value.rectifierId ||
+        !value.rectificationDueAt)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "检查不通过时必须填写问题、整改人和整改期限",
+      });
+  });
+export const bidPartnerInput = z
+  .object({
+    projectId: z.string().min(1).nullable().optional(),
+    leadId: z.string().min(1).nullable().optional(),
+    partnerId: z.string().min(1),
+    finalCustomerId: z.string().min(1),
+    cooperationType: z.string().trim().min(1).max(64),
+    registrationAt: z.iso.datetime().nullable().optional(),
+    quotationAt: z.iso.datetime().nullable().optional(),
+    biddingAt: z.iso.datetime().nullable().optional(),
+    ourQuotation: z.number().nonnegative().nullable().optional(),
+    ownerId: z.string().min(1),
+    result: z.string().trim().max(64).nullable().optional(),
+    description: z.string().trim().nullable().optional(),
+  })
+  .refine((value) => Boolean(value.projectId || value.leadId), {
+    message: "项目或线索至少填写一个",
+    path: ["projectId"],
+  });
+
 type BidAction =
   | "SUBMIT_APPROVAL"
   | "APPROVE"
@@ -93,12 +151,7 @@ export function transitionBid(status: BidStatus, action: BidAction): BidStatus {
 }
 
 type BidTaskAction =
-  | "ASSIGN"
-  | "START"
-  | "SUBMIT_CHECK"
-  | "COMPLETE"
-  | "MARK_OVERDUE"
-  | "CANCEL";
+  "ASSIGN" | "START" | "SUBMIT_CHECK" | "COMPLETE" | "MARK_OVERDUE" | "CANCEL";
 const taskTransitions: Record<
   BidTaskStatus,
   Partial<Record<BidTaskAction, BidTaskStatus>>
