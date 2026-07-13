@@ -63,6 +63,17 @@ interface Position {
   code: string;
   name: string;
 }
+interface PositionAssignment {
+  id: string;
+  positionCode: string;
+  positionName: string;
+  employeeId: string;
+  employeeName: string;
+  startsOn: string;
+  endsOn: string | null;
+  isDelegate: number;
+  status: "ENABLED" | "DISABLED";
+}
 interface DictionaryType {
   id: string;
   typeCode: string;
@@ -101,6 +112,7 @@ const numberRules = ref<NumberRule[]>([]);
 const approvalTemplates = ref<ApprovalTemplate[]>([]);
 const approvalNodes = ref<ApprovalNode[]>([]);
 const positions = ref<Position[]>([]);
+const positionAssignments = ref<PositionAssignment[]>([]);
 const dictionaryTypes = ref<DictionaryType[]>([]);
 const dictionaryItems = ref<DictionaryItem[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
@@ -113,6 +125,13 @@ const auditKeyword = ref("");
 const auditOutcome = ref("");
 const department = ref({ code: "", name: "" });
 const dictionaryTypeForm = ref({ typeCode: "", name: "", description: "" });
+const assignmentForm = ref({
+  positionCode: "",
+  employeeId: "",
+  startsOn: new Date().toISOString().slice(0, 10),
+  endsOn: "",
+  isDelegate: false,
+});
 const dictionaryItemForm = ref({
   typeId: "",
   itemCode: "",
@@ -143,6 +162,7 @@ async function load() {
       approvalTemplates: ApprovalTemplate[];
       approvalNodes: ApprovalNode[];
       positions: Position[];
+      positionAssignments: PositionAssignment[];
       dictionaryTypes: DictionaryType[];
       dictionaryItems: DictionaryItem[];
     }>("admin.overview", {});
@@ -154,6 +174,7 @@ async function load() {
     approvalTemplates.value = data.approvalTemplates;
     approvalNodes.value = data.approvalNodes;
     positions.value = data.positions;
+    positionAssignments.value = data.positionAssignments;
     dictionaryTypes.value = data.dictionaryTypes;
     dictionaryItems.value = data.dictionaryItems;
   } catch (e) {
@@ -215,6 +236,32 @@ async function createEmployee() {
     error.value = e instanceof Error ? e.message : "保存失败";
   } finally {
     saving.value = false;
+  }
+}
+
+async function createPositionAssignment() {
+  saving.value = true;
+  try {
+    await callApi("admin.positionAssignment.create", {
+      ...assignmentForm.value,
+      endsOn: assignmentForm.value.endsOn || null,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "岗位任职保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function togglePositionAssignment(item: PositionAssignment) {
+  try {
+    await callApi("admin.positionAssignment.status", {
+      assignmentId: item.id,
+      status: item.status === "ENABLED" ? "DISABLED" : "ENABLED",
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "任职状态更新失败";
   }
 }
 
@@ -402,6 +449,68 @@ onMounted(load);
         ><label>入职日<input v-model="employee.joinedOn" type="date" /></label
         ><button :disabled="saving">保存人员</button>
       </form>
+      <form class="entity-form" @submit.prevent="createPositionAssignment">
+        <h2 class="wide">审批岗位任职</h2>
+        <label
+          >审批岗位<select v-model="assignmentForm.positionCode" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="position in positions"
+              :key="position.code"
+              :value="position.code"
+            >
+              {{ position.name }}
+            </option>
+          </select></label
+        ><label
+          >任职人员<select v-model="assignmentForm.employeeId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="person in employees"
+              :key="person.id"
+              :value="person.id"
+            >
+              {{ person.name }}
+            </option>
+          </select></label
+        ><label
+          >开始日期<input
+            v-model="assignmentForm.startsOn"
+            type="date"
+            required /></label
+        ><label
+          >结束日期<input v-model="assignmentForm.endsOn" type="date" /></label
+        ><label
+          ><input
+            v-model="assignmentForm.isDelegate"
+            type="checkbox"
+          />代理任职</label
+        ><button :disabled="saving">保存任职</button>
+      </form>
+      <section class="data-list">
+        <h2>岗位任职记录</h2>
+        <article
+          v-for="assignment in positionAssignments"
+          :key="assignment.id"
+          class="data-row"
+        >
+          <div>
+            <strong
+              >{{ assignment.positionName }} ·
+              {{ assignment.employeeName }}</strong
+            >
+            <p>
+              {{ assignment.startsOn }} 至 {{ assignment.endsOn || "长期" }} ·
+              {{ assignment.isDelegate ? "代理" : "正式" }} ·
+              {{ assignment.status }}
+            </p>
+          </div>
+          <button @click="togglePositionAssignment(assignment)">
+            {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
+          </button>
+        </article>
+        <p v-if="!positionAssignments.length">暂无岗位任职</p>
+      </section>
       <section class="data-list">
         <h2>账号角色</h2>
         <article v-for="item in users" :key="item.id" class="data-row">

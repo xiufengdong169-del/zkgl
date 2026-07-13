@@ -322,6 +322,9 @@ export class MySqlActionExecutor {
             [positions] = await connection.execute<RowDataPacket[]>(
               `SELECT position_code code,name FROM org_position WHERE status='ENABLED' ORDER BY position_code`,
             ),
+            [positionAssignments] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(a.id AS CHAR) id,p.position_code positionCode,p.name positionName,CAST(a.employee_id AS CHAR) employeeId,e.name employeeName,a.starts_on startsOn,a.ends_on endsOn,a.is_delegate isDelegate,a.status FROM org_position_assignment a JOIN org_position p ON p.id=a.position_id JOIN org_employee e ON e.id=a.employee_id ORDER BY p.position_code,a.status,a.starts_on DESC`,
+            ),
             [dictionaryTypes] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(t.id AS CHAR) id,t.type_code typeCode,t.name,t.description,t.status,t.version FROM sys_dictionary_type t ORDER BY t.type_code`,
             ),
@@ -337,6 +340,7 @@ export class MySqlActionExecutor {
             approvalTemplates,
             approvalNodes,
             positions,
+            positionAssignments,
             dictionaryTypes,
             dictionaryItems,
           };
@@ -365,6 +369,43 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "admin.positionAssignment.create": {
+          const [positions] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM org_position WHERE position_code=? AND status='ENABLED'`,
+            [input.positionCode],
+          );
+          if (!positions[0])
+            throw new AppError(
+              "POSITION_NOT_FOUND",
+              "审批岗位不存在或未启用",
+              404,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO org_position_assignment(position_id,employee_id,starts_on,ends_on,is_delegate,created_by) VALUES(?,?,?,?,?,?)`,
+            [
+              positions[0].id,
+              input.employeeId,
+              input.startsOn,
+              input.endsOn ?? null,
+              input.isDelegate,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "admin.positionAssignment.status": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_position_assignment SET status=? WHERE id=?`,
+            [input.status, input.assignmentId],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "POSITION_ASSIGNMENT_NOT_FOUND",
+              "岗位任职记录不存在",
+              404,
+            );
+          return { id: input.assignmentId, status: input.status };
         }
         case "admin.user.role.set": {
           const [current] = await connection.execute<RowDataPacket[]>(

@@ -428,6 +428,28 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       joinedOn: z.iso.date().nullable().optional(),
     }),
   },
+  "admin.positionAssignment.create": {
+    permission: "system.admin",
+    input: z
+      .object({
+        positionCode: z.string().min(2).max(64),
+        employeeId: z.string().min(1),
+        startsOn: z.iso.date(),
+        endsOn: z.iso.date().nullable().optional(),
+        isDelegate: z.boolean().default(false),
+      })
+      .refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
+        message: "结束日期不得早于开始日期",
+        path: ["endsOn"],
+      }),
+  },
+  "admin.positionAssignment.status": {
+    permission: "system.admin",
+    input: z.object({
+      assignmentId: z.string().min(1),
+      status: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
   "admin.user.role.set": {
     permission: "system.admin",
     input: z.object({
