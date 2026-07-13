@@ -47,10 +47,14 @@ interface DepositDocument {
   id: string;
   code: string;
   projectId: string;
+  direction: string;
+  counterpartyName: string;
   amount: string;
+  account: string | null;
   occupiedAmount: string;
   lossAmount: string;
   status: string;
+  hasPaymentApplication: number;
 }
 interface CloseDocument {
   id: string;
@@ -86,6 +90,7 @@ const today = new Date().toISOString().slice(0, 10),
     | "CLOSE"
     | "SETTLEMENT"
     | "DEPOSIT_EVENT"
+    | "DEPOSIT_PAYMENT"
     | "PARTNER_PAYMENT"
     | null
   >(null),
@@ -136,10 +141,18 @@ const settlement = ref({
 });
 const depositEvent = ref({
   depositId: "",
-  eventType: "PAY",
+  eventType: "RETURN",
   amount: 0,
   occurredOn: today,
   description: "",
+});
+const depositPayment = ref({
+  depositId: "",
+  projectId: "",
+  recipientName: "",
+  requestedAmount: 0,
+  plannedOn: today,
+  receivingAccount: "",
 });
 const partnerPayment = ref({
   settlementId: "",
@@ -368,6 +381,44 @@ async function submitDeposit(item: DepositDocument) {
     error.value = e instanceof Error ? e.message : "提交保证金审批失败";
   }
 }
+function startDepositPayment(item: DepositDocument) {
+  depositPayment.value = {
+    depositId: item.id,
+    projectId: item.projectId,
+    recipientName: item.counterpartyName,
+    requestedAmount: Number(item.amount),
+    plannedOn: today,
+    receivingAccount: item.account ?? "",
+  };
+  mode.value = "DEPOSIT_PAYMENT";
+}
+async function createDepositPayment() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = depositPayment.value;
+    await callApi("payment.application.create", {
+      projectId: f.projectId,
+      sourceType: "DEPOSIT",
+      sourceId: f.depositId,
+      recipientName: f.recipientName,
+      paymentType: "DEPOSIT",
+      requestedAmount: f.requestedAmount,
+      plannedOn: f.plannedOn,
+      paymentBasis: "已审批保证金缴纳申请",
+      receivingAccount: f.receivingAccount,
+      invoiceRequired: false,
+      operatorId: auth.user.employeeId,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "生成保证金付款申请失败";
+  } finally {
+    saving.value = false;
+  }
+}
 async function submitDepositLoss(item: DepositEventDocument) {
   try {
     await callApi("approval.instance.submit", {
@@ -466,7 +517,7 @@ async function submitClose(item: CloseDocument) {
         ><button class="primary-action" @click="mode = 'SETTLEMENT'">
           生成结算单</button
         ><button class="primary-action" @click="mode = 'DEPOSIT_EVENT'">
-          保证金收付</button
+          保证金退回/没收</button
         ><button class="primary-action" @click="mode = 'CLOSE'">
           申请结项
         </button>
@@ -607,6 +658,20 @@ async function submitClose(item: CloseDocument) {
               >
                 提交缴纳审批
               </button>
+              <button
+                v-if="
+                  item.direction === 'PAY' &&
+                  item.status === 'PENDING_PAYMENT' &&
+                  !item.hasPaymentApplication &&
+                  auth.user?.permissionCodes.includes(
+                    'payment.application.create',
+                  )
+                "
+                class="secondary-button"
+                @click="startDepositPayment(item)"
+              >
+                生成付款申请
+              </button>
             </td>
           </tr>
         </tbody>
@@ -691,6 +756,36 @@ async function submitClose(item: CloseDocument) {
         </tbody>
       </table>
     </section>
+    <form
+      v-if="mode === 'DEPOSIT_PAYMENT'"
+      class="entity-form"
+      @submit.prevent="createDepositPayment"
+    >
+      <label
+        >收款方<input v-model="depositPayment.recipientName" readonly
+      /></label>
+      <label
+        >申请金额<input
+          v-model.number="depositPayment.requestedAmount"
+          type="number"
+          readonly
+      /></label>
+      <label
+        >计划付款日<input
+          v-model="depositPayment.plannedOn"
+          type="date"
+          required
+      /></label>
+      <label
+        >收款账户<input v-model="depositPayment.receivingAccount" required
+      /></label>
+      <button :disabled="saving">
+        {{ saving ? "生成中…" : "生成付款申请" }}
+      </button>
+      <button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
     <form
       v-if="mode === 'PARTNER_PAYMENT'"
       class="entity-form"
@@ -896,7 +991,7 @@ async function submitClose(item: CloseDocument) {
         </select></label
       ><label
         >事件<select v-model="depositEvent.eventType">
-          <option value="PAY">缴纳/收取</option>
+          <option value="PAY">我方收取</option>
           <option value="RETURN">退回</option>
           <option value="FORFEIT">没收</option>
           <option value="VOID">作废</option>

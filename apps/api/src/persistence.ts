@@ -2083,7 +2083,7 @@ export class MySqlActionExecutor {
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.amount,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status FROM fin_deposit x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [depositEvents] = await connection.execute<RowDataPacket[]>(
@@ -2110,6 +2110,12 @@ export class MySqlActionExecutor {
             throw new AppError(
               "PAYMENT_NOT_APPROVED",
               "付款申请未审批或已完成",
+              409,
+            );
+          if (payment.receivingAccount !== input.receivingAccount)
+            throw new AppError(
+              "PAYMENT_RECEIVING_ACCOUNT_MISMATCH",
+              "实际付款收款账户与付款申请不一致",
               409,
             );
           const [paidRows] = await connection.execute<RowDataPacket[]>(
@@ -2156,6 +2162,49 @@ export class MySqlActionExecutor {
               `UPDATE partner_settlement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
               [status, user.id, payment.sourceId],
             );
+          if (payment.sourceType === "DEPOSIT") {
+            const [depositRows] = await connection.execute<RowDataPacket[]>(
+              `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') FOR UPDATE`,
+              [payment.sourceId],
+            );
+            const deposit = depositRows[0];
+            if (!deposit)
+              throw new AppError(
+                "DEPOSIT_PAYMENT_SOURCE_INVALID",
+                "保证金付款来源状态异常",
+                409,
+              );
+            const occupied = Number(deposit.occupied) + Number(input.amount);
+            if (occupied > Number(deposit.amount))
+              throw new AppError(
+                "DEPOSIT_AMOUNT_EXCEEDED",
+                "累计缴纳金额超过保证金登记金额",
+                409,
+              );
+            await connection.execute(
+              `INSERT INTO fin_deposit_event(deposit_id,event_type,amount,occurred_on,status,description,operator_id,idempotency_key,created_by,updated_by) VALUES(?,'PAY',?,?,'APPROVED',?,?,?,?,?)`,
+              [
+                payment.sourceId,
+                input.amount,
+                input.paidOn,
+                `由付款申请 ${input.paymentId} 生成`,
+                user.id,
+                input.idempotencyKey,
+                user.id,
+                user.id,
+              ],
+            );
+            await connection.execute(
+              `UPDATE fin_deposit SET occupied_amount=?,paid_on=COALESCE(paid_on,?),status=?,updated_by=?,version=version+1 WHERE id=?`,
+              [
+                occupied,
+                input.paidOn,
+                occupied >= Number(deposit.amount) ? "PAID" : "PENDING_PAYMENT",
+                user.id,
+                payment.sourceId,
+              ],
+            );
+          }
           return {
             idempotent: false,
             id: String(result.insertId),
@@ -2164,13 +2213,20 @@ export class MySqlActionExecutor {
           };
         }
         case "payment.application.create": {
+          let receivingAccount = input.receivingAccount;
           if (
-            ["REIMBURSEMENT", "PARTNER_SETTLEMENT"].includes(input.sourceType)
+            ["REIMBURSEMENT", "PARTNER_SETTLEMENT", "DEPOSIT"].includes(
+              input.sourceType,
+            )
           ) {
-            const sourceSql =
-              input.sourceType === "REIMBURSEMENT"
-                ? `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`
-                : `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`;
+            const sourceSql = {
+              REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
+              PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
+              DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
+            }[
+              input.sourceType as
+                "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT"
+            ];
             const [sources] = await connection.execute<RowDataPacket[]>(
               sourceSql,
               [input.sourceId],
@@ -2182,6 +2238,8 @@ export class MySqlActionExecutor {
                 "付款来源不存在",
                 404,
               );
+            if (input.sourceType === "DEPOSIT" && source.receivingAccount)
+              receivingAccount = String(source.receivingAccount);
             const [existingPayments] = await connection.execute<
               RowDataPacket[]
             >(
@@ -2189,10 +2247,8 @@ export class MySqlActionExecutor {
               [input.sourceType, input.sourceId],
             );
             validatePaymentSource({
-              sourceType:
-                input.sourceType === "REIMBURSEMENT"
-                  ? "REIMBURSEMENT"
-                  : "PARTNER_SETTLEMENT",
+              sourceType: input.sourceType as
+                "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT",
               source: {
                 projectId: source.projectId,
                 recipientName: source.recipientName,
@@ -2204,7 +2260,7 @@ export class MySqlActionExecutor {
               application: {
                 projectId: input.projectId,
                 recipientName: input.recipientName,
-                receivingAccount: input.receivingAccount,
+                receivingAccount,
                 requestedAmount: input.requestedAmount,
               },
               alreadyUsed: Boolean(existingPayments[0]),
@@ -2223,7 +2279,7 @@ export class MySqlActionExecutor {
               input.requestedAmount,
               input.plannedOn,
               input.paymentBasis,
-              input.receivingAccount,
+              receivingAccount,
               input.invoiceRequired,
               input.operatorId,
               user.id,
@@ -3124,7 +3180,7 @@ export class MySqlActionExecutor {
         }
         case "deposit.event.create": {
           const [old] = await connection.execute<RowDataPacket[]>(
-            `SELECT amount,occupied_amount occupied,loss_confirmed_amount loss,status FROM fin_deposit WHERE id=? FOR UPDATE`,
+            `SELECT amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? FOR UPDATE`,
             [input.depositId],
           );
           const deposit = old[0];
@@ -3139,6 +3195,12 @@ export class MySqlActionExecutor {
             loss = Number(deposit.loss),
             status = deposit.status as string;
           if (input.eventType === "PAY") {
+            if (deposit.direction === "PAY")
+              throw new AppError(
+                "DEPOSIT_PAYMENT_FLOW_REQUIRED",
+                "我方缴纳保证金必须通过付款申请和实际付款登记",
+                409,
+              );
             if (!["PENDING_PAYMENT", "PAID"].includes(status))
               throw new AppError(
                 "DEPOSIT_PAYMENT_NOT_APPROVED",

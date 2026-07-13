@@ -168,4 +168,38 @@ describe("finance invariants", () => {
       }),
     ).toThrow("尚未审批通过");
   });
+
+  it("保证金审批后才能生成唯一付款申请", () => {
+    const valid = {
+      sourceType: "DEPOSIT" as const,
+      source: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        approvalStatus: "PENDING_PAYMENT",
+        paymentStatus: "PENDING_PAYMENT",
+        sourceAmount: "100.00",
+      },
+      application: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        requestedAmount: 100,
+      },
+      alreadyUsed: false,
+    };
+    expect(() => validatePaymentSource(valid)).not.toThrow();
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        source: { ...valid.source, approvalStatus: "DRAFT" },
+      }),
+    ).toThrow("尚未审批通过");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        application: { ...valid.application, receivingAccount: "other" },
+      }),
+    ).toThrow("收款账户");
+  });
 });

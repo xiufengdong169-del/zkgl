@@ -85,7 +85,7 @@ export const paymentApplicationInput = z.object({
 });
 
 export interface PaymentSourceValidationInput {
-  sourceType: "REIMBURSEMENT" | "PARTNER_SETTLEMENT";
+  sourceType: "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT";
   source: {
     projectId: unknown;
     recipientName: unknown;
@@ -106,7 +106,9 @@ export interface PaymentSourceValidationInput {
 export function validatePaymentSource(
   input: PaymentSourceValidationInput,
 ): void {
-  if (input.source.approvalStatus !== "APPROVED")
+  const approvedStatus =
+    input.sourceType === "DEPOSIT" ? "PENDING_PAYMENT" : "APPROVED";
+  if (input.source.approvalStatus !== approvedStatus)
     throw new AppError(
       "PAYMENT_SOURCE_NOT_APPROVED",
       "付款来源尚未审批通过",
@@ -138,7 +140,8 @@ export function validatePaymentSource(
       409,
     );
   if (
-    input.sourceType === "REIMBURSEMENT" &&
+    (input.sourceType === "REIMBURSEMENT" ||
+      (input.sourceType === "DEPOSIT" && input.source.receivingAccount)) &&
     String(input.source.receivingAccount) !== input.application.receivingAccount
   )
     throw new AppError(
