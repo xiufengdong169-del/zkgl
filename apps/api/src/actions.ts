@@ -247,6 +247,34 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "partner.plan.create",
     input: partnerPlanInput,
   },
+  "partner.plan.version.create": {
+    permission: "partner.plan.create",
+    input: z.object({
+      planId: z.string().min(1),
+      settlementMethod: z.enum(["FIXED", "RATIO"]),
+      fixedAmount: z.number().nonnegative().nullable().optional(),
+      ratio: z.number().min(0).max(1).nullable().optional(),
+      calculationBasis: z.enum([
+        "FIXED",
+        "CONTRACT_REVENUE_EX_TAX",
+        "ACTUAL_RECEIPTS",
+        "PROJECT_GROSS_PROFIT",
+      ]),
+      deductibleCostScope: z.array(z.string()).default([]),
+      upperLimit: z.number().nonnegative().nullable().optional(),
+      lowerLimit: z.number().nonnegative().nullable().optional(),
+      effectiveFrom: z.iso.date(),
+      effectiveTo: z.iso.date().nullable().optional(),
+      conditions: z.string().trim().nullable().optional(),
+    }),
+  },
+  "partner.plan.version.activate": {
+    permission: "partner.plan.create",
+    input: z.object({
+      planId: z.string().min(1),
+      versionId: z.string().min(1),
+    }),
+  },
   "partner.settlement.create": {
     permission: "partner.settlement.create",
     input: settlementCreateInput,

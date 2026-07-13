@@ -14,6 +14,14 @@ interface PlanDocument {
   projectId: string;
   partnerName: string;
   status: string;
+  currentVersion: number;
+  versionId: string;
+  settlementMethod: string;
+  ratio: number | null;
+  fixedAmount: number | null;
+  calculationBasis: string;
+  effectiveFrom: string;
+  versionStatus: string;
 }
 interface SettlementDocument {
   id: string;
@@ -58,9 +66,16 @@ const today = new Date().toISOString().slice(0, 10),
   }),
   error = ref<string | null>(null),
   mode = ref<
-    "PLAN" | "DEPOSIT" | "CLOSE" | "SETTLEMENT" | "DEPOSIT_EVENT" | null
+    | "PLAN"
+    | "PLAN_VERSION"
+    | "DEPOSIT"
+    | "CLOSE"
+    | "SETTLEMENT"
+    | "DEPOSIT_EVENT"
+    | null
   >(null),
   saving = ref(false);
+const versionPlanId = ref("");
 const plan = ref({
   projectId: "",
   partnerId: "",
@@ -161,6 +176,44 @@ async function createPlan() {
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+function startPlanVersion(item: PlanDocument) {
+  versionPlanId.value = item.id;
+  plan.value.settlementMethod = item.settlementMethod;
+  plan.value.ratio = item.ratio;
+  plan.value.fixedAmount = item.fixedAmount;
+  plan.value.calculationBasis = item.calculationBasis;
+  plan.value.effectiveFrom = today;
+  mode.value = "PLAN_VERSION";
+}
+async function createPlanVersion() {
+  saving.value = true;
+  try {
+    const f = plan.value,
+      created = await callApi<{ id: string }>("partner.plan.version.create", {
+        planId: versionPlanId.value,
+        settlementMethod: f.settlementMethod,
+        fixedAmount: f.settlementMethod === "FIXED" ? f.fixedAmount : null,
+        ratio: f.settlementMethod === "RATIO" ? f.ratio : null,
+        calculationBasis: f.calculationBasis,
+        deductibleCostScope: [],
+        upperLimit: f.upperLimit,
+        lowerLimit: f.lowerLimit,
+        effectiveFrom: f.effectiveFrom,
+        effectiveTo: f.effectiveTo || null,
+        conditions: f.conditions || null,
+      });
+    await callApi("partner.plan.version.activate", {
+      planId: versionPlanId.value,
+      versionId: created.id,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "方案新版本保存失败";
   } finally {
     saving.value = false;
   }
@@ -339,6 +392,43 @@ async function submitClose(item: CloseDocument) {
         ><small>流程处理中</small>
       </article>
     </section>
+    <section v-if="plans.length" class="data-panel">
+      <h2>合作分配方案</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>合作方</th>
+            <th>版本</th>
+            <th>方式</th>
+            <th>比例/固定额</th>
+            <th>计算基数</th>
+            <th>生效日</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in plans" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>{{ item.partnerName }}</td>
+            <td>V{{ item.currentVersion }}</td>
+            <td>{{ item.settlementMethod }}</td>
+            <td>
+              {{
+                item.settlementMethod === "RATIO"
+                  ? `${Number(item.ratio || 0) * 100}%`
+                  : `¥ ${item.fixedAmount || 0}`
+              }}
+            </td>
+            <td>{{ item.calculationBasis }}</td>
+            <td>{{ item.effectiveFrom }}</td>
+            <td>{{ item.status }} / {{ item.versionStatus }}</td>
+            <td><button @click="startPlanVersion(item)">创建新版本</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
     <section v-if="settlements.length" class="data-panel">
       <h2>合作方结算单</h2>
       <table>
@@ -415,9 +505,9 @@ async function submitClose(item: CloseDocument) {
       </table>
     </section>
     <form
-      v-if="mode === 'PLAN'"
+      v-if="mode === 'PLAN' || mode === 'PLAN_VERSION'"
       class="entity-form"
-      @submit.prevent="createPlan"
+      @submit.prevent="mode === 'PLAN' ? createPlan() : createPlanVersion()"
     >
       <label
         >项目<select v-model="plan.projectId" required>
@@ -479,7 +569,10 @@ async function submitClose(item: CloseDocument) {
           step="0.01" /></label
       ><label class="wide"
         >条件<textarea v-model="plan.conditions"></textarea></label
-      ><button :disabled="saving">{{ saving ? "保存中…" : "保存方案" }}</button
+      ><button :disabled="saving">
+        {{
+          saving ? "保存中…" : mode === "PLAN" ? "保存方案" : "保存并启用新版本"
+        }}</button
       ><button type="button" class="secondary-button" @click="mode = null">
         取消
       </button>

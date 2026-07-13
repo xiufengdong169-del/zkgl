@@ -2040,7 +2040,7 @@ export class MySqlActionExecutor {
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [plans] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.status FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.current_version currentVersion,x.status,CAST(v.id AS CHAR) versionId,v.settlement_method settlementMethod,v.ratio,v.fixed_amount fixedAmount,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,v.status versionStatus FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id LEFT JOIN partner_plan_version v ON v.plan_id=x.id AND v.version_number=x.current_version WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access} ORDER BY x.id DESC LIMIT 200`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
@@ -2792,7 +2792,7 @@ export class MySqlActionExecutor {
           }
           const code = await allocateNumber(connection, "PARTNER_PLAN");
           const [plan] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO partner_plan(project_id,partner_id,plan_code,owner_id,created_by,updated_by) VALUES(?,?,?,?,?,?)`,
+            `INSERT INTO partner_plan(project_id,partner_id,plan_code,owner_id,status,created_by,updated_by) VALUES(?,?,?,?,'ENABLED',?,?)`,
             [
               input.projectId,
               input.partnerId,
@@ -2803,7 +2803,7 @@ export class MySqlActionExecutor {
             ],
           );
           await connection.execute(
-            `INSERT INTO partner_plan_version(plan_id,version_number,settlement_method,fixed_amount,ratio,calculation_basis,deductible_cost_scope,upper_limit,lower_limit,effective_from,effective_to,conditions,rounding_rule) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO partner_plan_version(plan_id,version_number,settlement_method,fixed_amount,ratio,calculation_basis,deductible_cost_scope,upper_limit,lower_limit,effective_from,effective_to,conditions,rounding_rule,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'ENABLED')`,
             [
               plan.insertId,
               1,
@@ -2822,9 +2822,92 @@ export class MySqlActionExecutor {
           );
           return { id: String(plan.insertId), code, version: 1 };
         }
+        case "partner.plan.version.create": {
+          const [plans] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,current_version currentVersion FROM partner_plan WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.planId],
+          );
+          if (!plans[0])
+            throw new AppError("PARTNER_PLAN_NOT_FOUND", "合作方案不存在", 404);
+          const [nextRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT COALESCE(MAX(version_number),0)+1 nextVersion FROM partner_plan_version WHERE plan_id=? FOR UPDATE`,
+            [input.planId],
+          );
+          const nextVersion = Number(
+            nextRows[0]?.nextVersion ?? Number(plans[0].currentVersion) + 1,
+          );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO partner_plan_version(plan_id,version_number,settlement_method,fixed_amount,ratio,calculation_basis,deductible_cost_scope,upper_limit,lower_limit,effective_from,effective_to,conditions,rounding_rule,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'DRAFT')`,
+            [
+              input.planId,
+              nextVersion,
+              input.settlementMethod,
+              input.fixedAmount ?? null,
+              input.ratio ?? null,
+              input.calculationBasis,
+              JSON.stringify(input.deductibleCostScope),
+              input.upperLimit ?? null,
+              input.lowerLimit ?? null,
+              input.effectiveFrom,
+              input.effectiveTo ?? null,
+              input.conditions ?? null,
+              "ROUND_HALF_UP",
+            ],
+          );
+          return {
+            id: String(result.insertId),
+            version: nextVersion,
+            status: "DRAFT",
+          };
+        }
+        case "partner.plan.version.activate": {
+          const [versions] = await connection.execute<RowDataPacket[]>(
+            `SELECT v.id,v.version_number versionNumber,v.settlement_method settlementMethod,v.ratio,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,p.project_id projectId FROM partner_plan_version v JOIN partner_plan p ON p.id=v.plan_id WHERE v.id=? AND v.plan_id=? AND v.status='DRAFT' FOR UPDATE`,
+            [input.versionId, input.planId],
+          );
+          const version = versions[0];
+          if (!version)
+            throw new AppError(
+              "PARTNER_PLAN_VERSION_NOT_DRAFT",
+              "待启用的方案版本不存在",
+              409,
+            );
+          if (version.settlementMethod === "RATIO") {
+            const [ratios] = await connection.execute<RowDataPacket[]>(
+              `SELECT COALESCE(SUM(v.ratio),0) totalRatio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.version_number=p.current_version WHERE p.project_id=? AND p.id<>? AND p.status='ENABLED' AND v.status='ENABLED' AND v.calculation_basis=?`,
+              [version.projectId, input.planId, version.calculationBasis],
+            );
+            if (
+              Number(ratios[0]?.totalRatio ?? 0) + Number(version.ratio ?? 0) >
+              1.0000001
+            )
+              throw new AppError(
+                "PARTNER_RATIO_EXCEEDED",
+                "同项目同基数的有效合作比例合计不得超过100%",
+                409,
+              );
+          }
+          await connection.execute(
+            `UPDATE partner_plan_version SET status='DISABLED',effective_to=CASE WHEN effective_to IS NULL OR effective_to>=? THEN DATE_SUB(?,INTERVAL 1 DAY) ELSE effective_to END WHERE plan_id=? AND status='ENABLED'`,
+            [version.effectiveFrom, version.effectiveFrom, input.planId],
+          );
+          await connection.execute(
+            `UPDATE partner_plan_version SET status='ENABLED' WHERE id=?`,
+            [input.versionId],
+          );
+          await connection.execute(
+            `UPDATE partner_plan SET current_version=?,status='ENABLED',updated_by=?,version=version+1 WHERE id=?`,
+            [version.versionNumber, user.id, input.planId],
+          );
+          return {
+            id: input.planId,
+            version: version.versionNumber,
+            status: "ENABLED",
+          };
+        }
         case "partner.settlement.create": {
           const [plans] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.id planId,p.project_id projectId,p.partner_id partnerId,v.id versionId,v.version_number versionNumber,v.settlement_method settlementMethod,v.fixed_amount fixedAmount,v.ratio,v.calculation_basis basis,v.deductible_cost_scope deductibleScope,v.upper_limit upperLimit,v.lower_limit lowerLimit,v.rounding_rule roundingRule FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id WHERE p.id=? AND p.status IN('ENABLED','DRAFT') AND v.status IN('ENABLED','DRAFT') AND v.effective_from<=? AND (v.effective_to IS NULL OR v.effective_to>=?) ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE`,
+            `SELECT p.id planId,p.project_id projectId,p.partner_id partnerId,v.id versionId,v.version_number versionNumber,v.settlement_method settlementMethod,v.fixed_amount fixedAmount,v.ratio,v.calculation_basis basis,v.deductible_cost_scope deductibleScope,v.upper_limit upperLimit,v.lower_limit lowerLimit,v.rounding_rule roundingRule FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id WHERE p.id=? AND p.status='ENABLED' AND v.status='ENABLED' AND v.effective_from<=? AND (v.effective_to IS NULL OR v.effective_to>=?) ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE`,
             [input.planId, input.periodEndOn, input.periodStartOn],
           );
           const plan = plans[0];
