@@ -7,6 +7,7 @@ import {
   roundHalfUpFraction,
   validateProjectClose,
   validateRatioTotal,
+  validateSpecialCloseFinalApprover,
 } from "./settlements.js";
 
 describe("partner settlement and close", () => {
@@ -75,7 +76,7 @@ describe("partner settlement and close", () => {
       depositEventInput.parse({ ...parsed, eventType: "CONFIRM_LOSS" }),
     ).toThrow();
   });
-  it("AC-15 遗留事项结项仅公司负责人特批", () => {
+  it("AC-15 可发起完整的带遗留事项结项，但仅公司负责人可最终特批", () => {
     const check = {
       acceptancePassed: true,
       archivePassed: true,
@@ -91,22 +92,33 @@ describe("partner settlement and close", () => {
         responsibleId: "u1",
         dueOn: "2026-08-01",
       },
+      {
+        type: "DEPOSIT_RETURN",
+        description: "追踪保证金退回",
+        responsibleId: "u1",
+        dueOn: "2026-08-01",
+      },
+      {
+        type: "RISK_ISSUE",
+        description: "关闭问题",
+        responsibleId: "u1",
+        dueOn: "2026-08-01",
+      },
     ];
     expect(() =>
-      validateProjectClose(
-        check,
+      validateProjectClose(check, "WITH_OPEN_ITEMS", items.slice(0, 1)),
+    ).toThrow("必须逐项登记");
+    expect(() =>
+      validateProjectClose(check, "WITH_OPEN_ITEMS", items),
+    ).not.toThrow();
+    expect(() =>
+      validateSpecialCloseFinalApprover(
         "WITH_OPEN_ITEMS",
-        items,
         "OPERATIONS_MANAGER",
       ),
-    ).toThrow();
+    ).toThrow("仅公司负责人");
     expect(() =>
-      validateProjectClose(
-        check,
-        "WITH_OPEN_ITEMS",
-        items,
-        "COMPANY_PRINCIPAL",
-      ),
+      validateSpecialCloseFinalApprover("WITH_OPEN_ITEMS", "COMPANY_PRINCIPAL"),
     ).not.toThrow();
   });
 });

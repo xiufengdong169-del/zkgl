@@ -65,27 +65,35 @@ export const depositEventInput = z.object({
   description: z.string().trim().max(1000).nullable().optional(),
   idempotencyKey: z.string().min(8).max(128),
 });
-export const closeApplicationInput = z.object({
-  projectId: z.string().min(1),
-  appliedOn: z.iso.date(),
-  completionSummary: z.string().min(2),
-  acceptanceConclusion: z.string().min(2),
-  archiveCheckPassed: z.boolean(),
-  closeDescription: z.string().min(2),
-  closeType: z.enum(["NORMAL", "WITH_OPEN_ITEMS"]),
-  specialApprovalComment: z.string().nullable().optional(),
-  openItems: z
-    .array(
-      z.object({
-        type: z.string().min(1),
-        description: z.string().min(1),
-        responsibleId: z.string().min(1),
-        dueOn: z.iso.date(),
-      }),
-    )
-    .default([]),
-  approverRole: z.string().optional(),
-});
+export const closeApplicationInput = z
+  .object({
+    projectId: z.string().min(1),
+    appliedOn: z.iso.date(),
+    completionSummary: z.string().min(2),
+    acceptanceConclusion: z.string().min(2),
+    archiveCheckPassed: z.boolean(),
+    closeDescription: z.string().min(2),
+    closeType: z.enum(["NORMAL", "WITH_OPEN_ITEMS"]),
+    specialApprovalComment: z.string().trim().nullable().optional(),
+    openItems: z
+      .array(
+        z.object({
+          type: z.enum(["RECEIVABLE", "DEPOSIT_RETURN", "RISK_ISSUE", "OTHER"]),
+          description: z.string().trim().min(1),
+          responsibleId: z.string().min(1),
+          dueOn: z.iso.date(),
+        }),
+      )
+      .default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.closeType === "WITH_OPEN_ITEMS" && !value.specialApprovalComment)
+      ctx.addIssue({
+        code: "custom",
+        path: ["specialApprovalComment"],
+        message: "带遗留事项结项必须填写特批说明",
+      });
+  });
 
 export function roundHalfUpFraction(
   numerator: bigint,
@@ -187,7 +195,6 @@ export function validateProjectClose(
   check: CloseCheck,
   type: "NORMAL" | "WITH_OPEN_ITEMS",
   items: OpenItem[],
-  approverRole?: string,
 ): void {
   if (!check.acceptancePassed || !check.archivePassed)
     throw new AppError(
@@ -211,7 +218,29 @@ export function validateProjectClose(
       "必须完整填写遗留事项责任人和期限",
       409,
     );
-  if (hasOpen && approverRole !== "COMPANY_PRINCIPAL")
+  if (hasOpen) {
+    const requiredTypes = [
+      check.outstandingReceivable ? "RECEIVABLE" : null,
+      check.unreturnedDeposit ? "DEPOSIT_RETURN" : null,
+      check.openIssues ? "RISK_ISSUE" : null,
+    ].filter((type): type is string => Boolean(type));
+    const missing = requiredTypes.filter(
+      (type) => !items.some((item) => item.type === type),
+    );
+    if (missing.length)
+      throw new AppError(
+        "OPEN_ITEM_TYPES_INCOMPLETE",
+        "必须逐项登记未收款、未退保证金和未关闭问题",
+        409,
+      );
+  }
+}
+
+export function validateSpecialCloseFinalApprover(
+  closeType: string,
+  positionCode: string,
+): void {
+  if (closeType === "WITH_OPEN_ITEMS" && positionCode !== "COMPANY_PRINCIPAL")
     throw new AppError(
       "SPECIAL_CLOSE_APPROVER_REQUIRED",
       "带遗留事项结项仅公司负责人可特批",

@@ -8,6 +8,11 @@ interface Option {
   projectName?: string;
   name?: string;
 }
+interface EmployeeOption {
+  id: string;
+  employeeCode: string;
+  name: string;
+}
 interface PlanDocument {
   id: string;
   code: string;
@@ -88,6 +93,7 @@ const today = new Date().toISOString().slice(0, 10),
   depositEvents = ref<DepositEventDocument[]>([]),
   closes = ref<CloseDocument[]>([]),
   closeOpenItems = ref<CloseOpenItemDocument[]>([]),
+  employees = ref<EmployeeOption[]>([]),
   summary = ref({
     planCount: 0,
     settledAmount: "0.00",
@@ -140,10 +146,15 @@ const close = ref({
   closeDescription: "",
   closeType: "NORMAL",
   specialApprovalComment: "",
-  openItemType: "",
-  openItemDescription: "",
-  openItemDueOn: "",
 });
+const closeDraftItems = ref([
+  {
+    type: "RECEIVABLE",
+    description: "",
+    responsibleId: "",
+    dueOn: "",
+  },
+]);
 const settlement = ref({
   planId: "",
   periodStartOn: today,
@@ -177,27 +188,29 @@ const partnerPayment = ref({
 });
 async function load() {
   try {
-    const [s, p, c, operations, closeResult] = await Promise.all([
-      callApi<typeof summary.value>("settlement.summary", {}),
-      callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
-      callApi<{ items: Option[] }>("crm.counterparty.list", {
-        page: 1,
-        pageSize: 50,
-      }),
-      callApi<{
-        plans: PlanDocument[];
-        settlements: SettlementDocument[];
-        deposits: DepositDocument[];
-        depositEvents: DepositEventDocument[];
-      }>("finance.operations", {}),
-      callApi<{
-        items: CloseDocument[];
-        openItems: CloseOpenItemDocument[];
-      }>("project.close.list", {
-        page: 1,
-        pageSize: 50,
-      }),
-    ]);
+    const [s, p, c, operations, closeResult, employeeResult] =
+      await Promise.all([
+        callApi<typeof summary.value>("settlement.summary", {}),
+        callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
+        callApi<{ items: Option[] }>("crm.counterparty.list", {
+          page: 1,
+          pageSize: 50,
+        }),
+        callApi<{
+          plans: PlanDocument[];
+          settlements: SettlementDocument[];
+          deposits: DepositDocument[];
+          depositEvents: DepositEventDocument[];
+        }>("finance.operations", {}),
+        callApi<{
+          items: CloseDocument[];
+          openItems: CloseOpenItemDocument[];
+        }>("project.close.list", {
+          page: 1,
+          pageSize: 50,
+        }),
+        callApi<{ items: EmployeeOption[] }>("org.employee.options", {}),
+      ]);
     summary.value = s;
     projects.value = p.items;
     partners.value = c.items;
@@ -207,6 +220,7 @@ async function load() {
     depositEvents.value = operations.depositEvents;
     closes.value = closeResult.items;
     closeOpenItems.value = closeResult.openItems;
+    employees.value = employeeResult.items;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -313,16 +327,7 @@ async function createClose() {
       closeDescription: f.closeDescription,
       closeType: f.closeType,
       specialApprovalComment: f.specialApprovalComment || null,
-      openItems: withOpen
-        ? [
-            {
-              type: f.openItemType,
-              description: f.openItemDescription,
-              responsibleId: auth.user.employeeId,
-              dueOn: f.openItemDueOn,
-            },
-          ]
-        : [],
+      openItems: withOpen ? closeDraftItems.value : [],
     });
     await callApi("approval.instance.submit", {
       businessType: "PROJECT_CLOSE",
@@ -337,6 +342,17 @@ async function createClose() {
   } finally {
     saving.value = false;
   }
+}
+function addCloseDraftItem() {
+  closeDraftItems.value.push({
+    type: "OTHER",
+    description: "",
+    responsibleId: auth.user?.employeeId ?? "",
+    dueOn: "",
+  });
+}
+function removeCloseDraftItem(index: number) {
+  if (closeDraftItems.value.length > 1) closeDraftItems.value.splice(index, 1);
 }
 async function createSettlement() {
   saving.value = true;
@@ -538,15 +554,37 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
         <h1>结算、保证金与结项</h1>
       </div>
       <div class="header-actions">
-        <button class="primary-action" @click="mode = 'PLAN'">
+        <button
+          v-if="auth.user?.permissionCodes.includes('partner.plan.create')"
+          class="primary-action"
+          @click="mode = 'PLAN'"
+        >
           新增合作方案</button
-        ><button class="primary-action" @click="mode = 'DEPOSIT'">
+        ><button
+          v-if="auth.user?.permissionCodes.includes('deposit.create')"
+          class="primary-action"
+          @click="mode = 'DEPOSIT'"
+        >
           登记保证金</button
-        ><button class="primary-action" @click="mode = 'SETTLEMENT'">
+        ><button
+          v-if="
+            auth.user?.permissionCodes.includes('partner.settlement.create')
+          "
+          class="primary-action"
+          @click="mode = 'SETTLEMENT'"
+        >
           生成结算单</button
-        ><button class="primary-action" @click="mode = 'DEPOSIT_EVENT'">
+        ><button
+          v-if="auth.user?.permissionCodes.includes('deposit.event.create')"
+          class="primary-action"
+          @click="mode = 'DEPOSIT_EVENT'"
+        >
           保证金退回/没收</button
-        ><button class="primary-action" @click="mode = 'CLOSE'">
+        ><button
+          v-if="auth.user?.permissionCodes.includes('project.close.create')"
+          class="primary-action"
+          @click="mode = 'CLOSE'"
+        >
           申请结项
         </button>
       </div>
@@ -808,7 +846,12 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="item.status === 'OPEN'"
+                v-if="
+                  item.status === 'OPEN' &&
+                  auth.user?.permissionCodes.includes(
+                    'project.close.openItem.complete',
+                  )
+                "
                 class="secondary-button"
                 @click="completeCloseOpenItem(item)"
               >
@@ -1121,20 +1164,54 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
           minlength="2"
         ></textarea></label
       ><template v-if="close.closeType === 'WITH_OPEN_ITEMS'"
-        ><label>遗留类型<input v-model="close.openItemType" required /></label
-        ><label
-          >完成期限<input
-            v-model="close.openItemDueOn"
-            type="date"
-            required /></label
-        ><label class="wide"
-          >遗留事项<textarea
-            v-model="close.openItemDescription"
-            required
-          ></textarea></label
+        ><fieldset
+          v-for="(item, index) in closeDraftItems"
+          :key="index"
+          class="wide"
+        >
+          <legend>遗留事项 {{ index + 1 }}</legend>
+          <label
+            >类型<select v-model="item.type" required>
+              <option value="RECEIVABLE">未收款</option>
+              <option value="DEPOSIT_RETURN">未退保证金</option>
+              <option value="RISK_ISSUE">未关闭问题</option>
+              <option value="OTHER">其他</option>
+            </select></label
+          >
+          <label
+            >责任人<select v-model="item.responsibleId" required>
+              <option value="" disabled>请选择</option>
+              <option v-for="e in employees" :key="e.id" :value="e.id">
+                {{ e.name }}（{{ e.employeeCode }}）
+              </option>
+            </select></label
+          >
+          <label
+            >完成期限<input v-model="item.dueOn" type="date" required
+          /></label>
+          <label class="wide"
+            >事项说明<textarea v-model="item.description" required></textarea>
+          </label>
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="closeDraftItems.length === 1"
+            @click="removeCloseDraftItem(index)"
+          >
+            删除本项
+          </button>
+        </fieldset>
+        <button
+          type="button"
+          class="secondary-button"
+          @click="addCloseDraftItem"
+        >
+          添加遗留事项
+        </button>
         ><label class="wide"
           >特批说明<textarea
             v-model="close.specialApprovalComment"
+            required
           ></textarea></label></template
       ><button :disabled="saving">
         {{ saving ? "保存中…" : "提交结项申请" }}</button

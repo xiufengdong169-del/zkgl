@@ -9,7 +9,11 @@ import { createHash } from "node:crypto";
 
 import { AppError } from "./errors.js";
 import { withTransaction } from "./database.js";
-import { calculateSettlement, validateProjectClose } from "./settlements.js";
+import {
+  calculateSettlement,
+  validateProjectClose,
+  validateSpecialCloseFinalApprover,
+} from "./settlements.js";
 import { transitionRisk, transitionStage } from "./delivery.js";
 import { transitionBid, transitionBidTask } from "./bids.js";
 import { transitionLead } from "./leads.js";
@@ -46,6 +50,7 @@ interface ApprovalTaskRow extends RowDataPacket {
   configuration_snapshot: string | object;
   business_type: string;
   business_id: string;
+  position_code: string;
 }
 async function allocateNumber(
   connection: PoolConnection,
@@ -1563,7 +1568,7 @@ export class MySqlActionExecutor {
           );
           if (existing[0]) return { idempotent: true };
           const [rows] = await connection.execute<ApprovalTaskRow[]>(
-            `SELECT CAST(t.id AS CHAR) task_id,CAST(t.instance_id AS CHAR) instance_id,t.node_order,CAST(t.assignee_id AS CHAR) assignee_id,
+            `SELECT CAST(t.id AS CHAR) task_id,CAST(t.instance_id AS CHAR) instance_id,t.node_order,t.position_code,CAST(t.assignee_id AS CHAR) assignee_id,
                     t.status task_status,i.status instance_status,i.current_node_order,CAST(i.applicant_id AS CHAR) applicant_id,i.configuration_snapshot,
                     i.business_type,CAST(i.business_id AS CHAR) business_id
                FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.id=? FOR UPDATE`,
@@ -1610,6 +1615,22 @@ export class MySqlActionExecutor {
             );
             const next = nextRows[0]?.next_order as number | null;
             if (next == null) {
+              if (task.business_type === "PROJECT_CLOSE") {
+                const [closeRows] = await connection.execute<RowDataPacket[]>(
+                  `SELECT close_type closeType FROM prj_close_application WHERE id=? FOR UPDATE`,
+                  [task.business_id],
+                );
+                if (!closeRows[0])
+                  throw new AppError(
+                    "PROJECT_CLOSE_NOT_FOUND",
+                    "项目结项申请不存在",
+                    404,
+                  );
+                validateSpecialCloseFinalApprover(
+                  String(closeRows[0].closeType),
+                  task.position_code,
+                );
+              }
               await connection.execute(
                 `UPDATE wf_instance SET status='APPROVED',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,
                 [task.instance_id],
@@ -3351,14 +3372,7 @@ export class MySqlActionExecutor {
             unreturnedDeposit,
             openIssues,
           };
-          validateProjectClose(
-            check,
-            input.closeType,
-            input.openItems,
-            user.roleCodes.includes("COMPANY_PRINCIPAL")
-              ? "COMPANY_PRINCIPAL"
-              : undefined,
-          );
+          validateProjectClose(check, input.closeType, input.openItems);
           const code = await allocateNumber(connection, "PROJECT_CLOSE");
           const profit = {
             contractOperatingProfit: contractAmount - confirmedCost,
@@ -3426,6 +3440,12 @@ export class MySqlActionExecutor {
               ],
             );
           return { items: rows, openItems, page, pageSize };
+        }
+        case "org.employee.options": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name FROM org_employee WHERE status='ACTIVE' AND is_deleted=0 ORDER BY name,id LIMIT 1000`,
+          );
+          return { items: rows };
         }
         case "project.close.openItem.complete": {
           const [rows] = await connection.execute<RowDataPacket[]>(
