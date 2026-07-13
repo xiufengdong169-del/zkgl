@@ -1450,6 +1450,7 @@ VALUES
 ('bid.application.read','查看投标','READ'),('bid.application.create','创建投标','WRITE'),('contract.read','查看合同','READ'),('contract.create','创建合同','WRITE'),
 ('approval.task.read','查看审批待办','READ'),('approval.task.process','处理审批','APPROVE'),('approval.instance.withdraw','撤回本人审批','WRITE'),
 ('finance.read','查看收支','READ'),('invoice.application.create','申请开票','WRITE'),('receipt.create','登记收款','WRITE'),('reimbursement.create','创建报销','WRITE'),('payment.application.create','创建付款','WRITE'),
+('sales.invoice.create','完成开票','WRITE'),('receipt.invoice.allocate','收款发票核销','WRITE'),
 ('partner.plan.create','创建合作方案','WRITE'),('partner.settlement.create','创建合作结算','WRITE'),('settlement.read','查看结算保证金','READ'),
 ('deposit.create','创建保证金','WRITE'),('deposit.event.create','登记保证金事件','WRITE'),('project.close.create','创建结项申请','WRITE'),('daily.purchase.create','创建日常采购','WRITE'),
 ('project.start.create','创建项目启动','WRITE'),('project.delivery.read','查看项目实施','READ'),('project.stage.create','创建项目阶段','WRITE'),('project.progress.create','记录项目进展','WRITE'),('project.risk.create','登记问题风险','WRITE')
@@ -1489,7 +1490,7 @@ WHERE r.code='BID_STAFF';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','receipt.create','reimbursement.create','payment.application.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','report.financial.read','project.export','message.read')
+('crm.counterparty.read','lead.read','project.read','bid.application.read','contract.read','contract.create','approval.task.read','approval.task.process','approval.instance.withdraw','finance.read','invoice.application.create','receipt.create','sales.invoice.create','receipt.invoice.allocate','reimbursement.create','payment.application.create','partner.settlement.create','settlement.read','deposit.create','deposit.event.create','report.financial.read','project.export','message.read')
 WHERE r.code='FINANCE';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
