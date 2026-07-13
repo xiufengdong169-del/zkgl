@@ -138,7 +138,6 @@ async function createApplication() {
       proposedManagerId: auth.user.employeeId,
       memberSuggestions: [],
       riskDescription: form.value.riskDescription || null,
-      applicantId: auth.user.id,
     };
     if (editingApplicationId.value)
       await callApi("project.application.update", {

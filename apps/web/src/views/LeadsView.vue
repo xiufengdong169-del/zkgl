@@ -119,7 +119,6 @@ async function createLead() {
   try {
     await callApi("lead.create", {
       ...form.value,
-      ownerId: auth.user.employeeId,
       collaboratorIds: [],
       sourceDescription: null,
       projectBackground: null,

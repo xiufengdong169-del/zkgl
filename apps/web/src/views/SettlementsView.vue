@@ -236,7 +236,6 @@ async function createPlan() {
       ...f,
       fixedAmount: f.settlementMethod === "FIXED" ? f.fixedAmount : null,
       ratio: f.settlementMethod === "RATIO" ? f.ratio : null,
-      ownerId: auth.user.employeeId,
       deductibleCostScope: [],
       effectiveTo: f.effectiveTo || null,
       conditions: f.conditions || null,
@@ -444,7 +443,6 @@ async function createDepositPayment() {
       paymentBasis: "已审批保证金缴纳申请",
       receivingAccount: f.receivingAccount,
       invoiceRequired: false,
-      operatorId: auth.user.employeeId,
     });
     mode.value = null;
     await load();
@@ -497,7 +495,6 @@ async function createPartnerPayment() {
       paymentBasis: "已审批合作方结算单",
       receivingAccount: f.receivingAccount,
       invoiceRequired: f.invoiceRequired,
-      operatorId: auth.user.employeeId,
     });
     mode.value = null;
     await load();

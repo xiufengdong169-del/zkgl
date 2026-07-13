@@ -25,7 +25,6 @@ export const projectApplicationInput = z
     biddingMethod: z.string().trim().max(64).nullable().optional(),
     riskDescription: z.string().trim().nullable().optional(),
     necessity: z.string().trim().min(2),
-    applicantId: z.string().min(1),
   })
   .refine((value) => value.estimatedEndOn >= value.estimatedStartOn, {
     message: "预计结束日期不得早于预计开始日期",

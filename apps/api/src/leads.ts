@@ -16,7 +16,6 @@ export const leadInput = z.object({
   requirementSummary: z.string().trim().min(2),
   competition: z.string().trim().nullable().optional(),
   successProbability: z.number().int().min(0).max(100),
-  ownerId: z.string().min(1),
   collaboratorIds: z.array(z.string().min(1)).default([]),
   nextFollowUpAt: z.iso.datetime().nullable().optional(),
   sourceVisitId: z.string().nullable().optional()

@@ -92,6 +92,9 @@ describe("finance invariants", () => {
       dailyPurchaseInput.parse({ ...base, contractRelated: false })
         .contractRelated,
     ).toBe(false);
+    expect(
+      dailyPurchaseInput.parse({ ...base, contractRelated: false }),
+    ).not.toHaveProperty("applicantId");
   });
   it("销项发票价税合计必须平衡", () => {
     const invoice = {

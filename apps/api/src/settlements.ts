@@ -6,7 +6,6 @@ export const partnerPlanInput = z
   .object({
     projectId: z.string().min(1),
     partnerId: z.string().min(1),
-    ownerId: z.string().min(1),
     settlementMethod: z.enum(["FIXED", "RATIO"]),
     fixedAmount: z.number().nonnegative().nullable().optional(),
     ratio: z.number().min(0).max(1).nullable().optional(),

@@ -43,7 +43,6 @@ export const stageInput = z
     stageOrder: z.number().int().positive(),
     plannedStartOn: z.iso.date(),
     plannedEndOn: z.iso.date(),
-    ownerId: z.string().min(1),
     objective: z.string().trim().min(1),
     deliverables: z.string().trim().min(1),
   })
@@ -60,7 +59,6 @@ export const progressInput = z.object({
   nextPlan: z.string().trim().min(1),
   deviationDescription: z.string().trim().nullable().optional(),
   coordinationNeeded: z.string().trim().nullable().optional(),
-  recorderId: z.string().min(1),
 });
 export const riskInput = z.object({
   projectId: z.string().min(1),
@@ -69,7 +67,6 @@ export const riskInput = z.object({
   description: z.string().trim().min(1),
   severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
   impact: z.string().trim().min(1),
-  ownerId: z.string().min(1),
   discoveredOn: z.iso.date(),
   plannedResolutionOn: z.iso.date(),
   measures: z.string().trim().min(1),
@@ -81,7 +78,6 @@ export const deliverableInput = z.object({
   deliverableType: z.string().trim().min(1).max(64),
   deliverableVersion: z.string().trim().min(1).max(64),
   submittedOn: z.iso.date(),
-  submitterId: z.string().min(1),
   recipient: z.string().trim().max(255).nullable().optional(),
   description: z.string().trim().nullable().optional(),
 });
@@ -127,7 +123,6 @@ export const projectChangeInput = z.object({
   impactScope: z.string().trim().min(1),
   scheduleImpactDays: z.number().int(),
   amountImpact: z.number(),
-  applicantId: z.string().min(1),
   effectiveOn: z.iso.date().nullable().optional(),
 });
 

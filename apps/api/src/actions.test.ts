@@ -27,6 +27,7 @@ describe("domain actions", () => {
       name: "测试客户有限公司",
       cooperationStatus: "POTENTIAL",
     });
+    expect(result).not.toHaveProperty("ownerId");
   });
 
   it("拒绝无权限创建线索", () => {

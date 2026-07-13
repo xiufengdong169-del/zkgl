@@ -246,7 +246,6 @@ async function createInvoice() {
     await callApi("invoice.application.create", {
       ...invoice.value,
       collectionCondition: invoice.value.collectionCondition || null,
-      applicantId: auth.user.id,
     });
     mode.value = null;
     await load();
@@ -265,7 +264,6 @@ async function createReceipt() {
       ...receipt.value,
       payerAccount: receipt.value.payerAccount || null,
       voucherNumber: receipt.value.voucherNumber || null,
-      operatorId: auth.user.employeeId,
     });
     mode.value = null;
     await load();
@@ -357,7 +355,6 @@ async function createReimbursement() {
   try {
     const f = reimbursement.value;
     await callApi("reimbursement.create", {
-      claimantId: auth.user.employeeId,
       departmentId: auth.user.departmentId,
       projectId: f.projectId || null,
       reason: f.reason,
@@ -405,7 +402,6 @@ async function createPayment() {
   try {
     await callApi("payment.application.create", {
       ...payment.value,
-      operatorId: auth.user.employeeId,
     });
     mode.value = null;
     await load();
@@ -490,8 +486,6 @@ async function createPurchase() {
     const f = purchase.value;
     await callApi("daily.purchase.create", {
       ...f,
-      applicantId: auth.user.employeeId,
-      departmentId: auth.user.departmentId,
       supplierId: f.supplierId || null,
       contractId: f.contractRelated ? f.contractId : null,
     });

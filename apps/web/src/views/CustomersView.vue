@@ -97,7 +97,6 @@ async function createCounterparty() {
       region: form.value.region || null,
       phone: form.value.phone || null,
       remark: form.value.remark || null,
-      ownerId: auth.user.employeeId,
     });
     showForm.value = false;
     form.value = {
@@ -143,7 +142,6 @@ async function createContact() {
       wechat: null,
       relationshipLevel: f.relationshipLevel || null,
       decisionRole: f.decisionRole || null,
-      ownerId: auth.user.employeeId,
       remark: f.remark || null,
     });
     showContact.value = false;
@@ -172,7 +170,6 @@ async function createVisit() {
       nextFollowUpAt: f.nextFollowUpAt
         ? new Date(f.nextFollowUpAt).toISOString()
         : null,
-      ownerId: auth.user.employeeId,
     });
     showVisit.value = false;
     await loadDetail(selectedId.value);

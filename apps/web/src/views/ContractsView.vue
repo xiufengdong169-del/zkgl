@@ -153,7 +153,6 @@ async function createContract() {
       effectiveOn: form.value.effectiveOn || null,
       expiresOn: form.value.expiresOn || null,
       invoiceTerms: form.value.invoiceTerms || null,
-      ownerId: auth.user.employeeId,
       parentContractId: null,
     });
     showForm.value = false;

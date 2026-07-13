@@ -22,7 +22,6 @@ export const contractInput = z
     serviceContent: z.string().trim().min(2),
     paymentTerms: z.string().trim().min(2),
     invoiceTerms: z.string().trim().nullable().optional(),
-    ownerId: z.string().min(1),
     parentContractId: z.string().nullable().optional(),
   })
   .refine(

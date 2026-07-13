@@ -20,7 +20,6 @@ export const invoiceApplicationInput = z.object({
   buyerInformation: z.string().trim().min(1),
   plannedInvoiceOn: z.iso.date(),
   collectionCondition: z.string().trim().nullable().optional(),
-  applicantId: z.string().min(1),
 });
 
 export const receiptInput = z.object({
@@ -34,7 +33,6 @@ export const receiptInput = z.object({
   payerAccount: z.string().trim().max(128).nullable().optional(),
   receiptType: z.enum(["ADVANCE", "NORMAL", "OTHER"]),
   voucherNumber: z.string().trim().max(128).nullable().optional(),
-  operatorId: z.string().min(1),
 });
 
 export const salesInvoiceInput = z
@@ -81,7 +79,6 @@ export const paymentApplicationInput = z.object({
   paymentBasis: z.string().trim().min(1),
   receivingAccount: z.string().trim().min(1).max(128),
   invoiceRequired: z.boolean(),
-  operatorId: z.string().min(1),
 });
 
 export interface PaymentSourceValidationInput {
@@ -230,8 +227,6 @@ export function validateInvoiceCapacity(
 }
 
 export const reimbursementInput = z.object({
-  claimantId: z.string().min(1),
-  departmentId: z.string().min(1),
   projectId: z.string().nullable().optional(),
   reason: z.string().trim().min(2),
   paymentRecipient: z.string().trim().min(1),
@@ -253,8 +248,6 @@ export const reimbursementInput = z.object({
 
 export const dailyPurchaseInput = z
   .object({
-    applicantId: z.string().min(1),
-    departmentId: z.string().min(1),
     purchaseType: z.string().trim().min(1).max(64),
     supplierId: z.string().nullable().optional(),
     itemDescription: z.string().trim().min(1),

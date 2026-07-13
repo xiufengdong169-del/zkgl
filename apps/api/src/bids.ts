@@ -106,7 +106,6 @@ export const bidPartnerInput = z
     quotationAt: z.iso.datetime().nullable().optional(),
     biddingAt: z.iso.datetime().nullable().optional(),
     ourQuotation: z.number().nonnegative().nullable().optional(),
-    ownerId: z.string().min(1),
     result: z.string().trim().max(64).nullable().optional(),
     description: z.string().trim().nullable().optional(),
   })

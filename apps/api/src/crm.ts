@@ -10,7 +10,6 @@ export const counterpartyInput = z.object({
   address: z.string().trim().max(512).nullable().optional(),
   phone: z.string().trim().max(32).nullable().optional(),
   website: z.url().max(255).nullable().optional(),
-  ownerId: z.string().min(1),
   sourceCode: z.string().trim().max(64).nullable().optional(),
   cooperationStatus: z.enum(['POTENTIAL', 'ACTIVE', 'SUSPENDED', 'ENDED']).default('POTENTIAL'),
   remark: z.string().trim().max(1000).nullable().optional()
@@ -29,7 +28,6 @@ export const contactInput = z.object({
   isKeyContact: z.boolean().default(false),
   relationshipLevel: z.enum(['UNKNOWN', 'NORMAL', 'GOOD', 'STRONG']).nullable().optional(),
   decisionRole: z.string().trim().max(64).nullable().optional(),
-  ownerId: z.string().min(1),
   remark: z.string().trim().max(1000).nullable().optional()
 }).refine((value) => Boolean(value.mobile || value.phone || value.email || value.wechat), {
   message: '联系人至少需要一种联系方式'
@@ -48,7 +46,6 @@ export const visitInput = z.object({
   opportunityAssessment: z.string().trim().nullable().optional(),
   nextAction: z.string().trim().nullable().optional(),
   nextFollowUpAt: z.iso.datetime().nullable().optional(),
-  ownerId: z.string().min(1),
   generateLead: z.boolean().default(false)
 })
 

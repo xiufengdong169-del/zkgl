@@ -192,10 +192,7 @@ async function createStage() {
   saving.value = true;
   error.value = null;
   try {
-    await callApi("project.stage.create", {
-      ...form.value,
-      ownerId: auth.user.employeeId,
-    });
+    await callApi("project.stage.create", form.value);
     mode.value = null;
     await load();
   } catch (e) {
@@ -212,7 +209,6 @@ async function createDeliverable() {
     await callApi("project.deliverable.create", {
       ...deliverable.value,
       stageId: null,
-      submitterId: auth.user.employeeId,
       recipient: deliverable.value.recipient || null,
       description: deliverable.value.description || null,
     });
@@ -335,7 +331,6 @@ async function createProgress() {
       stageId: f.stageId || null,
       deviationDescription: f.deviationDescription || null,
       coordinationNeeded: f.coordinationNeeded || null,
-      recorderId: auth.user.employeeId,
     });
     mode.value = null;
     await load();
@@ -352,7 +347,6 @@ async function createRisk() {
   try {
     await callApi("project.risk.create", {
       ...risk.value,
-      ownerId: auth.user.employeeId,
     });
     mode.value = null;
     await load();
@@ -386,7 +380,6 @@ async function createChange() {
     const f = change.value,
       created = await callApi<{ id: string }>("project.change.create", {
         ...f,
-        applicantId: auth.user.employeeId,
         effectiveOn: f.effectiveOn || null,
       });
     await callApi("approval.instance.submit", {

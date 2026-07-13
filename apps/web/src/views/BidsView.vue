@@ -268,7 +268,6 @@ async function createPartner() {
       quotationAt: f.quotationAt ? new Date(f.quotationAt).toISOString() : null,
       biddingAt: f.biddingAt ? new Date(f.biddingAt).toISOString() : null,
       ourQuotation: f.ourQuotation,
-      ownerId: auth.user.employeeId,
       result: f.result || null,
       description: f.description || null,
     });

@@ -99,5 +99,6 @@ describe("project application", () => {
     });
     expect(result.estimatedRevenue - result.estimatedCost).toBe(40);
     expect("estimatedProfit" in result).toBe(false);
+    expect("applicantId" in result).toBe(false);
   });
 });
