@@ -20,6 +20,7 @@ const auth = useAuthStore(),
   customers = ref<Option[]>([]),
   error = ref<string | null>(null),
   showForm = ref(false),
+  showResult = ref(false),
   saving = ref(false);
 const form = ref({
   projectId: "",
@@ -34,6 +35,18 @@ const form = ref({
   depositAmount: 0,
   documentFee: 0,
   applicationReason: "",
+});
+const resultForm = ref({
+  bidId: "",
+  openedOn: new Date().toISOString().slice(0, 10),
+  quotedAmount: 0,
+  ranking: null as number | null,
+  result: "WON",
+  winningAmount: null as number | null,
+  noticeOn: "",
+  lossReason: "",
+  competitors: "",
+  retrospective: "",
 });
 async function load() {
   try {
@@ -99,6 +112,36 @@ async function submitBid(item: BidRow) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
   }
 }
+async function transition(item: BidRow, action: string) {
+  try {
+    await callApi("bid.status.transition", { bidId: item.id, action });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "操作失败";
+  }
+}
+async function createResult() {
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = resultForm.value;
+    await callApi("bid.result.create", {
+      ...f,
+      ranking: f.ranking ?? null,
+      winningAmount: f.result === "WON" ? f.winningAmount : null,
+      noticeOn: f.noticeOn || null,
+      lossReason: f.result === "WON" ? null : f.lossReason || null,
+      competitors: f.competitors || null,
+      retrospective: f.retrospective || null,
+    });
+    showResult.value = false;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
 const areas = [
   ["投标申请", "审批、时间节点与保证金信息"],
   ["任务分工", "商务标、技术标与报价任务"],
@@ -114,9 +157,13 @@ const areas = [
         <p class="eyebrow">BIDDING</p>
         <h1>投标管理</h1>
       </div>
-      <button class="primary-action" @click="showForm = !showForm">
-        {{ showForm ? "取消" : "新增投标申请" }}
-      </button>
+      <div class="header-actions">
+        <button class="primary-action" @click="showForm = !showForm">
+          {{ showForm ? "取消" : "新增投标申请" }}</button
+        ><button class="primary-action" @click="showResult = !showResult">
+          登记投标结果
+        </button>
+      </div>
     </header>
     <form v-if="showForm" class="entity-form" @submit.prevent="createBid">
       <label
@@ -179,6 +226,59 @@ const areas = [
         ></textarea></label
       ><button :disabled="saving">{{ saving ? "保存中…" : "保存申请" }}</button>
     </form>
+    <form v-if="showResult" class="entity-form" @submit.prevent="createResult">
+      <label
+        >已开标项目<select v-model="resultForm.bidId" required>
+          <option value="" disabled>请选择</option>
+          <option
+            v-for="b in items.filter((x) => x.status === 'OPENED')"
+            :key="b.id"
+            :value="b.id"
+          >
+            {{ b.code }} · {{ b.projectName }}
+          </option>
+        </select></label
+      ><label
+        >开标日<input
+          v-model="resultForm.openedOn"
+          type="date"
+          required /></label
+      ><label
+        >我方报价<input
+          v-model.number="resultForm.quotedAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label
+        >排名<input
+          v-model.number="resultForm.ranking"
+          type="number"
+          min="1" /></label
+      ><label
+        >结果<select v-model="resultForm.result">
+          <option value="WON">中标</option>
+          <option value="LOST">未中标</option>
+          <option value="FAILED">废标</option>
+        </select></label
+      ><label v-if="resultForm.result === 'WON'"
+        >中标金额<input
+          v-model.number="resultForm.winningAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label v-else class="wide"
+        >未中标原因<textarea
+          v-model="resultForm.lossReason"
+          required
+        ></textarea></label
+      ><label class="wide"
+        >复盘<textarea v-model="resultForm.retrospective"></textarea></label
+      ><button :disabled="saving">
+        {{ saving ? "保存中…" : "保存投标结果" }}
+      </button>
+    </form>
     <section class="module-grid bid-grid">
       <article
         v-for="([title, detail], index) in areas"
@@ -222,6 +322,25 @@ const areas = [
                 @click="submitBid(item)"
               >
                 提交审批
+              </button>
+              <button
+                v-if="item.status === 'PREPARING'"
+                class="secondary-button"
+                @click="transition(item, 'SUBMIT_BID')"
+              >
+                确认投标</button
+              ><button
+                v-if="item.status === 'SUBMITTED'"
+                class="secondary-button"
+                @click="transition(item, 'OPEN')"
+              >
+                确认开标</button
+              ><button
+                v-if="['DRAFT', 'PREPARING'].includes(item.status)"
+                class="secondary-button"
+                @click="transition(item, 'ABANDON')"
+              >
+                放弃
               </button>
             </td>
           </tr>

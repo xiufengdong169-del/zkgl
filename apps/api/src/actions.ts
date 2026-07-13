@@ -2,7 +2,7 @@ import type { SessionUser } from "@zkgl/shared";
 import type { ZodType } from "zod";
 import { z } from "zod";
 
-import { bidApplicationInput } from "./bids.js";
+import { bidApplicationInput, bidResultInput } from "./bids.js";
 import { contractInput } from "./contracts.js";
 import {
   acceptanceInput,
@@ -209,6 +209,17 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "bid.application.create": {
     permission: "bid.application.create",
     input: bidApplicationInput,
+  },
+  "bid.status.transition": {
+    permission: "bid.application.create",
+    input: z.object({
+      bidId: z.string().min(1),
+      action: z.enum(["START_PREPARING", "SUBMIT_BID", "OPEN", "ABANDON"]),
+    }),
+  },
+  "bid.result.create": {
+    permission: "bid.application.create",
+    input: bidResultInput,
   },
   "contract.create": { permission: "contract.create", input: contractInput },
   "project.start.create": {

@@ -11,6 +11,7 @@ import { AppError } from "./errors.js";
 import { withTransaction } from "./database.js";
 import { calculateSettlement, validateProjectClose } from "./settlements.js";
 import { transitionRisk, transitionStage } from "./delivery.js";
+import { transitionBid } from "./bids.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -1685,6 +1686,54 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId), code };
+        }
+        case "bid.status.transition": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.bidId],
+          );
+          if (!rows[0])
+            throw new AppError("BID_NOT_FOUND", "投标申请不存在", 404);
+          const status = transitionBid(rows[0].status, input.action);
+          await connection.execute(
+            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [status, user.id, input.bidId],
+          );
+          return { id: input.bidId, status };
+        }
+        case "bid.result.create": {
+          const [bids] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.bidId],
+          );
+          if (!bids[0] || bids[0].status !== "OPENED")
+            throw new AppError(
+              "BID_NOT_OPENED",
+              "只有已开标项目可登记结果",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO bid_result(bid_id,opened_on,quoted_amount,ranking,result,winning_amount,notice_on,loss_reason,competitors,retrospective,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.bidId,
+              input.openedOn,
+              input.quotedAmount,
+              input.ranking ?? null,
+              input.result,
+              input.winningAmount ?? null,
+              input.noticeOn ?? null,
+              input.lossReason ?? null,
+              input.competitors ?? null,
+              input.retrospective ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          await connection.execute(
+            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [input.result, user.id, input.bidId],
+          );
+          return { id: String(result.insertId), status: input.result };
         }
         case "contract.create": {
           const code = await allocateNumber(connection, "CONTRACT");
