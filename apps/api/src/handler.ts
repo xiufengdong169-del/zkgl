@@ -28,6 +28,18 @@ export interface Dependencies {
 const requestId = (event: FunctionEvent) =>
   event.requestId || crypto.randomUUID();
 
+const concealedAccessDenial = (action: string, error: AppError) =>
+  (action === "project.detail" && error.code === "PROJECT_NOT_FOUND") ||
+  (action === "project.application.detail" &&
+    error.code === "PROJECT_APPLICATION_NOT_FOUND");
+
+export const auditOutcomeForError = (action: string, error: AppError) =>
+  error.status === 401 ||
+  error.status === 403 ||
+  concealedAccessDenial(action, error)
+    ? "DENIED"
+    : "FAILED";
+
 export async function handle(
   event: FunctionEvent,
   dependencies: Dependencies,
@@ -76,7 +88,7 @@ export async function handle(
       action,
       resourceType: auditResourceType(action),
       resourceId: deriveAuditResourceId(event.payload),
-      outcome: appError.status === 403 ? "DENIED" : "FAILED",
+      outcome: auditOutcomeForError(action, appError),
       ipAddress: null,
       userAgent: null,
       occurredAt: new Date(),
