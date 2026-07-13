@@ -65,6 +65,17 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: z.object({ counterpartyId: z.string().min(1) }),
   },
   "lead.list": { permission: "lead.read", input: listInput },
+  "lead.detail": {
+    permission: "lead.read",
+    input: z.object({ leadId: z.string().min(1) }),
+  },
+  "lead.close": {
+    permission: "lead.create",
+    input: z.object({
+      leadId: z.string().min(1),
+      reason: z.string().trim().min(2).max(1000),
+    }),
+  },
   "project.application.list": {
     permission: "project.application.read",
     input: listInput,
@@ -97,6 +108,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: z.object({
       businessType: z.enum([
         "PROJECT_APPLICATION",
+        "LEAD",
         "BID_APPLICATION",
         "CONTRACT",
         "INVOICE_APPLICATION",

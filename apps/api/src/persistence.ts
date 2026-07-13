@@ -12,6 +12,7 @@ import { withTransaction } from "./database.js";
 import { calculateSettlement, validateProjectClose } from "./settlements.js";
 import { transitionRisk, transitionStage } from "./delivery.js";
 import { transitionBid } from "./bids.js";
+import { transitionLead } from "./leads.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -83,6 +84,7 @@ async function applyBusinessApprovalResult(
       column: "status",
       approved: "APPROVED",
     },
+    LEAD: { table: "mkt_lead", column: "status", approved: "FOLLOWING" },
     BID_APPLICATION: {
       table: "bid_application",
       column: "status",
@@ -535,7 +537,7 @@ export class MySqlActionExecutor {
                ORDER BY id DESC LIMIT ? OFFSET ?`,
             [
               all ? 1 : 0,
-              user.id,
+              user.employeeId,
               user.id,
               keyword,
               pattern,
@@ -545,6 +547,39 @@ export class MySqlActionExecutor {
             ],
           );
           return { items: rows, page, pageSize };
+        }
+        case "lead.detail": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [rows] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,l.customer_id customerId,c.name customerName,l.source_code sourceCode,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.project_type projectType,l.requirement_summary requirementSummary,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
+              [input.leadId, all ? 1 : 0, user.employeeId, user.id],
+            );
+          const lead = rows[0];
+          if (!lead)
+            throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
+          const [followUps] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,followed_up_at followedUpAt,follow_up_method method,communication,customer_feedback customerFeedback,opportunity_change opportunityChange,success_probability successProbability,next_action nextAction,next_follow_up_at nextFollowUpAt FROM mkt_lead_follow_up WHERE lead_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY followed_up_at DESC`,
+            [input.leadId],
+          );
+          return { lead, followUps };
+        }
+        case "lead.close": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.leadId],
+          );
+          if (!rows[0]) throw new AppError("LEAD_NOT_FOUND", "线索不存在", 404);
+          const from = rows[0].status,
+            status = transitionLead(from, "CLOSE");
+          await connection.execute(
+            `UPDATE mkt_lead SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [status, user.id, input.leadId],
+          );
+          await connection.execute(
+            `INSERT INTO sys_status_history(object_type,object_id,from_status,to_status,action,reason,operated_by) VALUES('LEAD',?,?,?,'CLOSE',?,?)`,
+            [input.leadId, from, status, input.reason, user.id],
+          );
+          return { id: input.leadId, status };
         }
         case "project.application.list": {
           const page = input.page as number,
@@ -734,11 +769,16 @@ export class MySqlActionExecutor {
         case "approval.instance.submit": {
           const businessMap: Record<
             string,
-            { table: string; statusColumn: string }
+            { table: string; statusColumn: string; pendingStatus?: string }
           > = {
             PROJECT_APPLICATION: {
               table: "prj_project_application",
               statusColumn: "status",
+            },
+            LEAD: {
+              table: "mkt_lead",
+              statusColumn: "status",
+              pendingStatus: "PENDING_REGISTRATION",
             },
             BID_APPLICATION: {
               table: "bid_application",
@@ -799,11 +839,11 @@ export class MySqlActionExecutor {
               "仅创建人可提交审批",
               403,
             );
-          if (
-            !["DRAFT", "RETURNED", "REJECTED", "WITHDRAWN"].includes(
-              String(record.businessStatus),
-            )
-          )
+          const submittableStatuses =
+            input.businessType === "LEAD"
+              ? ["DRAFT", "RETURNED"]
+              : ["DRAFT", "RETURNED", "REJECTED", "WITHDRAWN"];
+          if (!submittableStatuses.includes(String(record.businessStatus)))
             throw new AppError(
               "APPROVAL_BUSINESS_STATUS_INVALID",
               "当前业务状态不能提交审批",
@@ -932,8 +972,13 @@ export class MySqlActionExecutor {
                 [instanceId, node.positionCode, employeeId],
               );
           await connection.execute(
-            `UPDATE ${config.table} SET ${config.statusColumn}='APPROVAL_PENDING',approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?`,
-            [instanceId, user.id, input.businessId],
+            `UPDATE ${config.table} SET ${config.statusColumn}=?,approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?`,
+            [
+              config.pendingStatus ?? "APPROVAL_PENDING",
+              instanceId,
+              user.id,
+              input.businessId,
+            ],
           );
           return { instanceId, status: "PENDING" };
         }
@@ -1688,6 +1733,18 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code, leadId };
         }
         case "lead.create": {
+          const [duplicates] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,lead_code code FROM mkt_lead
+              WHERE customer_id=? AND project_name=? AND status NOT IN('INVALID','CONVERTED') AND is_deleted=0
+              LIMIT 1 FOR UPDATE`,
+            [input.customerId, input.projectName],
+          );
+          if (duplicates[0])
+            throw new AppError(
+              "DUPLICATE_LEAD",
+              `该客户已存在同名有效线索（${duplicates[0].code}）`,
+              409,
+            );
           const code = await allocateNumber(connection, "LEAD");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO mkt_lead(lead_code,project_name,customer_id,source_code,source_description,discovered_on,estimated_amount,estimated_start_on,project_type,project_background,requirement_summary,competition,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by)
@@ -1714,6 +1771,52 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId), code };
+        }
+        case "lead.followUp.create": {
+          const [leads] = await connection.execute<RowDataPacket[]>(
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.leadId],
+          );
+          if (!leads[0])
+            throw new AppError("LEAD_NOT_FOUND", "线索不存在", 404);
+          if (leads[0].status !== "FOLLOWING")
+            throw new AppError(
+              "LEAD_NOT_FOLLOWING",
+              "只有跟进中的线索可以新增跟进记录",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO mkt_lead_follow_up(
+                lead_id,followed_up_at,follow_up_method,participants,communication,
+                customer_feedback,opportunity_change,success_probability,next_action,
+                next_follow_up_at,recorder_id,created_by,updated_by
+              ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.leadId,
+              input.followedUpAt,
+              input.method,
+              JSON.stringify(input.participantIds),
+              input.communication,
+              input.customerFeedback ?? null,
+              input.opportunityChange ?? null,
+              input.successProbability,
+              input.nextAction,
+              input.nextFollowUpAt ?? null,
+              user.employeeId,
+              user.id,
+              user.id,
+            ],
+          );
+          await connection.execute(
+            `UPDATE mkt_lead SET success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1 WHERE id=?`,
+            [
+              input.successProbability,
+              input.nextFollowUpAt ?? null,
+              user.id,
+              input.leadId,
+            ],
+          );
+          return { id: String(result.insertId) };
         }
         case "project.application.create": {
           const code = await allocateNumber(connection, "PROJECT_APPLICATION");
