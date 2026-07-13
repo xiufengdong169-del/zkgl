@@ -37,8 +37,11 @@ import { projectApplicationInput } from "./project-applications.js";
 import {
   fileCompleteInput,
   fileDownloadInput,
+  fileHistoryInput,
   fileListInput,
   fileUploadInput,
+  fileVersionCompleteInput,
+  fileVersionUploadInput,
 } from "./files.js";
 import { requirePermission } from "./rbac.js";
 
@@ -314,6 +317,15 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "file.upload",
     input: fileCompleteInput,
   },
+  "file.version.prepare": {
+    permission: "file.upload",
+    input: fileVersionUploadInput,
+  },
+  "file.version.complete": {
+    permission: "file.upload",
+    input: fileVersionCompleteInput,
+  },
+  "file.version.history": { permission: "file.read", input: fileHistoryInput },
   "file.download": { permission: "file.download", input: fileDownloadInput },
   "admin.overview": {
     permission: "system.admin",

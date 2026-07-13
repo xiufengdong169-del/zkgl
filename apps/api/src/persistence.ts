@@ -16,6 +16,7 @@ import { transitionLead } from "./leads.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
+  extractSafeExtension,
   validateUpload,
 } from "./files.js";
 
@@ -493,6 +494,116 @@ export class MySqlActionExecutor {
           );
           return { id: input.fileId, status: "ACTIVE" };
         }
+        case "file.version.prepare": {
+          const extension = extractSafeExtension(input.originalName),
+            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [files] = await connection.execute<RowDataPacket[]>(
+              `SELECT f.id,f.current_version currentVersion FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?)))) FOR UPDATE`,
+              [
+                input.fileId,
+                all ? 1 : 0,
+                user.id,
+                user.employeeId,
+                user.employeeId,
+              ],
+            );
+          const file = files[0];
+          if (!file)
+            throw new AppError(
+              "FILE_BUSINESS_ACCESS_DENIED",
+              "无权更新该文件",
+              403,
+            );
+          const nextVersion = Number(file.currentVersion) + 1;
+          const [pending] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM file_version WHERE file_id=? AND status='UPLOADING' LIMIT 1 FOR UPDATE`,
+            [input.fileId],
+          );
+          if (pending[0])
+            throw new AppError(
+              "FILE_VERSION_UPLOAD_PENDING",
+              "该文件已有待完成的新版本上传",
+              409,
+            );
+          const storageKey = buildPrivateStorageKey(
+            input.fileId,
+            nextVersion,
+            input.sha256,
+            extension,
+          );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO file_version(file_id,version_number,storage_key,original_name,extension,mime_type,size_bytes,sha256,uploaded_by,status) VALUES(?,?,?,?,?,?,?,?,?,'UPLOADING')`,
+            [
+              input.fileId,
+              nextVersion,
+              storageKey,
+              input.originalName,
+              extension,
+              input.mimeType,
+              input.sizeBytes,
+              input.sha256,
+              user.id,
+            ],
+          );
+          return {
+            fileId: input.fileId,
+            versionId: String(result.insertId),
+            versionNumber: nextVersion,
+            storageKey,
+          };
+        }
+        case "file.version.complete": {
+          const [versions] = await connection.execute<RowDataPacket[]>(
+            `SELECT v.id,v.version_number versionNumber,v.storage_key expectedStorageKey FROM file_version v JOIN file_object f ON f.id=v.file_id WHERE v.id=? AND v.file_id=? AND v.uploaded_by=? AND v.status='UPLOADING' AND f.status='ACTIVE' FOR UPDATE`,
+            [input.versionId, input.fileId, user.id],
+          );
+          const version = versions[0];
+          if (!version)
+            throw new AppError(
+              "FILE_VERSION_UPLOAD_NOT_PENDING",
+              "待完成的新版本不存在",
+              409,
+            );
+          if (!input.cloudFileId.endsWith(`/${version.expectedStorageKey}`))
+            throw new AppError(
+              "FILE_STORAGE_KEY_MISMATCH",
+              "上传文件与预分配路径不一致",
+              409,
+            );
+          await connection.execute(
+            `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=?`,
+            [input.cloudFileId, input.versionId],
+          );
+          await connection.execute(
+            `UPDATE file_object SET current_version=?,updated_by=?,version=version+1 WHERE id=?`,
+            [version.versionNumber, user.id, input.fileId],
+          );
+          return {
+            id: input.fileId,
+            versionId: input.versionId,
+            versionNumber: version.versionNumber,
+          };
+        }
+        case "file.version.history": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [access] = await connection.execute<RowDataPacket[]>(
+              `SELECT f.id FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+              [
+                input.fileId,
+                all ? 1 : 0,
+                user.id,
+                user.employeeId,
+                user.employeeId,
+              ],
+            );
+          if (!access[0])
+            throw new AppError("BUSINESS_ACCESS_DENIED", "无权查看该文件", 403);
+          const [versions] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id,version_number versionNumber,original_name originalName,mime_type mimeType,size_bytes sizeBytes,sha256,uploaded_at uploadedAt,status FROM file_version WHERE file_id=? AND status='ACTIVE' ORDER BY version_number DESC`,
+            [input.fileId],
+          );
+          return { items: versions };
+        }
         case "file.download": {
           if (!this.createTemporaryUrl)
             throw new AppError(
@@ -502,8 +613,10 @@ export class MySqlActionExecutor {
             );
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
               [
+                input.versionId ?? null,
+                input.versionId ?? null,
                 input.fileId,
                 all ? 1 : 0,
                 user.id,
