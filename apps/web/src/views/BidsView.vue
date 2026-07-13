@@ -314,6 +314,7 @@ async function submitBid(item: BidRow) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "BID_APPLICATION",
       businessId: item.id,
       title: `投标申请：${item.code}`,

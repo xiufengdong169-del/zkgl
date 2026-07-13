@@ -168,6 +168,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "approval.instance.submit": {
     permission: "approval.instance.submit",
     input: z.object({
+      actionKey: z.string().min(8).max(128),
       businessType: z.enum([
         "PROJECT_APPLICATION",
         "LEAD",

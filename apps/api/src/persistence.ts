@@ -1420,6 +1420,26 @@ export class MySqlActionExecutor {
               "仅创建人可提交审批",
               403,
             );
+          const [submitted] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(h.instance_id AS CHAR) instanceId,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status FROM wf_action_history h JOIN wf_instance i ON i.id=h.instance_id WHERE h.action_key=? FOR UPDATE`,
+            [input.actionKey],
+          );
+          if (submitted[0]) {
+            if (
+              submitted[0].businessType !== input.businessType ||
+              submitted[0].businessId !== input.businessId
+            )
+              throw new AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "幂等键已用于其他业务请求",
+                409,
+              );
+            return {
+              idempotent: true,
+              instanceId: submitted[0].instanceId,
+              status: submitted[0].status,
+            };
+          }
           const submittableStatuses =
             input.businessType === "LEAD"
               ? ["DRAFT", "RETURNED"]
@@ -1553,6 +1573,10 @@ export class MySqlActionExecutor {
                 [instanceId, node.positionCode, employeeId],
               );
           await connection.execute(
+            `INSERT INTO wf_action_history(action_key,instance_id,action,operator_id) VALUES(?,?,'SUBMIT',?)`,
+            [input.actionKey, instanceId, user.id],
+          );
+          await connection.execute(
             `UPDATE ${config.table} SET ${config.statusColumn}=?,approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?`,
             [
               config.pendingStatus ?? "APPROVAL_PENDING",
@@ -1561,7 +1585,7 @@ export class MySqlActionExecutor {
               input.businessId,
             ],
           );
-          return { instanceId, status: "PENDING" };
+          return { idempotent: false, instanceId, status: "PENDING" };
         }
         case "approval.task.list": {
           const page = input.page as number,

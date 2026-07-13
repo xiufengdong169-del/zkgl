@@ -330,6 +330,7 @@ async function createClose() {
       openItems: withOpen ? closeDraftItems.value : [],
     });
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_CLOSE",
       businessId: result.id,
       title: `项目结项：${result.code}`,
@@ -384,6 +385,7 @@ async function createDepositEvent() {
     });
     if (result.requiresApproval && result.id)
       await callApi("approval.instance.submit", {
+        actionKey: crypto.randomUUID(),
         businessType: "DEPOSIT_LOSS",
         businessId: result.id,
         title: `保证金没收损失：${
@@ -403,6 +405,7 @@ async function createDepositEvent() {
 async function submitDeposit(item: DepositDocument) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "DEPOSIT",
       businessId: item.id,
       title: `保证金缴纳：${item.code}`,
@@ -454,6 +457,7 @@ async function createDepositPayment() {
 async function submitDepositLoss(item: DepositEventDocument) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "DEPOSIT_LOSS",
       businessId: item.id,
       title: `保证金没收损失：${item.depositCode}`,
@@ -506,6 +510,7 @@ async function createPartnerPayment() {
 async function submitSettlement(item: SettlementDocument) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PARTNER_SETTLEMENT",
       businessId: item.id,
       title: `合作方结算：${item.code}`,
@@ -519,6 +524,7 @@ async function submitSettlement(item: SettlementDocument) {
 async function submitClose(item: CloseDocument) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_CLOSE",
       businessId: item.id,
       title: `项目结项：${item.projectName}`,

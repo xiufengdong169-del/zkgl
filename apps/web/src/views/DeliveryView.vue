@@ -238,6 +238,7 @@ async function createAcceptance() {
       contractId: null,
     });
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_ACCEPTANCE",
       businessId: result.id,
       title: `项目验收申请：${projects.value.find((p) => p.id === f.projectId)?.projectName || f.projectId}`,
@@ -309,6 +310,7 @@ async function createStart() {
         expectedSigningOn: f.startType === "EARLY" ? f.expectedSigningOn : null,
       });
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_START",
       businessId: created.id,
       title: `项目启动：${projects.value.find((x) => x.id === f.projectId)?.projectName || f.projectId}`,
@@ -388,6 +390,7 @@ async function createChange() {
         effectiveOn: f.effectiveOn || null,
       });
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_CHANGE",
       businessId: created.id,
       title: `项目变更：${projects.value.find((x) => x.id === f.projectId)?.projectName || f.projectId}`,
@@ -404,6 +407,7 @@ async function createChange() {
 async function submitChange(item: ChangeRecord) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_CHANGE",
       businessId: item.id,
       title: `项目变更：${item.projectName}`,

@@ -40,6 +40,7 @@ describe("domain actions", () => {
     for (const businessType of ["DEPOSIT", "DEPOSIT_LOSS"]) {
       expect(
         authorizeAndParseAction(approver, "approval.instance.submit", {
+          actionKey: `submit-${businessType}`,
           businessType,
           businessId: "1",
           title: "保证金审批",

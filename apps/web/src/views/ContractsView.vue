@@ -172,6 +172,7 @@ async function submitApproval(
 ) {
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: type,
       businessId: id,
       title,

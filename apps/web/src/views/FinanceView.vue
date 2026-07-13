@@ -284,6 +284,7 @@ async function submitInvoiceApplication(item: InvoiceApplication) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "INVOICE_APPLICATION",
       businessId: item.id,
       title: `开票申请：${item.code}`,
@@ -327,6 +328,7 @@ async function submitPayment(item: PaymentDocument) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_PAYMENT",
       businessId: item.id,
       title: `付款申请：${item.code}`,
@@ -374,6 +376,7 @@ async function submitReimbursement(item: ReimbursementDocument) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "EXPENSE_REIMBURSEMENT",
       businessId: item.id,
       title: `费用报销：${item.code}`,
@@ -460,6 +463,7 @@ async function submitPurchase(item: PurchaseDocument) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "DAILY_PURCHASE",
       businessId: item.id,
       title: `日常采购：${item.code}`,

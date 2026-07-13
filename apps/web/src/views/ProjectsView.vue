@@ -202,6 +202,7 @@ async function submitApplication(item: ApplicationRow) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "PROJECT_APPLICATION",
       businessId: item.id,
       title: `项目立项：${item.projectName}`,

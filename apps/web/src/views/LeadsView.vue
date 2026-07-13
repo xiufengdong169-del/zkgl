@@ -144,6 +144,7 @@ async function submitApproval(lead: LeadDetail) {
   error.value = null;
   try {
     await callApi("approval.instance.submit", {
+      actionKey: crypto.randomUUID(),
       businessType: "LEAD",
       businessId: lead.id,
       title: `线索登记：${lead.projectName}`,
