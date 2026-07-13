@@ -48,12 +48,15 @@ interface PaymentDocument {
 }
 interface ReimbursementDocument {
   id: string;
+  projectId: string | null;
   code: string;
   reason: string;
   paymentRecipient: string;
+  receivingAccount: string;
   totalAmount: string;
   approvalStatus: string;
   paymentStatus: string;
+  hasPaymentApplication: number;
 }
 interface PurchaseDocument {
   id: string;
@@ -141,6 +144,7 @@ const reimbursement = ref({
 });
 const payment = ref({
   projectId: "",
+  sourceType: "EXPENSE_CONTRACT" as "EXPENSE_CONTRACT" | "REIMBURSEMENT",
   sourceId: "",
   recipientName: "",
   paymentType: "CONTRACT_PAYMENT",
@@ -387,7 +391,6 @@ async function createPayment() {
   try {
     await callApi("payment.application.create", {
       ...payment.value,
-      sourceType: "EXPENSE_CONTRACT",
       operatorId: auth.user.employeeId,
     });
     mode.value = null;
@@ -397,6 +400,40 @@ async function createPayment() {
   } finally {
     saving.value = false;
   }
+}
+function startReimbursementPayment(item: ReimbursementDocument) {
+  if (!item.projectId) {
+    error.value = "非项目报销不生成项目付款申请，请通过日常费用付款流程处理";
+    return;
+  }
+  payment.value = {
+    projectId: item.projectId,
+    sourceType: "REIMBURSEMENT",
+    sourceId: item.id,
+    recipientName: item.paymentRecipient,
+    paymentType: "REIMBURSEMENT",
+    requestedAmount: Number(item.totalAmount),
+    plannedOn: today,
+    paymentBasis: `已审批报销单 ${item.code}`,
+    receivingAccount: item.receivingAccount,
+    invoiceRequired: false,
+  };
+  mode.value = "PAYMENT";
+}
+function startContractPayment() {
+  payment.value = {
+    projectId: "",
+    sourceType: "EXPENSE_CONTRACT",
+    sourceId: "",
+    recipientName: "",
+    paymentType: "CONTRACT_PAYMENT",
+    requestedAmount: 0,
+    plannedOn: today,
+    paymentBasis: "",
+    receivingAccount: "",
+    invoiceRequired: true,
+  };
+  mode.value = "PAYMENT";
 }
 async function createPurchase() {
   if (!auth.user) return;
@@ -461,7 +498,7 @@ async function completePurchase(item: PurchaseDocument) {
           收款核销</button
         ><button class="primary-action" @click="mode = 'REIMBURSEMENT'">
           费用报销</button
-        ><button class="primary-action" @click="mode = 'PAYMENT'">
+        ><button class="primary-action" @click="startContractPayment">
           申请付款</button
         ><button class="primary-action" @click="mode = 'PAYMENT_DETAIL'">
           登记实际付款</button
@@ -590,6 +627,18 @@ async function completePurchase(item: PurchaseDocument) {
                 @click="submitReimbursement(item)"
               >
                 提交审批
+              </button>
+              <button
+                v-if="
+                  item.approvalStatus === 'APPROVED' &&
+                  item.paymentStatus === 'UNPAID' &&
+                  !item.hasPaymentApplication &&
+                  item.projectId
+                "
+                class="secondary-button"
+                @click="startReimbursementPayment(item)"
+              >
+                生成付款申请
               </button>
             </td>
           </tr>
@@ -940,7 +989,7 @@ async function completePurchase(item: PurchaseDocument) {
             {{ p.projectName }}
           </option>
         </select></label
-      ><label
+      ><label v-if="payment.sourceType === 'EXPENSE_CONTRACT'"
         >支出合同<select v-model="payment.sourceId" required>
           <option value="" disabled>请选择</option>
           <option
@@ -955,6 +1004,7 @@ async function completePurchase(item: PurchaseDocument) {
             {{ c.contractName }}
           </option>
         </select></label
+      ><label v-else>来源单据<input :value="payment.sourceId" readonly /></label
       ><label>收款方<input v-model="payment.recipientName" required /></label
       ><label>付款类型<input v-model="payment.paymentType" required /></label
       ><label

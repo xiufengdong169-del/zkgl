@@ -6,6 +6,7 @@ import {
   reimbursementTotal,
   salesInvoiceInput,
   validateInvoiceCapacity,
+  validatePaymentSource,
   validateReceiptInvoiceAllocation,
 } from "./finance.js";
 
@@ -130,5 +131,41 @@ describe("finance invariants", () => {
         idempotencyKey: "short",
       }),
     ).toThrow();
+  });
+  it("已审批付款来源必须原项目、原收款信息、原金额且只能生成一次", () => {
+    const valid = {
+      sourceType: "REIMBURSEMENT" as const,
+      source: {
+        projectId: "p1",
+        recipientName: "张三",
+        receivingAccount: "6222",
+        approvalStatus: "APPROVED",
+        paymentStatus: "UNPAID",
+        sourceAmount: "100.00",
+      },
+      application: {
+        projectId: "p1",
+        recipientName: "张三",
+        receivingAccount: "6222",
+        requestedAmount: 100,
+      },
+      alreadyUsed: false,
+    };
+    expect(() => validatePaymentSource(valid)).not.toThrow();
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        application: { ...valid.application, requestedAmount: 99 },
+      }),
+    ).toThrow("收款方或申请金额");
+    expect(() =>
+      validatePaymentSource({ ...valid, alreadyUsed: true }),
+    ).toThrow("已生成付款申请");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        source: { ...valid.source, approvalStatus: "DRAFT" },
+      }),
+    ).toThrow("尚未审批通过");
   });
 });

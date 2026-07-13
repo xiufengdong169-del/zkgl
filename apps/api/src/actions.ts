@@ -171,6 +171,8 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         "PROJECT_CHANGE",
         "PROJECT_ACCEPTANCE",
         "PROJECT_CLOSE",
+        "DEPOSIT",
+        "DEPOSIT_LOSS",
       ]),
       businessId: z.string().min(1),
       title: z.string().trim().min(2).max(255),

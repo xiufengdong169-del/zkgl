@@ -83,6 +83,76 @@ export const paymentApplicationInput = z.object({
   invoiceRequired: z.boolean(),
   operatorId: z.string().min(1),
 });
+
+export interface PaymentSourceValidationInput {
+  sourceType: "REIMBURSEMENT" | "PARTNER_SETTLEMENT";
+  source: {
+    projectId: unknown;
+    recipientName: unknown;
+    receivingAccount?: unknown;
+    approvalStatus: unknown;
+    paymentStatus: unknown;
+    sourceAmount: unknown;
+  };
+  application: {
+    projectId: string;
+    recipientName: string;
+    receivingAccount: string;
+    requestedAmount: number;
+  };
+  alreadyUsed: boolean;
+}
+
+export function validatePaymentSource(
+  input: PaymentSourceValidationInput,
+): void {
+  if (input.source.approvalStatus !== "APPROVED")
+    throw new AppError(
+      "PAYMENT_SOURCE_NOT_APPROVED",
+      "付款来源尚未审批通过",
+      409,
+    );
+  if (
+    !["UNPAID", "PENDING_PAYMENT"].includes(String(input.source.paymentStatus))
+  )
+    throw new AppError(
+      "PAYMENT_SOURCE_STATUS_INVALID",
+      "付款来源当前状态不能生成付款申请",
+      409,
+    );
+  if (String(input.source.projectId ?? "") !== input.application.projectId)
+    throw new AppError(
+      "PAYMENT_SOURCE_PROJECT_MISMATCH",
+      "付款来源与项目不一致",
+      409,
+    );
+  if (
+    String(input.source.recipientName) !== input.application.recipientName ||
+    Math.abs(
+      Number(input.source.sourceAmount) - input.application.requestedAmount,
+    ) > 0.005
+  )
+    throw new AppError(
+      "PAYMENT_SOURCE_DATA_MISMATCH",
+      "收款方或申请金额与付款来源不一致",
+      409,
+    );
+  if (
+    input.sourceType === "REIMBURSEMENT" &&
+    String(input.source.receivingAccount) !== input.application.receivingAccount
+  )
+    throw new AppError(
+      "PAYMENT_SOURCE_ACCOUNT_MISMATCH",
+      "收款账户与报销单不一致",
+      409,
+    );
+  if (input.alreadyUsed)
+    throw new AppError(
+      "PAYMENT_SOURCE_ALREADY_USED",
+      "该来源已生成付款申请",
+      409,
+    );
+}
 export function validateReceiptInvoiceAllocation(input: AllocationInput): void {
   if (input.receiptType === "ADVANCE")
     throw new AppError(

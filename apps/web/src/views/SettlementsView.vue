@@ -29,6 +29,19 @@ interface SettlementDocument {
   projectId: string;
   netAmount: string;
   status: string;
+  partnerName: string;
+  paymentStatus: string;
+  invoiceRequirement: string | null;
+  hasPaymentApplication: number;
+}
+interface DepositEventDocument {
+  id: string;
+  depositId: string;
+  depositCode: string;
+  eventType: string;
+  amount: string;
+  occurredOn: string;
+  status: string;
 }
 interface DepositDocument {
   id: string;
@@ -57,6 +70,7 @@ const today = new Date().toISOString().slice(0, 10),
   plans = ref<PlanDocument[]>([]),
   settlements = ref<SettlementDocument[]>([]),
   deposits = ref<DepositDocument[]>([]),
+  depositEvents = ref<DepositEventDocument[]>([]),
   closes = ref<CloseDocument[]>([]),
   summary = ref({
     planCount: 0,
@@ -72,6 +86,7 @@ const today = new Date().toISOString().slice(0, 10),
     | "CLOSE"
     | "SETTLEMENT"
     | "DEPOSIT_EVENT"
+    | "PARTNER_PAYMENT"
     | null
   >(null),
   saving = ref(false);
@@ -126,6 +141,15 @@ const depositEvent = ref({
   occurredOn: today,
   description: "",
 });
+const partnerPayment = ref({
+  settlementId: "",
+  projectId: "",
+  recipientName: "",
+  requestedAmount: 0,
+  plannedOn: today,
+  receivingAccount: "",
+  invoiceRequired: true,
+});
 async function load() {
   try {
     const [s, p, c, operations, closeResult] = await Promise.all([
@@ -139,6 +163,7 @@ async function load() {
         plans: PlanDocument[];
         settlements: SettlementDocument[];
         deposits: DepositDocument[];
+        depositEvents: DepositEventDocument[];
       }>("finance.operations", {}),
       callApi<{ items: CloseDocument[] }>("project.close.list", {
         page: 1,
@@ -151,6 +176,7 @@ async function load() {
     plans.value = operations.plans;
     settlements.value = operations.settlements;
     deposits.value = operations.deposits;
+    depositEvents.value = operations.depositEvents;
     closes.value = closeResult.items;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
@@ -303,16 +329,93 @@ async function createDepositEvent() {
   saving.value = true;
   error.value = null;
   try {
-    await callApi("deposit.event.create", {
+    const result = await callApi<{
+      id?: string;
+      requiresApproval?: boolean;
+    }>("deposit.event.create", {
       ...depositEvent.value,
       description: depositEvent.value.description || null,
       idempotencyKey: crypto.randomUUID(),
-      lossApprovalPassed: false,
     });
+    if (result.requiresApproval && result.id)
+      await callApi("approval.instance.submit", {
+        businessType: "DEPOSIT_LOSS",
+        businessId: result.id,
+        title: `保证金没收损失：${
+          deposits.value.find((x) => x.id === depositEvent.value.depositId)
+            ?.code ?? depositEvent.value.depositId
+        }`,
+        amount: depositEvent.value.amount,
+      });
     mode.value = null;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function submitDeposit(item: DepositDocument) {
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "DEPOSIT",
+      businessId: item.id,
+      title: `保证金缴纳：${item.code}`,
+      amount: Number(item.amount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交保证金审批失败";
+  }
+}
+async function submitDepositLoss(item: DepositEventDocument) {
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "DEPOSIT_LOSS",
+      businessId: item.id,
+      title: `保证金没收损失：${item.depositCode}`,
+      amount: Number(item.amount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交损失审批失败";
+  }
+}
+function startPartnerPayment(item: SettlementDocument) {
+  partnerPayment.value = {
+    settlementId: item.id,
+    projectId: item.projectId,
+    recipientName: item.partnerName,
+    requestedAmount: Number(item.netAmount),
+    plannedOn: today,
+    receivingAccount: "",
+    invoiceRequired: Boolean(item.invoiceRequirement),
+  };
+  mode.value = "PARTNER_PAYMENT";
+}
+async function createPartnerPayment() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = partnerPayment.value;
+    await callApi("payment.application.create", {
+      projectId: f.projectId,
+      sourceType: "PARTNER_SETTLEMENT",
+      sourceId: f.settlementId,
+      recipientName: f.recipientName,
+      paymentType: "PARTNER_SETTLEMENT",
+      requestedAmount: f.requestedAmount,
+      plannedOn: f.plannedOn,
+      paymentBasis: "已审批合作方结算单",
+      receivingAccount: f.receivingAccount,
+      invoiceRequired: f.invoiceRequired,
+      operatorId: auth.user.employeeId,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "生成付款申请失败";
   } finally {
     saving.value = false;
   }
@@ -457,6 +560,90 @@ async function submitClose(item: CloseDocument) {
               >
                 提交审批
               </button>
+              <button
+                v-if="
+                  s.status === 'APPROVED' &&
+                  s.paymentStatus === 'PENDING_PAYMENT' &&
+                  !s.hasPaymentApplication
+                "
+                class="secondary-button"
+                @click="startPartnerPayment(s)"
+              >
+                生成付款申请
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="deposits.length" class="data-panel">
+      <h2>保证金台账</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>登记金额</th>
+            <th>占用金额</th>
+            <th>确认损失</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in deposits" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>¥ {{ item.amount }}</td>
+            <td>¥ {{ item.occupiedAmount }}</td>
+            <td>¥ {{ item.lossAmount }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                @click="submitDeposit(item)"
+              >
+                提交缴纳审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="depositEvents.length" class="data-panel">
+      <h2>保证金事件</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>保证金</th>
+            <th>事件</th>
+            <th>金额</th>
+            <th>发生日</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in depositEvents" :key="item.id">
+            <td>{{ item.depositCode }}</td>
+            <td>{{ item.eventType }}</td>
+            <td>¥ {{ item.amount }}</td>
+            <td>{{ item.occurredOn }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  item.eventType === 'FORFEIT' &&
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                @click="submitDepositLoss(item)"
+              >
+                提交损失审批
+              </button>
             </td>
           </tr>
         </tbody>
@@ -504,6 +691,40 @@ async function submitClose(item: CloseDocument) {
         </tbody>
       </table>
     </section>
+    <form
+      v-if="mode === 'PARTNER_PAYMENT'"
+      class="entity-form"
+      @submit.prevent="createPartnerPayment"
+    >
+      <label
+        >收款方<input v-model="partnerPayment.recipientName" readonly
+      /></label>
+      <label
+        >申请金额<input
+          v-model.number="partnerPayment.requestedAmount"
+          type="number"
+          readonly
+      /></label>
+      <label
+        >计划付款日<input
+          v-model="partnerPayment.plannedOn"
+          type="date"
+          required
+      /></label>
+      <label
+        >收款账户<input v-model="partnerPayment.receivingAccount" required
+      /></label>
+      <label
+        ><input v-model="partnerPayment.invoiceRequired" type="checkbox" />
+        需要发票</label
+      >
+      <button :disabled="saving">
+        {{ saving ? "生成中…" : "生成付款申请" }}
+      </button>
+      <button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
     <form
       v-if="mode === 'PLAN' || mode === 'PLAN_VERSION'"
       class="entity-form"

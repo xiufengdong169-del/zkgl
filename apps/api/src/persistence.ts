@@ -13,6 +13,7 @@ import { calculateSettlement, validateProjectClose } from "./settlements.js";
 import { transitionRisk, transitionStage } from "./delivery.js";
 import { transitionBid, transitionBidTask } from "./bids.js";
 import { transitionLead } from "./leads.js";
+import { validatePaymentSource } from "./finance.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -118,6 +119,16 @@ async function applyBusinessApprovalResult(
     },
     PARTNER_SETTLEMENT: {
       table: "partner_settlement",
+      column: "status",
+      approved: "APPROVED",
+    },
+    DEPOSIT: {
+      table: "fin_deposit",
+      column: "status",
+      approved: "PENDING_PAYMENT",
+    },
+    DEPOSIT_LOSS: {
+      table: "fin_deposit_event",
       column: "status",
       approved: "APPROVED",
     },
@@ -237,7 +248,29 @@ async function applyBusinessApprovalResult(
       `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount,payment_status='PENDING_PAYMENT' WHERE id=?`,
       [businessId],
     );
-  else if (businessType === "PROJECT_START")
+  else if (businessType === "DEPOSIT_LOSS" && status === "APPROVED") {
+    const [events] = await connection.execute<RowDataPacket[]>(
+      `SELECT e.deposit_id depositId,e.amount,d.occupied_amount occupied FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND e.event_type='FORFEIT' FOR UPDATE`,
+      [businessId],
+    );
+    const event = events[0];
+    if (!event)
+      throw new AppError(
+        "DEPOSIT_LOSS_EVENT_NOT_FOUND",
+        "保证金损失事件不存在",
+        404,
+      );
+    if (Number(event.amount) > Number(event.occupied))
+      throw new AppError(
+        "DEPOSIT_BALANCE_EXCEEDED",
+        "审批时保证金可用占用余额不足",
+        409,
+      );
+    await connection.execute(
+      `UPDATE fin_deposit SET occupied_amount=occupied_amount-?,loss_confirmed_amount=loss_confirmed_amount+?,status='FORFEITED',updated_by=?,version=version+1 WHERE id=?`,
+      [event.amount, event.amount, actorUserId, event.depositId],
+    );
+  } else if (businessType === "PROJECT_START")
     await connection.execute(
       `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
       [actorUserId, businessId],
@@ -1301,6 +1334,14 @@ export class MySqlActionExecutor {
               table: "partner_settlement",
               statusColumn: "status",
             },
+            DEPOSIT: {
+              table: "fin_deposit",
+              statusColumn: "status",
+            },
+            DEPOSIT_LOSS: {
+              table: "fin_deposit_event",
+              statusColumn: "status",
+            },
             DAILY_PURCHASE: {
               table: "fin_daily_purchase",
               statusColumn: "status",
@@ -2023,7 +2064,7 @@ export class MySqlActionExecutor {
         case "finance.expenseApplications": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [reimbursements] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(h.id AS CHAR) id,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (?=1 OR h.claimant_id=?) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (?=1 OR h.claimant_id=?) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
               [all ? 1 : 0, user.employeeId],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
@@ -2044,14 +2085,18 @@ export class MySqlActionExecutor {
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,x.net_settlement_amount netAmount,x.status FROM partner_settlement x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.amount,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status FROM fin_deposit x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
-          return { payments, plans, settlements, deposits };
+          const [depositEvents] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id JOIN prj_project x ON x.id=d.project_id WHERE (?=1 OR x.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=x.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY e.id DESC LIMIT 200`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return { payments, plans, settlements, deposits, depositEvents };
         }
         case "payment.detail.create": {
           const [seen] = await connection.execute<RowDataPacket[]>(
@@ -2125,6 +2170,52 @@ export class MySqlActionExecutor {
           };
         }
         case "payment.application.create": {
+          if (
+            ["REIMBURSEMENT", "PARTNER_SETTLEMENT"].includes(input.sourceType)
+          ) {
+            const sourceSql =
+              input.sourceType === "REIMBURSEMENT"
+                ? `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`
+                : `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`;
+            const [sources] = await connection.execute<RowDataPacket[]>(
+              sourceSql,
+              [input.sourceId],
+            );
+            const source = sources[0];
+            if (!source)
+              throw new AppError(
+                "PAYMENT_SOURCE_NOT_FOUND",
+                "付款来源不存在",
+                404,
+              );
+            const [existingPayments] = await connection.execute<
+              RowDataPacket[]
+            >(
+              `SELECT id FROM fin_payment_application WHERE source_type=? AND source_id=? LIMIT 1 FOR UPDATE`,
+              [input.sourceType, input.sourceId],
+            );
+            validatePaymentSource({
+              sourceType:
+                input.sourceType === "REIMBURSEMENT"
+                  ? "REIMBURSEMENT"
+                  : "PARTNER_SETTLEMENT",
+              source: {
+                projectId: source.projectId,
+                recipientName: source.recipientName,
+                receivingAccount: source.receivingAccount,
+                approvalStatus: source.approvalStatus,
+                paymentStatus: source.paymentStatus,
+                sourceAmount: source.sourceAmount,
+              },
+              application: {
+                projectId: input.projectId,
+                recipientName: input.recipientName,
+                receivingAccount: input.receivingAccount,
+                requestedAmount: input.requestedAmount,
+              },
+              alreadyUsed: Boolean(existingPayments[0]),
+            });
+          }
           const code = await allocateNumber(connection, "PAYMENT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_payment_application(payment_code,project_id,source_type,source_id,recipient_name,payment_type,requested_amount,planned_on,payment_basis,receiving_account,invoice_required,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -2145,6 +2236,11 @@ export class MySqlActionExecutor {
               user.id,
             ],
           );
+          if (input.sourceType === "REIMBURSEMENT")
+            await connection.execute(
+              `UPDATE fin_reimbursement SET payment_status='PENDING_PAYMENT',updated_by=?,version=version+1 WHERE id=?`,
+              [user.id, input.sourceId],
+            );
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.create": {
@@ -3049,6 +3145,12 @@ export class MySqlActionExecutor {
             loss = Number(deposit.loss),
             status = deposit.status as string;
           if (input.eventType === "PAY") {
+            if (!["PENDING_PAYMENT", "PAID"].includes(status))
+              throw new AppError(
+                "DEPOSIT_PAYMENT_NOT_APPROVED",
+                "保证金缴纳审批通过后才能登记实缴",
+                409,
+              );
             const [paidRows] = await connection.execute<RowDataPacket[]>(
               `SELECT COALESCE(SUM(amount),0) amount FROM fin_deposit_event WHERE deposit_id=? AND event_type='PAY'`,
               [input.depositId],
@@ -3080,34 +3182,26 @@ export class MySqlActionExecutor {
                 "没收金额超过资金占用",
                 409,
               );
-            occupied -= Number(input.amount);
-            status = "FORFEITED";
-          } else if (input.eventType === "CONFIRM_LOSS") {
-            if (
-              !user.roleCodes.some((role) =>
-                ["ADMIN", "COMPANY_PRINCIPAL"].includes(role),
-              )
-            )
-              throw new AppError(
-                "DEPOSIT_LOSS_APPROVAL_REQUIRED",
-                "仅公司负责人可确认保证金损失",
-                403,
-              );
-            const [forfeitRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(amount),0) amount FROM fin_deposit_event WHERE deposit_id=? AND event_type='FORFEIT'`,
-              [input.depositId],
+            const [result] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO fin_deposit_event(deposit_id,event_type,amount,occurred_on,status,description,operator_id,idempotency_key,created_by,updated_by) VALUES(?,?,?,?,'DRAFT',?,?,?,?,?)`,
+              [
+                input.depositId,
+                input.eventType,
+                input.amount,
+                input.occurredOn,
+                input.description ?? null,
+                user.id,
+                input.idempotencyKey,
+                user.id,
+                user.id,
+              ],
             );
-            if (
-              loss + Number(input.amount) >
-              Number(forfeitRows[0]?.amount ?? 0)
-            )
-              throw new AppError(
-                "DEPOSIT_LOSS_EXCEEDED",
-                "损失确认金额超过已没收金额",
-                409,
-              );
-            loss += Number(input.amount);
-            status = "FORFEITED";
+            return {
+              idempotent: false,
+              id: String(result.insertId),
+              status: "DRAFT",
+              requiresApproval: true,
+            };
           } else {
             if (occupied !== 0)
               throw new AppError(
@@ -3118,7 +3212,7 @@ export class MySqlActionExecutor {
             status = "VOID";
           }
           await connection.execute(
-            `INSERT INTO fin_deposit_event(deposit_id,event_type,amount,occurred_on,description,operator_id,idempotency_key) VALUES(?,?,?,?,?,?,?)`,
+            `INSERT INTO fin_deposit_event(deposit_id,event_type,amount,occurred_on,status,description,operator_id,idempotency_key,created_by,updated_by) VALUES(?,?,?,?,'APPROVED',?,?,?,?,?)`,
             [
               input.depositId,
               input.eventType,
@@ -3127,6 +3221,8 @@ export class MySqlActionExecutor {
               input.description ?? null,
               user.id,
               input.idempotencyKey,
+              user.id,
+              user.id,
             ],
           );
           await connection.execute(
