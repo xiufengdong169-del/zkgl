@@ -538,11 +538,23 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "report.financial.read",
     input: z.object({}).default({}),
   },
+  "report.analytics": {
+    permission: "report.financial.read",
+    input: z.object({}).default({}),
+  },
+  "report.receivables": {
+    permission: "report.financial.read",
+    input: listInput,
+  },
   "report.project.export": {
     permission: "project.export",
     input: z.object({}).default({}),
   },
   "message.list": { permission: "message.read", input: listInput },
+  "message.read": {
+    permission: "message.read",
+    input: z.object({ messageId: z.string().min(1) }),
+  },
   "reminder.refresh": {
     permission: "system.admin",
     input: z.object({}).default({}),

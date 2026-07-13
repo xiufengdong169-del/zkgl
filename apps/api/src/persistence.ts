@@ -259,6 +259,19 @@ export class MySqlActionExecutor {
             );
           return { items: rows, page, pageSize };
         }
+        case "message.read": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE sys_message SET read_at=COALESCE(read_at,NOW(3)) WHERE id=? AND recipient_id=?`,
+            [input.messageId, user.employeeId],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "MESSAGE_NOT_FOUND",
+              "消息不存在或无权访问",
+              404,
+            );
+          return { id: input.messageId, read: true };
+        }
         case "reminder.refresh": {
           const statements = [
             `INSERT INTO sys_message(recipient_id,message_type,title,content,business_type,business_id) SELECT c.owner_id,'CONTRACT_EXPIRY',CONCAT('合同即将到期：',c.contract_name),CONCAT('到期日：',c.expires_on),'CONTRACT',c.id FROM con_contract c WHERE c.is_deleted=0 AND c.status IN('PENDING_SIGNATURE','PERFORMING') AND c.expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 30 DAY) AND NOT EXISTS(SELECT 1 FROM sys_message m WHERE m.recipient_id=c.owner_id AND m.message_type='CONTRACT_EXPIRY' AND m.business_id=c.id AND m.created_at>=DATE_SUB(NOW(),INTERVAL 7 DAY))`,
@@ -281,6 +294,49 @@ export class MySqlActionExecutor {
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
           return { ...rows[0], disclaimer: "内部项目经营口径，不属于会计利润" };
+        }
+        case "report.analytics": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            employee = user.employeeId;
+          const [leadStatus] = await connection.execute<RowDataPacket[]>(
+              `SELECT status,COUNT(*) count,COALESCE(SUM(estimated_amount),0) amount FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=?) GROUP BY status ORDER BY status`,
+              [all ? 1 : 0, employee],
+            ),
+            [bidStatus] = await connection.execute<RowDataPacket[]>(
+              `SELECT status,COUNT(*) count FROM bid_application WHERE is_deleted=0 AND (?=1 OR business_owner_id=? OR technical_owner_id=? OR pricing_owner_id=?) GROUP BY status ORDER BY status`,
+              [all ? 1 : 0, employee, employee, employee],
+            ),
+            [projectStatus] = await connection.execute<RowDataPacket[]>(
+              `SELECT p.status,COUNT(DISTINCT p.id) count,COALESCE(AVG((SELECT MAX(x.overall_progress) FROM prj_progress x WHERE x.project_id=p.id)),0) averageProgress FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR m.employee_id=?) GROUP BY p.status ORDER BY p.status`,
+              [all ? 1 : 0, employee, employee],
+            ),
+            [collection] = await connection.execute<RowDataPacket[]>(
+              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE')),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE'))`,
+              [all ? 1 : 0, employee, employee],
+            ),
+            [profits] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY p.id DESC LIMIT 100`,
+              [all ? 1 : 0, employee, employee],
+            );
+          return {
+            leadStatus,
+            bidStatus,
+            projectStatus,
+            collection: collection[0] ?? {},
+            profits,
+            disclaimer: "内部项目经营口径，不属于会计利润",
+          };
+        }
+        case "report.receivables": {
+          const page = input.page as number,
+            pageSize = input.pageSize as number,
+            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            employee = user.employeeId;
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
+            [all ? 1 : 0, employee, employee, pageSize, (page - 1) * pageSize],
+          );
+          return { items: rows, page, pageSize };
         }
         case "report.project.export": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { computed } from "vue";
+import { RouterLink, RouterView, useRoute } from "vue-router";
 
-const route = useRoute()
-const showNavigation = computed(() => route.name !== 'login')
+const route = useRoute();
+const showNavigation = computed(() => route.name !== "login");
 </script>
 
 <template>
@@ -22,6 +22,7 @@ const showNavigation = computed(() => route.name !== 'login')
         <RouterLink to="/settlements">结算保证金</RouterLink>
         <RouterLink to="/files">项目文件</RouterLink>
         <RouterLink to="/approvals">审批待办</RouterLink>
+        <RouterLink to="/reports">统计报表</RouterLink>
         <RouterLink to="/admin">系统管理</RouterLink>
       </nav>
     </aside>
