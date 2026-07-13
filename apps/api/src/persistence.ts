@@ -665,6 +665,20 @@ export class MySqlActionExecutor {
           );
           return { items: rows, page, pageSize };
         }
+        case "contract.summary": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 30 DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract WHERE is_deleted=0 AND (?=1 OR owner_id=?)`,
+            [all ? 1 : 0, user.employeeId],
+          );
+          return (
+            rows[0] ?? {
+              incomeAmount: "0.00",
+              expenseAmount: "0.00",
+              expiringCount: 0,
+            }
+          );
+        }
         case "approval.instance.submit": {
           const businessMap: Record<
             string,

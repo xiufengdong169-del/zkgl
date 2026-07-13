@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { callApi } from "../api";
 import { useAuthStore } from "../stores/auth";
 interface ProjectRow {
@@ -36,6 +36,27 @@ interface ProjectDetail {
   financialVisible: boolean;
 }
 const detail = ref<ProjectDetail | null>(null);
+const pendingApplicationCount = computed(
+    () =>
+      applications.value.filter((x) => x.status === "APPROVAL_PENDING").length,
+  ),
+  activeProjectCount = computed(
+    () =>
+      projects.value.filter((x) =>
+        [
+          "PREPARING",
+          "PENDING_START",
+          "IN_PROGRESS",
+          "PENDING_ACCEPTANCE",
+        ].includes(x.status),
+      ).length,
+  ),
+  attentionProjectCount = computed(
+    () =>
+      projects.value.filter((x) =>
+        ["SUSPENDED", "PENDING_CLOSE", "TERMINATED"].includes(x.status),
+      ).length,
+  );
 const today = new Date().toISOString().slice(0, 10),
   later = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 const form = ref({
@@ -230,9 +251,18 @@ const workflow = [
       </button>
     </form>
     <section class="project-summary">
-      <div><strong>0</strong><span>审批中的立项</span></div>
-      <div><strong>0</strong><span>实施中的项目</span></div>
-      <div><strong>0</strong><span>待处理事项</span></div>
+      <div>
+        <strong>{{ pendingApplicationCount }}</strong
+        ><span>审批中的立项</span>
+      </div>
+      <div>
+        <strong>{{ activeProjectCount }}</strong
+        ><span>实施中的项目</span>
+      </div>
+      <div>
+        <strong>{{ attentionProjectCount }}</strong
+        ><span>待处理项目</span>
+      </div>
     </section>
     <section class="workflow-card">
       <p class="eyebrow">ESTABLISHMENT WORKFLOW</p>

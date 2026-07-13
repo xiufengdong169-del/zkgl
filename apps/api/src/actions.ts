@@ -70,6 +70,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: listInput,
   },
   "contract.list": { permission: "contract.read", input: listInput },
+  "contract.summary": { permission: "contract.read", input: z.object({}).default({}) },
   "approval.task.list": { permission: "approval.task.read", input: listInput },
   "approval.instance.submit": { permission: "approval.instance.submit", input: z.object({businessType:z.enum(["PROJECT_APPLICATION","BID_APPLICATION","CONTRACT","INVOICE_APPLICATION","EXPENSE_REIMBURSEMENT","PROJECT_PAYMENT","PARTNER_SETTLEMENT","DAILY_PURCHASE","PROJECT_START","PROJECT_CLOSE"]),businessId:z.string().min(1),title:z.string().trim().min(2).max(255),amount:z.number().nonnegative().nullable().optional()}) },
   "approval.task.action": {

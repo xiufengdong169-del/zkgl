@@ -18,6 +18,11 @@ interface Option {
 }
 const auth = useAuthStore(),
   items = ref<Row[]>([]),
+  summary = ref({
+    incomeAmount: "0.00",
+    expenseAmount: "0.00",
+    expiringCount: 0,
+  }),
   projects = ref<Option[]>([]),
   parties = ref<Option[]>([]),
   error = ref<string | null>(null),
@@ -42,17 +47,19 @@ const form = ref({
 });
 async function load() {
   try {
-    const [c, p, o] = await Promise.all([
+    const [c, p, o, s] = await Promise.all([
       callApi<{ items: Row[] }>("contract.list", { page: 1, pageSize: 20 }),
       callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("crm.counterparty.list", {
         page: 1,
         pageSize: 50,
       }),
+      callApi<typeof summary.value>("contract.summary", {}),
     ]);
     items.value = c.items;
     projects.value = p.items;
     parties.value = o.items;
+    summary.value = s;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -192,15 +199,18 @@ async function submitContract(item: Row) {
     <section class="contract-panels">
       <article>
         <p>收入合同</p>
-        <strong>¥ 0.00</strong><small>确认不含税金额</small>
+        <strong>¥ {{ summary.incomeAmount }}</strong
+        ><small>确认不含税金额</small>
       </article>
       <article>
         <p>支出合同</p>
-        <strong>¥ 0.00</strong><small>有效履约金额</small>
+        <strong>¥ {{ summary.expenseAmount }}</strong
+        ><small>有效履约金额</small>
       </article>
       <article>
         <p>临期提醒</p>
-        <strong>0</strong><small>未来 30 天到期</small>
+        <strong>{{ summary.expiringCount }}</strong
+        ><small>未来 30 天到期</small>
       </article>
     </section>
     <section v-if="!items.length && !error" class="empty-state">
