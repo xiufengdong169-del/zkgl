@@ -1333,10 +1333,10 @@ export class MySqlActionExecutor {
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,v.name partyBName,
                     CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
-                    c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status
-               FROM con_contract c WHERE c.is_deleted=0 AND (?=1 OR c.owner_id=?)
+                    c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED'),0) paymentAppliedAmount
+               FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND (?=1 OR c.owner_id=?)
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,
             [
@@ -2170,7 +2170,7 @@ export class MySqlActionExecutor {
               input.payerAccount ?? null,
               input.receiptType,
               input.voucherNumber ?? null,
-              input.operatorId,
+              user.employeeId,
               user.id,
               user.id,
             ],
@@ -2221,7 +2221,7 @@ export class MySqlActionExecutor {
               [all ? 1 : 0, user.employeeId],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(id AS CHAR) id,purchase_code code,purchase_type purchaseType,item_description itemDescription,quantity,budget_amount budgetAmount,expected_on expectedOn,status,created_at createdAt FROM fin_daily_purchase WHERE is_deleted=0 AND (?=1 OR applicant_id=?) ORDER BY id DESC LIMIT 100`,
+              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED') hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (?=1 OR p.applicant_id=?) ORDER BY p.id DESC LIMIT 100`,
               [all ? 1 : 0, user.employeeId],
             );
           return { reimbursements, purchases };
@@ -2321,6 +2321,11 @@ export class MySqlActionExecutor {
               `UPDATE partner_settlement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
               [status, user.id, payment.sourceId],
             );
+          if (payment.sourceType === "PURCHASE" && status === "PAID")
+            await connection.execute(
+              `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
+              [user.id, payment.sourceId],
+            );
           if (payment.sourceType === "DEPOSIT") {
             const [depositRows] = await connection.execute<RowDataPacket[]>(
               `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') FOR UPDATE`,
@@ -2373,58 +2378,63 @@ export class MySqlActionExecutor {
         }
         case "payment.application.create": {
           let receivingAccount = input.receivingAccount;
+          const sourceSql = {
+            EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
+            REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
+            PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
+            DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
+            PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
+          }[
+            input.sourceType as
+              | "EXPENSE_CONTRACT"
+              | "REIMBURSEMENT"
+              | "PARTNER_SETTLEMENT"
+              | "DEPOSIT"
+              | "PURCHASE"
+          ];
+          const [sources] = await connection.execute<RowDataPacket[]>(
+            sourceSql,
+            [input.sourceId],
+          );
+          const source = sources[0];
+          if (!source)
+            throw new AppError(
+              "PAYMENT_SOURCE_NOT_FOUND",
+              "付款来源不存在",
+              404,
+            );
           if (
-            ["REIMBURSEMENT", "PARTNER_SETTLEMENT", "DEPOSIT"].includes(
+            ["DEPOSIT", "EXPENSE_CONTRACT", "PURCHASE"].includes(
               input.sourceType,
-            )
-          ) {
-            const sourceSql = {
-              REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
-              PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
-              DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
-            }[
-              input.sourceType as
-                "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT"
-            ];
-            const [sources] = await connection.execute<RowDataPacket[]>(
-              sourceSql,
-              [input.sourceId],
-            );
-            const source = sources[0];
-            if (!source)
-              throw new AppError(
-                "PAYMENT_SOURCE_NOT_FOUND",
-                "付款来源不存在",
-                404,
-              );
-            if (input.sourceType === "DEPOSIT" && source.receivingAccount)
-              receivingAccount = String(source.receivingAccount);
-            const [existingPayments] = await connection.execute<
-              RowDataPacket[]
-            >(
-              `SELECT id FROM fin_payment_application WHERE source_type=? AND source_id=? LIMIT 1 FOR UPDATE`,
-              [input.sourceType, input.sourceId],
-            );
-            validatePaymentSource({
-              sourceType: input.sourceType as
-                "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT",
-              source: {
-                projectId: source.projectId,
-                recipientName: source.recipientName,
-                receivingAccount: source.receivingAccount,
-                approvalStatus: source.approvalStatus,
-                paymentStatus: source.paymentStatus,
-                sourceAmount: source.sourceAmount,
-              },
-              application: {
-                projectId: input.projectId,
-                recipientName: input.recipientName,
-                receivingAccount,
-                requestedAmount: input.requestedAmount,
-              },
-              alreadyUsed: Boolean(existingPayments[0]),
-            });
-          }
+            ) &&
+            source.receivingAccount
+          )
+            receivingAccount = String(source.receivingAccount);
+          const [existingPayments] = await connection.execute<RowDataPacket[]>(
+            `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED'`,
+            [input.sourceType, input.sourceId],
+          );
+          validatePaymentSource({
+            sourceType: input.sourceType,
+            source: {
+              projectId: source.projectId,
+              recipientName: source.recipientName,
+              receivingAccount: source.receivingAccount,
+              approvalStatus: source.approvalStatus,
+              paymentStatus: source.paymentStatus,
+              sourceAmount: source.sourceAmount,
+            },
+            application: {
+              projectId: input.projectId,
+              recipientName: input.recipientName,
+              receivingAccount,
+              requestedAmount: input.requestedAmount,
+            },
+            alreadyUsed: Number(existingPayments[0]?.count ?? 0) > 0,
+            alreadyAppliedAmount: Number(
+              existingPayments[0]?.appliedAmount ?? 0,
+            ),
+          });
           const code = await allocateNumber(connection, "PAYMENT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_payment_application(payment_code,project_id,source_type,source_id,recipient_name,payment_type,requested_amount,planned_on,payment_basis,receiving_account,invoice_required,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -2440,7 +2450,7 @@ export class MySqlActionExecutor {
               input.paymentBasis,
               receivingAccount,
               input.invoiceRequired,
-              input.operatorId,
+              user.employeeId,
               user.id,
               user.id,
             ],
@@ -2458,8 +2468,8 @@ export class MySqlActionExecutor {
             `INSERT INTO fin_daily_purchase(purchase_code,applicant_id,department_id,purchase_type,supplier_id,item_description,quantity,budget_amount,purpose,expected_on,payment_method,contract_related,contract_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               code,
-              input.applicantId,
-              input.departmentId,
+              user.employeeId,
+              user.departmentId,
               input.purchaseType,
               input.supplierId ?? null,
               input.itemDescription,

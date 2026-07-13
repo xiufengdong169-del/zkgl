@@ -85,7 +85,12 @@ export const paymentApplicationInput = z.object({
 });
 
 export interface PaymentSourceValidationInput {
-  sourceType: "REIMBURSEMENT" | "PARTNER_SETTLEMENT" | "DEPOSIT";
+  sourceType:
+    | "EXPENSE_CONTRACT"
+    | "REIMBURSEMENT"
+    | "PARTNER_SETTLEMENT"
+    | "DEPOSIT"
+    | "PURCHASE";
   source: {
     projectId: unknown;
     recipientName: unknown;
@@ -101,14 +106,19 @@ export interface PaymentSourceValidationInput {
     requestedAmount: number;
   };
   alreadyUsed: boolean;
+  alreadyAppliedAmount?: number;
 }
 
 export function validatePaymentSource(
   input: PaymentSourceValidationInput,
 ): void {
-  const approvedStatus =
-    input.sourceType === "DEPOSIT" ? "PENDING_PAYMENT" : "APPROVED";
-  if (input.source.approvalStatus !== approvedStatus)
+  const approvedStatuses =
+    input.sourceType === "DEPOSIT"
+      ? ["PENDING_PAYMENT"]
+      : input.sourceType === "EXPENSE_CONTRACT"
+        ? ["PERFORMING"]
+        : ["APPROVED"];
+  if (!approvedStatuses.includes(String(input.source.approvalStatus)))
     throw new AppError(
       "PAYMENT_SOURCE_NOT_APPROVED",
       "付款来源尚未审批通过",
@@ -128,28 +138,53 @@ export function validatePaymentSource(
       "付款来源与项目不一致",
       409,
     );
-  if (
-    String(input.source.recipientName) !== input.application.recipientName ||
-    Math.abs(
-      Number(input.source.sourceAmount) - input.application.requestedAmount,
-    ) > 0.005
-  )
+  if (String(input.source.recipientName) !== input.application.recipientName)
     throw new AppError(
       "PAYMENT_SOURCE_DATA_MISMATCH",
-      "收款方或申请金额与付款来源不一致",
+      "收款方与付款来源不一致",
+      409,
+    );
+  const sourceAmount = Number(input.source.sourceAmount),
+    alreadyAppliedAmount = Number(input.alreadyAppliedAmount ?? 0);
+  if (input.sourceType === "EXPENSE_CONTRACT") {
+    if (
+      input.application.requestedAmount >
+      sourceAmount - alreadyAppliedAmount + 0.005
+    )
+      throw new AppError(
+        "PAYMENT_SOURCE_AMOUNT_EXCEEDED",
+        "申请金额超过支出合同可申请付款余额",
+        409,
+      );
+  } else if (Math.abs(sourceAmount - input.application.requestedAmount) > 0.005)
+    throw new AppError(
+      "PAYMENT_SOURCE_AMOUNT_MISMATCH",
+      "申请金额与付款来源不一致",
+      409,
+    );
+  if (
+    ["EXPENSE_CONTRACT", "PURCHASE"].includes(input.sourceType) &&
+    !input.source.receivingAccount
+  )
+    throw new AppError(
+      "PAYMENT_SOURCE_ACCOUNT_MISSING",
+      "付款来源的供应商档案未维护收款账户",
       409,
     );
   if (
     (input.sourceType === "REIMBURSEMENT" ||
-      (input.sourceType === "DEPOSIT" && input.source.receivingAccount)) &&
+      (input.sourceType === "DEPOSIT" && input.source.receivingAccount) ||
+      (input.sourceType === "EXPENSE_CONTRACT" &&
+        input.source.receivingAccount) ||
+      (input.sourceType === "PURCHASE" && input.source.receivingAccount)) &&
     String(input.source.receivingAccount) !== input.application.receivingAccount
   )
     throw new AppError(
       "PAYMENT_SOURCE_ACCOUNT_MISMATCH",
-      "收款账户与报销单不一致",
+      "收款账户与付款来源不一致",
       409,
     );
-  if (input.alreadyUsed)
+  if (input.alreadyUsed && input.sourceType !== "EXPENSE_CONTRACT")
     throw new AppError(
       "PAYMENT_SOURCE_ALREADY_USED",
       "该来源已生成付款申请",

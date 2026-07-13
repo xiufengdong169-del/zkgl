@@ -157,7 +157,7 @@ describe("finance invariants", () => {
         ...valid,
         application: { ...valid.application, requestedAmount: 99 },
       }),
-    ).toThrow("收款方或申请金额");
+    ).toThrow("申请金额与付款来源不一致");
     expect(() =>
       validatePaymentSource({ ...valid, alreadyUsed: true }),
     ).toThrow("已生成付款申请");
@@ -201,5 +201,77 @@ describe("finance invariants", () => {
         application: { ...valid.application, receivingAccount: "other" },
       }),
     ).toThrow("收款账户");
+  });
+
+  it("支出合同必须已履约且累计付款申请不得超过合同金额", () => {
+    const valid = {
+      sourceType: "EXPENSE_CONTRACT" as const,
+      source: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        approvalStatus: "PERFORMING",
+        paymentStatus: "UNPAID",
+        sourceAmount: "1000.00",
+      },
+      application: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        requestedAmount: 400,
+      },
+      alreadyUsed: true,
+      alreadyAppliedAmount: 600,
+    };
+    expect(() => validatePaymentSource(valid)).not.toThrow();
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        application: { ...valid.application, requestedAmount: 400.01 },
+      }),
+    ).toThrow("超过支出合同可申请付款余额");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        source: { ...valid.source, approvalStatus: "PENDING_SIGNATURE" },
+      }),
+    ).toThrow("尚未审批通过");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        source: { ...valid.source, receivingAccount: null },
+      }),
+    ).toThrow("未维护收款账户");
+  });
+
+  it("日常采购必须按已审批预算向原供应商生成唯一付款申请", () => {
+    const valid = {
+      sourceType: "PURCHASE" as const,
+      source: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        approvalStatus: "APPROVED",
+        paymentStatus: "UNPAID",
+        sourceAmount: "300.00",
+      },
+      application: {
+        projectId: "p1",
+        recipientName: "供应商",
+        receivingAccount: "6222",
+        requestedAmount: 300,
+      },
+      alreadyUsed: false,
+    };
+    expect(() => validatePaymentSource(valid)).not.toThrow();
+    expect(() =>
+      validatePaymentSource({ ...valid, alreadyUsed: true }),
+    ).toThrow("已生成付款申请");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        application: { ...valid.application, recipientName: "其他供应商" },
+      }),
+    ).toThrow("收款方与付款来源不一致");
   });
 });

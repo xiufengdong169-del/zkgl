@@ -1253,7 +1253,7 @@ CREATE TABLE IF NOT EXISTS fin_payment_application (
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_payment_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT chk_payment_requested CHECK (requested_amount > 0),
-  UNIQUE KEY uk_payment_source (source_type, source_id, payment_code),
+  INDEX idx_payment_source (source_type, source_id, status),
   INDEX idx_payment_project_status (project_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

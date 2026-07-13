@@ -10,6 +10,11 @@ interface Option {
   contractName?: string;
   contractType?: string;
   projectId?: string;
+  partyBName?: string;
+  taxInclusiveAmount?: string;
+  paymentAppliedAmount?: string;
+  amountStatus?: string;
+  status?: string;
 }
 interface InvoiceApplication {
   id: string;
@@ -67,6 +72,11 @@ interface PurchaseDocument {
   budgetAmount: string;
   expectedOn: string;
   status: string;
+  contractRelated: number;
+  projectId: string | null;
+  supplierName: string | null;
+  receivingAccount: string | null;
+  hasPaymentApplication: number;
 }
 const modules = [
   ["开票申请", "合同额度控制"],
@@ -144,7 +154,8 @@ const reimbursement = ref({
 });
 const payment = ref({
   projectId: "",
-  sourceType: "EXPENSE_CONTRACT" as "EXPENSE_CONTRACT" | "REIMBURSEMENT",
+  sourceType: "EXPENSE_CONTRACT" as
+    "EXPENSE_CONTRACT" | "REIMBURSEMENT" | "PURCHASE",
   sourceId: "",
   recipientName: "",
   paymentType: "CONTRACT_PAYMENT",
@@ -438,6 +449,39 @@ function startContractPayment() {
   };
   mode.value = "PAYMENT";
 }
+function syncContractPaymentSource() {
+  const contract = contracts.value.find(
+    (item) => item.id === payment.value.sourceId,
+  );
+  if (!contract) return;
+  payment.value.projectId = contract.projectId || "";
+  payment.value.recipientName = contract.partyBName || "";
+  payment.value.requestedAmount = Math.max(
+    0,
+    Number(contract.taxInclusiveAmount || 0) -
+      Number(contract.paymentAppliedAmount || 0),
+  );
+  payment.value.paymentBasis = `支出合同 ${contract.contractName || contract.id}`;
+}
+function startPurchasePayment(item: PurchaseDocument) {
+  if (!item.projectId || !item.supplierName) {
+    error.value = "采购申请必须关联有效合同和供应商后才能生成项目付款";
+    return;
+  }
+  payment.value = {
+    projectId: item.projectId,
+    sourceType: "PURCHASE",
+    sourceId: item.id,
+    recipientName: item.supplierName,
+    paymentType: "PURCHASE",
+    requestedAmount: Number(item.budgetAmount),
+    plannedOn: today,
+    paymentBasis: `已审批采购申请 ${item.code}`,
+    receivingAccount: item.receivingAccount || "由供应商档案带入",
+    invoiceRequired: true,
+  };
+  mode.value = "PAYMENT";
+}
 async function createPurchase() {
   if (!auth.user) return;
   saving.value = true;
@@ -685,10 +729,21 @@ async function completePurchase(item: PurchaseDocument) {
                 提交审批
               </button>
               <button
-                v-if="item.status === 'APPROVED'"
+                v-if="item.status === 'APPROVED' && !item.contractRelated"
                 @click="completePurchase(item)"
               >
                 确认完成
+              </button>
+              <button
+                v-if="
+                  item.status === 'APPROVED' &&
+                  item.contractRelated &&
+                  !item.hasPaymentApplication
+                "
+                class="secondary-button"
+                @click="startPurchasePayment(item)"
+              >
+                生成付款申请
               </button>
             </td>
           </tr>
@@ -994,12 +1049,18 @@ async function completePurchase(item: PurchaseDocument) {
           </option>
         </select></label
       ><label v-if="payment.sourceType === 'EXPENSE_CONTRACT'"
-        >支出合同<select v-model="payment.sourceId" required>
+        >支出合同<select
+          v-model="payment.sourceId"
+          required
+          @change="syncContractPaymentSource"
+        >
           <option value="" disabled>请选择</option>
           <option
             v-for="c in contracts.filter(
               (x) =>
                 x.contractType === 'EXPENSE' &&
+                x.amountStatus === 'CONFIRMED' &&
+                x.status === 'PERFORMING' &&
                 (!payment.projectId || x.projectId === payment.projectId),
             )"
             :key="c.id"
