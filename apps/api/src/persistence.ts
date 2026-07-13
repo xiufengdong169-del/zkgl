@@ -18,6 +18,7 @@ import { transitionRisk, transitionStage } from "./delivery.js";
 import { transitionBid, transitionBidTask } from "./bids.js";
 import { transitionLead } from "./leads.js";
 import { resolveContractAmountStatus } from "./contracts.js";
+import { assertProjectApplicationEditable } from "./project-applications.js";
 import { validatePaymentSource } from "./finance.js";
 import { refreshReminders } from "./reminders.js";
 import {
@@ -1030,7 +1031,7 @@ export class MySqlActionExecutor {
             all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,estimated_revenue estimatedRevenue,
-                    estimated_cost estimatedCost,estimated_profit estimatedProfit,status
+                    estimated_cost estimatedCost,estimated_profit estimatedProfit,status,version,CAST(created_by AS CHAR) createdBy
                FROM prj_project_application WHERE is_deleted=0 AND (?=1 OR applicant_id=? OR proposed_manager_id=?)
                 AND (?='' OR project_name LIKE ? ESCAPE '\\\\' OR application_code LIKE ? ESCAPE '\\\\')
                ORDER BY id DESC LIMIT ? OFFSET ?`,
@@ -1046,6 +1047,30 @@ export class MySqlActionExecutor {
             ],
           );
           return { items: rows, page, pageSize };
+        }
+        case "project.application.detail": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [rows] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,CAST(source_lead_id AS CHAR) sourceLeadId,project_type projectType,background,service_scope serviceScope,estimated_revenue estimatedRevenue,estimated_cost estimatedCost,estimated_start_on estimatedStartOn,estimated_end_on estimatedEndOn,CAST(proposed_manager_id AS CHAR) proposedManagerId,bidding_method biddingMethod,risk_description riskDescription,necessity,status,version FROM prj_project_application WHERE id=? AND is_deleted=0 AND (?=1 OR created_by=? OR applicant_id=? OR proposed_manager_id=?)`,
+              [
+                input.applicationId,
+                all ? 1 : 0,
+                user.id,
+                user.id,
+                user.employeeId,
+              ],
+            );
+          if (!rows[0])
+            throw new AppError(
+              "PROJECT_APPLICATION_NOT_FOUND",
+              "立项申请不存在或无权访问",
+              404,
+            );
+          const [members] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(employee_id AS CHAR) employeeId,proposed_role proposedRole FROM prj_application_member_suggestion WHERE application_id=? ORDER BY employee_id`,
+            [input.applicationId],
+          );
+          return { application: rows[0], memberSuggestions: members };
         }
         case "project.list": {
           const page = input.page as number,
@@ -2586,12 +2611,95 @@ export class MySqlActionExecutor {
               input.biddingMethod ?? null,
               input.riskDescription ?? null,
               input.necessity,
-              input.applicantId,
+              user.id,
               user.id,
               user.id,
             ],
           );
+          for (const member of input.memberSuggestions as Array<{
+            employeeId: string;
+            proposedRole: string;
+          }>)
+            await connection.execute(
+              `INSERT INTO prj_application_member_suggestion(application_id,employee_id,proposed_role) VALUES(?,?,?)`,
+              [result.insertId, member.employeeId, member.proposedRole],
+            );
           return { id: String(result.insertId), code };
+        }
+        case "project.application.update": {
+          const data = input.data as Record<string, any>,
+            [rows] = await connection.execute<RowDataPacket[]>(
+              `SELECT status,version,CAST(created_by AS CHAR) createdBy FROM prj_project_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+              [input.applicationId],
+            );
+          const application = rows[0];
+          if (!application)
+            throw new AppError(
+              "PROJECT_APPLICATION_NOT_FOUND",
+              "立项申请不存在",
+              404,
+            );
+          if (
+            application.createdBy !== user.id &&
+            !user.roleCodes.includes("ADMIN")
+          )
+            throw new AppError(
+              "PROJECT_APPLICATION_UPDATE_FORBIDDEN",
+              "仅创建人可修改立项申请",
+              403,
+            );
+          assertProjectApplicationEditable(String(application.status));
+          if (Number(application.version) !== Number(input.version))
+            throw new AppError(
+              "PROJECT_APPLICATION_VERSION_CONFLICT",
+              "立项申请已被修改，请刷新后重试",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=?`,
+            [
+              data.projectName,
+              data.customerId,
+              data.sourceLeadId ?? null,
+              data.projectType,
+              data.background ?? null,
+              data.serviceScope,
+              data.estimatedRevenue,
+              data.estimatedCost,
+              data.estimatedStartOn,
+              data.estimatedEndOn,
+              data.proposedManagerId,
+              data.biddingMethod ?? null,
+              data.riskDescription ?? null,
+              data.necessity,
+              user.id,
+              input.applicationId,
+              input.version,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "PROJECT_APPLICATION_VERSION_CONFLICT",
+              "立项申请已被修改，请刷新后重试",
+              409,
+            );
+          await connection.execute(
+            `DELETE FROM prj_application_member_suggestion WHERE application_id=?`,
+            [input.applicationId],
+          );
+          for (const member of data.memberSuggestions as Array<{
+            employeeId: string;
+            proposedRole: string;
+          }>)
+            await connection.execute(
+              `INSERT INTO prj_application_member_suggestion(application_id,employee_id,proposed_role) VALUES(?,?,?)`,
+              [input.applicationId, member.employeeId, member.proposedRole],
+            );
+          return {
+            id: input.applicationId,
+            status: "DRAFT",
+            version: Number(input.version) + 1,
+          };
         }
         case "bid.application.create": {
           const code = await allocateNumber(connection, "BID");

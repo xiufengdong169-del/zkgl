@@ -95,6 +95,18 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "project.application.read",
     input: listInput,
   },
+  "project.application.detail": {
+    permission: "project.application.read",
+    input: z.object({ applicationId: z.string().min(1) }),
+  },
+  "project.application.update": {
+    permission: "project.application.create",
+    input: z.object({
+      applicationId: z.string().min(1),
+      version: z.number().int().nonnegative(),
+      data: projectApplicationInput,
+    }),
+  },
   "project.list": { permission: "project.read", input: listInput },
   "project.detail": {
     permission: "project.read",

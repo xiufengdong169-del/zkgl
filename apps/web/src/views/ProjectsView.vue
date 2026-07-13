@@ -14,6 +14,27 @@ interface ApplicationRow {
   projectName: string;
   estimatedProfit: string;
   status: string;
+  version: number;
+  createdBy: string;
+}
+interface ApplicationDetail {
+  id: string;
+  code: string;
+  projectName: string;
+  customerId: string;
+  projectType: string;
+  background: string | null;
+  serviceScope: string;
+  estimatedRevenue: number;
+  estimatedCost: number;
+  estimatedStartOn: string;
+  estimatedEndOn: string;
+  proposedManagerId: string;
+  biddingMethod: string | null;
+  riskDescription: string | null;
+  necessity: string;
+  status: string;
+  version: number;
 }
 interface Customer {
   id: string;
@@ -25,7 +46,9 @@ const auth = useAuthStore(),
   customers = ref<Customer[]>([]),
   error = ref<string | null>(null),
   showForm = ref(false),
-  saving = ref(false);
+  saving = ref(false),
+  editingApplicationId = ref<string | null>(null),
+  editingApplicationVersion = ref(0);
 interface ProjectDetail {
   project: Record<string, string>;
   members: Array<Record<string, string>>;
@@ -108,7 +131,7 @@ async function createApplication() {
   saving.value = true;
   error.value = null;
   try {
-    await callApi("project.application.create", {
+    const data = {
       ...form.value,
       background: form.value.background || null,
       sourceLeadId: null,
@@ -116,7 +139,15 @@ async function createApplication() {
       memberSuggestions: [],
       riskDescription: form.value.riskDescription || null,
       applicantId: auth.user.id,
-    });
+    };
+    if (editingApplicationId.value)
+      await callApi("project.application.update", {
+        applicationId: editingApplicationId.value,
+        version: editingApplicationVersion.value,
+        data,
+      });
+    else await callApi("project.application.create", data);
+    editingApplicationId.value = null;
     showForm.value = false;
     await load();
   } catch (e) {
@@ -124,6 +155,39 @@ async function createApplication() {
   } finally {
     saving.value = false;
   }
+}
+async function editApplication(item: ApplicationRow) {
+  error.value = null;
+  try {
+    const result = await callApi<{ application: ApplicationDetail }>(
+      "project.application.detail",
+      { applicationId: item.id },
+    );
+    const application = result.application;
+    form.value = {
+      projectName: application.projectName,
+      customerId: application.customerId,
+      projectType: application.projectType,
+      background: application.background ?? "",
+      serviceScope: application.serviceScope,
+      estimatedRevenue: Number(application.estimatedRevenue),
+      estimatedCost: Number(application.estimatedCost),
+      estimatedStartOn: application.estimatedStartOn,
+      estimatedEndOn: application.estimatedEndOn,
+      biddingMethod: application.biddingMethod ?? "NONE",
+      riskDescription: application.riskDescription ?? "",
+      necessity: application.necessity,
+    };
+    editingApplicationId.value = application.id;
+    editingApplicationVersion.value = application.version;
+    showForm.value = true;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "加载立项申请失败";
+  }
+}
+function toggleApplicationForm() {
+  if (showForm.value) editingApplicationId.value = null;
+  showForm.value = !showForm.value;
 }
 async function loadDetail(projectId: string) {
   try {
@@ -174,7 +238,11 @@ const workflow = [
         <p class="eyebrow">PROJECT PORTFOLIO</p>
         <h1>项目管理</h1>
       </div>
-      <button class="primary-action" @click="showForm = !showForm">
+      <button
+        v-if="auth.user?.permissionCodes.includes('project.application.create')"
+        class="primary-action"
+        @click="toggleApplicationForm"
+      >
         {{ showForm ? "取消" : "发起立项申请" }}
       </button>
     </header>
@@ -251,9 +319,17 @@ const workflow = [
           minlength="2"
         ></textarea></label
       ><label class="wide"
-        >背景与风险<textarea v-model="form.background"></textarea></label
+        >项目背景<textarea v-model="form.background"></textarea></label
+      ><label class="wide"
+        >风险说明<textarea v-model="form.riskDescription"></textarea></label
       ><button type="submit" :disabled="saving">
-        {{ saving ? "提交中…" : "保存立项申请" }}
+        {{
+          saving
+            ? "保存中…"
+            : editingApplicationId
+              ? "保存修改（编号不变）"
+              : "保存立项申请"
+        }}
       </button>
     </form>
     <section class="project-summary">
@@ -401,6 +477,19 @@ const workflow = [
             <td>{{ item.estimatedProfit }}</td>
             <td>{{ item.status }}</td>
             <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  ) &&
+                  (item.createdBy === auth.user?.id ||
+                    auth.user?.roleCodes.includes('ADMIN'))
+                "
+                class="secondary-button"
+                @click="editApplication(item)"
+              >
+                修改
+              </button>
               <button
                 v-if="
                   ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
