@@ -9,6 +9,7 @@ import {
   deliverableConfirmInput,
   deliverableInput,
   progressInput,
+  projectChangeInput,
   projectStartInput,
   riskInput,
   stageInput,
@@ -100,6 +101,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         "PARTNER_SETTLEMENT",
         "DAILY_PURCHASE",
         "PROJECT_START",
+        "PROJECT_CHANGE",
         "PROJECT_CLOSE",
       ]),
       businessId: z.string().min(1),
@@ -266,6 +268,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "project.acceptance.create": {
     permission: "project.acceptance.create",
     input: acceptanceInput,
+  },
+  "project.change.create": {
+    permission: "project.change.create",
+    input: projectChangeInput,
   },
   "file.list": { permission: "file.read", input: fileListInput },
   "file.upload.prepare": { permission: "file.upload", input: fileUploadInput },

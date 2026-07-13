@@ -47,12 +47,22 @@ interface RiskRecord {
   status: string;
   projectName: string;
 }
+interface ChangeRecord {
+  id: string;
+  projectId: string;
+  changeType: string;
+  scheduleImpactDays: number;
+  amountImpact: string;
+  status: string;
+  projectName: string;
+}
 const auth = useAuthStore(),
   projects = ref<Project[]>([]),
   deliverableRecords = ref<DeliverableRecord[]>([]),
   acceptanceRecords = ref<AcceptanceRecord[]>([]),
   stageRecords = ref<StageRecord[]>([]),
   riskRecords = ref<RiskRecord[]>([]),
+  changeRecords = ref<ChangeRecord[]>([]),
   summary = ref({
     stageCount: 0,
     averageProgress: 0,
@@ -66,6 +76,7 @@ const auth = useAuthStore(),
     | "PROGRESS"
     | "RISK"
     | "DELIVERABLE"
+    | "CHANGE"
     | "ACCEPTANCE"
     | null
   >(null),
@@ -138,6 +149,17 @@ const risk = ref({
   plannedResolutionOn: later,
   measures: "",
 });
+const change = ref({
+  projectId: "",
+  changeType: "SCOPE",
+  originalContent: "",
+  newContent: "",
+  reason: "",
+  impactScope: "",
+  scheduleImpactDays: 0,
+  amountImpact: 0,
+  effectiveOn: "",
+});
 async function load() {
   try {
     const [s, p, records] = await Promise.all([
@@ -148,6 +170,7 @@ async function load() {
         acceptances: AcceptanceRecord[];
         stages: StageRecord[];
         risks: RiskRecord[];
+        changes: ChangeRecord[];
       }>("delivery.records", {}),
     ]);
     summary.value = s;
@@ -156,6 +179,7 @@ async function load() {
     acceptanceRecords.value = records.acceptances;
     stageRecords.value = records.stages;
     riskRecords.value = records.risks;
+    changeRecords.value = records.changes;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -317,6 +341,31 @@ async function riskAction(item: RiskRecord, action: string) {
     error.value = e instanceof Error ? e.message : "操作失败";
   }
 }
+async function createChange() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = change.value,
+      created = await callApi<{ id: string }>("project.change.create", {
+        ...f,
+        applicantId: auth.user.employeeId,
+        effectiveOn: f.effectiveOn || null,
+      });
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_CHANGE",
+      businessId: created.id,
+      title: `项目变更：${projects.value.find((x) => x.id === f.projectId)?.projectName || f.projectId}`,
+      amount: Math.abs(f.amountImpact),
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存或提交审批失败";
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 <template>
   <main class="page">
@@ -331,6 +380,8 @@ async function riskAction(item: RiskRecord, action: string) {
         ><button class="primary-action" @click="mode = 'PROGRESS'">
           记录进展</button
         ><button class="primary-action" @click="mode = 'RISK'">登记风险</button
+        ><button class="primary-action" @click="mode = 'CHANGE'">
+          项目变更</button
         ><button class="primary-action" @click="mode = 'DELIVERABLE'">
           提交成果</button
         ><button class="primary-action" @click="mode = 'ACCEPTANCE'">
@@ -563,6 +614,52 @@ async function riskAction(item: RiskRecord, action: string) {
       </button>
     </form>
     <form
+      v-if="mode === 'CHANGE'"
+      class="entity-form"
+      @submit.prevent="createChange"
+    >
+      <label
+        >项目<select v-model="change.projectId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in projects" :key="p.id" :value="p.id">
+            {{ p.projectName }}
+          </option>
+        </select></label
+      ><label>变更类型<input v-model="change.changeType" required /></label
+      ><label
+        >工期影响天数<input
+          v-model.number="change.scheduleImpactDays"
+          type="number"
+          required /></label
+      ><label
+        >金额影响<input
+          v-model.number="change.amountImpact"
+          type="number"
+          step="0.01"
+          required /></label
+      ><label
+        >计划生效日<input v-model="change.effectiveOn" type="date" /></label
+      ><label class="wide"
+        >原内容<textarea
+          v-model="change.originalContent"
+          required
+        ></textarea></label
+      ><label class="wide"
+        >新内容<textarea v-model="change.newContent" required></textarea></label
+      ><label class="wide"
+        >变更原因<textarea v-model="change.reason" required></textarea></label
+      ><label class="wide"
+        >影响范围<textarea
+          v-model="change.impactScope"
+          required
+        ></textarea></label
+      ><button :disabled="saving">
+        {{ saving ? "提交中…" : "保存并提交审批" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
       v-if="mode === 'DELIVERABLE'"
       class="entity-form"
       @submit.prevent="createDeliverable"
@@ -654,6 +751,29 @@ async function riskAction(item: RiskRecord, action: string) {
         取消
       </button>
     </form>
+    <section v-if="changeRecords.length" class="data-panel">
+      <h2>项目变更</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>项目</th>
+            <th>类型</th>
+            <th>工期影响</th>
+            <th>金额影响</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in changeRecords" :key="c.id">
+            <td>{{ c.projectName }}</td>
+            <td>{{ c.changeType }}</td>
+            <td>{{ c.scheduleImpactDays }} 天</td>
+            <td>{{ c.amountImpact }}</td>
+            <td>{{ c.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
     <section v-if="stageRecords.length" class="data-panel">
       <h2>阶段执行</h2>
       <table>

@@ -122,6 +122,11 @@ async function applyBusinessApprovalResult(
       column: "status",
       approved: "APPROVED",
     },
+    PROJECT_CHANGE: {
+      table: "prj_change",
+      column: "status",
+      approved: "APPROVED",
+    },
     PROJECT_CLOSE: {
       table: "prj_close_application",
       column: "status",
@@ -185,6 +190,11 @@ async function applyBusinessApprovalResult(
     await connection.execute(
       `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
       [actorUserId, businessId],
+    );
+  else if (businessType === "PROJECT_CHANGE")
+    await connection.execute(
+      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=?`,
+      [businessId],
     );
   else if (businessType === "PROJECT_CLOSE")
     await connection.execute(
@@ -732,6 +742,7 @@ export class MySqlActionExecutor {
               statusColumn: "status",
             },
             PROJECT_START: { table: "prj_start", statusColumn: "status" },
+            PROJECT_CHANGE: { table: "prj_change", statusColumn: "status" },
             PROJECT_CLOSE: {
               table: "prj_close_application",
               statusColumn: "status",
@@ -2185,7 +2196,11 @@ export class MySqlActionExecutor {
             `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access} ORDER BY x.id DESC LIMIT 100`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
-          return { deliverables, acceptances, stages, risks };
+          const [changes] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return { deliverables, acceptances, stages, risks, changes };
         }
         case "project.start.create": {
           const [contractRows] = await connection.execute<RowDataPacket[]>(
@@ -2406,6 +2421,26 @@ export class MySqlActionExecutor {
               [user.id, input.projectId],
             );
           return { id: String(result.insertId), status };
+        }
+        case "project.change.create": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO prj_change(project_id,change_type,original_content,new_content,reason,impact_scope,schedule_impact_days,amount_impact,applicant_id,effective_on,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.projectId,
+              input.changeType,
+              input.originalContent,
+              input.newContent,
+              input.reason,
+              input.impactScope,
+              input.scheduleImpactDays,
+              input.amountImpact,
+              input.applicantId,
+              input.effectiveOn ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
         }
         default:
           throw new AppError(

@@ -115,6 +115,18 @@ export const acceptanceInput = z
         message: "有条件通过必须填写遗留问题和整改期限",
       });
   });
+export const projectChangeInput = z.object({
+  projectId: z.string().min(1),
+  changeType: z.string().trim().min(1).max(64),
+  originalContent: z.string().trim().min(1),
+  newContent: z.string().trim().min(1),
+  reason: z.string().trim().min(2),
+  impactScope: z.string().trim().min(1),
+  scheduleImpactDays: z.number().int(),
+  amountImpact: z.number(),
+  applicantId: z.string().min(1),
+  effectiveOn: z.iso.date().nullable().optional(),
+});
 
 export function validateStartEligibility(
   type: ProjectStartType,
