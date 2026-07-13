@@ -3,6 +3,7 @@ import {
   confirmedIncomeAmount,
   contractChangeInput,
   contractInput,
+  resolveContractAmountStatus,
   transitionContract,
 } from "./contracts.js";
 
@@ -56,6 +57,18 @@ describe("contracts", () => {
       },
     ]);
     expect(amount).toBe(200);
+  });
+
+  it("AC-13 暂定金额经金额变更审批后转为已确认", () => {
+    expect(resolveContractAmountStatus("PROVISIONAL", "AMOUNT")).toBe(
+      "CONFIRMED",
+    );
+    expect(resolveContractAmountStatus("PROVISIONAL", "COMPOSITE")).toBe(
+      "CONFIRMED",
+    );
+    expect(resolveContractAmountStatus("PROVISIONAL", "TERM")).toBe(
+      "PROVISIONAL",
+    );
   });
 
   it("校验合同变更后的价税组成", () => {

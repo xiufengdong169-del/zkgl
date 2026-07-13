@@ -17,6 +17,7 @@ import {
 import { transitionRisk, transitionStage } from "./delivery.js";
 import { transitionBid, transitionBidTask } from "./bids.js";
 import { transitionLead } from "./leads.js";
+import { resolveContractAmountStatus } from "./contracts.js";
 import { validatePaymentSource } from "./finance.js";
 import { refreshReminders } from "./reminders.js";
 import {
@@ -174,19 +175,30 @@ async function applyBusinessApprovalResult(
   if (status !== "APPROVED") return;
   if (businessType === "CONTRACT_CHANGE") {
     const [changes] = await connection.execute<RowDataPacket[]>(
-      `SELECT contract_id contractId,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=?`,
+      `SELECT contract_id contractId,change_type changeType,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=?`,
       [businessId],
     );
     const change = changes[0];
     if (!change)
       throw new AppError("CONTRACT_CHANGE_NOT_FOUND", "合同变更不存在", 404);
+    const [contracts] = await connection.execute<RowDataPacket[]>(
+      `SELECT amount_status amountStatus FROM con_contract WHERE id=? FOR UPDATE`,
+      [change.contractId],
+    );
+    if (!contracts[0])
+      throw new AppError("CONTRACT_NOT_FOUND", "合同不存在", 404);
+    const amountStatus = resolveContractAmountStatus(
+      String(contracts[0].amountStatus) as "PROVISIONAL" | "CONFIRMED",
+      String(change.changeType) as "AMOUNT" | "TERM" | "SCOPE" | "COMPOSITE",
+    );
     await connection.execute(
-      `UPDATE con_contract SET tax_inclusive_amount=?,tax_exclusive_amount=?,tax_rate=?,tax_amount=?,expires_on=COALESCE(?,expires_on),contract_version=contract_version+1,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
+      `UPDATE con_contract SET tax_inclusive_amount=?,tax_exclusive_amount=?,tax_rate=?,tax_amount=?,amount_status=?,expires_on=COALESCE(?,expires_on),contract_version=contract_version+1,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
       [
         change.taxInclusiveAmount,
         change.taxExclusiveAmount,
         change.taxRate,
         change.taxAmount,
+        amountStatus,
         change.newEndOn,
         actorUserId,
         change.contractId,

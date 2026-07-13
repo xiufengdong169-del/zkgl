@@ -72,6 +72,15 @@ export const contractChangeInput = z
     },
   );
 
+export function resolveContractAmountStatus(
+  currentStatus: "PROVISIONAL" | "CONFIRMED",
+  changeType: "AMOUNT" | "TERM" | "SCOPE" | "COMPOSITE",
+): "PROVISIONAL" | "CONFIRMED" {
+  return changeType === "AMOUNT" || changeType === "COMPOSITE"
+    ? "CONFIRMED"
+    : currentStatus;
+}
+
 export const contractMilestoneInput = z.object({
   contractId: z.string().min(1),
   milestoneType: z.enum([
