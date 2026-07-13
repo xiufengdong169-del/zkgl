@@ -1044,6 +1044,30 @@ export class MySqlActionExecutor {
             [money] = await connection.execute<RowDataPacket[]>(
               `SELECT (SELECT COALESCE(SUM(amount),0) FROM fin_receipt WHERE project_id=? AND status='ACTIVE') receivedAmount,(SELECT COALESCE(SUM(tax_inclusive_amount),0) FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0) invoicedAmount,(SELECT COALESCE(SUM(occupied_amount),0) FROM fin_deposit WHERE project_id=?) occupiedDeposit`,
               [input.projectId, input.projectId, input.projectId],
+            ),
+            [timeline] = await connection.execute<RowDataPacket[]>(
+              `SELECT eventType,title,eventAt,status FROM (
+                SELECT 'PROJECT' eventType,CONCAT('项目立项：',p.project_name) title,p.created_at eventAt,p.status FROM prj_project p WHERE p.id=?
+                UNION ALL SELECT 'START',CONCAT('项目启动：',start_type),created_at,status FROM prj_start WHERE project_id=?
+                UNION ALL SELECT 'STAGE',CONCAT('阶段：',stage_name),created_at,status FROM prj_stage WHERE project_id=? AND is_deleted=0
+                UNION ALL SELECT 'PROGRESS','提交项目进展',created_at,'RECORDED' FROM prj_progress WHERE project_id=?
+                UNION ALL SELECT 'RISK',CONCAT('风险问题：',title),created_at,status FROM prj_risk_issue WHERE project_id=? AND is_deleted=0
+                UNION ALL SELECT 'DELIVERABLE',CONCAT('成果：',deliverable_name),created_at,status FROM prj_deliverable WHERE project_id=? AND is_deleted=0
+                UNION ALL SELECT 'ACCEPTANCE',CONCAT('验收：',acceptance_type),created_at,status FROM prj_acceptance WHERE project_id=?
+                UNION ALL SELECT 'CONTRACT',CONCAT('合同：',contract_name),created_at,status FROM con_contract WHERE project_id=? AND is_deleted=0
+                UNION ALL SELECT 'CLOSE','项目结项申请',created_at,status FROM prj_close_application WHERE project_id=?
+              ) events ORDER BY eventAt DESC LIMIT 200`,
+              [
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+              ],
             );
           const canReadFinancial = user.permissionCodes.includes(
             "report.financial.read",
@@ -1060,6 +1084,7 @@ export class MySqlActionExecutor {
             contracts,
             stages,
             risks,
+            timeline,
             money: canReadFinancial ? money[0] : {},
             financialVisible: canReadFinancial,
           };

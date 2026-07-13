@@ -32,6 +32,12 @@ interface ProjectDetail {
   contracts: Array<Record<string, string>>;
   stages: Array<Record<string, string | number>>;
   risks: Array<Record<string, string>>;
+  timeline: Array<{
+    eventType: string;
+    title: string;
+    eventAt: string;
+    status: string;
+  }>;
   money: Record<string, string>;
   financialVisible: boolean;
 }
@@ -360,6 +366,21 @@ const workflow = [
           <p v-if="!detail.risks.length">暂无</p>
         </article>
       </div>
+      <section class="data-list">
+        <h3>项目全过程时间轴</h3>
+        <article
+          v-for="event in detail.timeline"
+          :key="`${event.eventType}-${event.eventAt}-${event.title}`"
+          class="data-row"
+        >
+          <div>
+            <strong>{{ event.title }}</strong>
+            <p>{{ event.eventType }} · {{ event.status }}</p>
+          </div>
+          <time>{{ new Date(event.eventAt).toLocaleString() }}</time>
+        </article>
+        <p v-if="!detail.timeline.length">暂无时间轴事件</p>
+      </section>
     </section>
     <section class="data-panel">
       <h2>立项申请</h2>
