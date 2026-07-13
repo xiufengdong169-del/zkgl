@@ -12,6 +12,7 @@ const user: SessionUser = {
   enabled: true,
   roleCodes: ["MARKET"],
   permissionCodes: ["crm.counterparty.create"],
+  sensitiveFieldAccess: {},
   dataScopes: [{ type: "ALL" }],
 };
 

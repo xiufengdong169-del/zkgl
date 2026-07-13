@@ -1,113 +1,161 @@
 export type DataScope =
-  | { type: 'ALL' }
-  | { type: 'DEPARTMENT'; departmentIds: string[] }
-  | { type: 'PROJECT'; projectIds: string[] }
-  | { type: 'SELF'; userId: string }
-  | { type: 'OWNER'; userId: string }
-  | { type: 'CREATOR'; userId: string }
-  | { type: 'PARTICIPANT'; userId: string }
+  | { type: "ALL" }
+  | { type: "DEPARTMENT"; departmentIds: string[] }
+  | { type: "PROJECT"; projectIds: string[] }
+  | { type: "SELF"; userId: string }
+  | { type: "OWNER"; userId: string }
+  | { type: "CREATOR"; userId: string }
+  | { type: "PARTICIPANT"; userId: string };
 
 export interface SessionUser {
-  id: string
-  cloudbaseUid: string
-  employeeId: string
-  departmentId: string
-  enabled: boolean
-  roleCodes: string[]
-  permissionCodes: string[]
-  dataScopes: DataScope[]
+  id: string;
+  cloudbaseUid: string;
+  employeeId: string;
+  departmentId: string;
+  enabled: boolean;
+  roleCodes: string[];
+  permissionCodes: string[];
+  sensitiveFieldAccess: Record<string, "FULL" | "MASKED" | "DENY">;
+  dataScopes: DataScope[];
 }
 
 export interface ApiSuccess<T> {
-  ok: true
-  data: T
-  requestId: string
+  ok: true;
+  data: T;
+  requestId: string;
 }
 
 export interface ApiFailure {
-  ok: false
+  ok: false;
   error: {
-    code: string
-    message: string
-  }
-  requestId: string
+    code: string;
+    message: string;
+  };
+  requestId: string;
 }
 
-export type ApiResult<T> = ApiSuccess<T> | ApiFailure
+export type ApiResult<T> = ApiSuccess<T> | ApiFailure;
 
 export type LeadStatus =
-  | 'DRAFT'
-  | 'PENDING_REGISTRATION'
-  | 'RETURNED'
-  | 'REJECTED'
-  | 'FOLLOWING'
-  | 'CONVERTED'
-  | 'INVALID'
+  | "DRAFT"
+  | "PENDING_REGISTRATION"
+  | "RETURNED"
+  | "REJECTED"
+  | "FOLLOWING"
+  | "CONVERTED"
+  | "INVALID";
 
 export interface CounterpartySummary {
-  id: string
-  code: string
-  name: string
-  shortName: string | null
-  type: string
-  cooperationStatus: string
+  id: string;
+  code: string;
+  name: string;
+  shortName: string | null;
+  type: string;
+  cooperationStatus: string;
 }
 
 export interface LeadSummary {
-  id: string
-  code: string
-  projectName: string
-  customerId: string
-  ownerId: string
-  successProbability: number
-  status: LeadStatus
-  nextFollowUpAt: string | null
+  id: string;
+  code: string;
+  projectName: string;
+  customerId: string;
+  ownerId: string;
+  successProbability: number;
+  status: LeadStatus;
+  nextFollowUpAt: string | null;
 }
 
 export type ProjectApplicationStatus =
-  | 'DRAFT'
-  | 'APPROVAL_PENDING'
-  | 'RETURNED'
-  | 'REJECTED'
-  | 'WITHDRAWN'
-  | 'APPROVED'
+  | "DRAFT"
+  | "APPROVAL_PENDING"
+  | "RETURNED"
+  | "REJECTED"
+  | "WITHDRAWN"
+  | "APPROVED";
 
 export type ProjectStatus =
-  | 'ESTABLISHED'
-  | 'PREPARING'
-  | 'PENDING_START'
-  | 'IN_PROGRESS'
-  | 'PENDING_ACCEPTANCE'
-  | 'ACCEPTED'
-  | 'PENDING_CLOSE'
-  | 'CLOSED'
-  | 'SUSPENDED'
-  | 'TERMINATED'
-  | 'CANCELLED'
+  | "ESTABLISHED"
+  | "PREPARING"
+  | "PENDING_START"
+  | "IN_PROGRESS"
+  | "PENDING_ACCEPTANCE"
+  | "ACCEPTED"
+  | "PENDING_CLOSE"
+  | "CLOSED"
+  | "SUSPENDED"
+  | "TERMINATED"
+  | "CANCELLED";
 
 export type ApprovalInstanceStatus =
-  | 'PENDING'
-  | 'APPROVED'
-  | 'RETURNED'
-  | 'REJECTED'
-  | 'WITHDRAWN'
+  "PENDING" | "APPROVED" | "RETURNED" | "REJECTED" | "WITHDRAWN";
 
-export type ApprovalTaskStatus = 'WAITING' | 'PENDING' | 'APPROVED' | 'CANCELLED'
+export type ApprovalTaskStatus =
+  "WAITING" | "PENDING" | "APPROVED" | "CANCELLED";
 
 export type BidStatus =
-  | 'DRAFT' | 'APPROVAL_PENDING' | 'PREPARING' | 'SUBMITTED' | 'OPENED'
-  | 'WON' | 'LOST' | 'FAILED' | 'ABANDONED'
+  | "DRAFT"
+  | "APPROVAL_PENDING"
+  | "PREPARING"
+  | "SUBMITTED"
+  | "OPENED"
+  | "WON"
+  | "LOST"
+  | "FAILED"
+  | "ABANDONED";
 
-export type BidTaskStatus = 'UNASSIGNED' | 'PENDING' | 'IN_PROGRESS' | 'PENDING_CHECK' | 'COMPLETED' | 'OVERDUE' | 'CANCELLED'
+export type BidTaskStatus =
+  | "UNASSIGNED"
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "PENDING_CHECK"
+  | "COMPLETED"
+  | "OVERDUE"
+  | "CANCELLED";
 
 export type ContractStatus =
-  | 'DRAFT' | 'APPROVAL_PENDING' | 'PENDING_SIGNATURE' | 'PERFORMING' | 'COMPLETED'
-  | 'RETURNED' | 'REJECTED' | 'CHANGED' | 'TERMINATED' | 'VOID'
+  | "DRAFT"
+  | "APPROVAL_PENDING"
+  | "PENDING_SIGNATURE"
+  | "PERFORMING"
+  | "COMPLETED"
+  | "RETURNED"
+  | "REJECTED"
+  | "CHANGED"
+  | "TERMINATED"
+  | "VOID";
 
-export type ProjectStartType = 'NORMAL' | 'EARLY'
-export type StageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PENDING_CONFIRMATION' | 'COMPLETED' | 'DELAYED' | 'SUSPENDED' | 'CANCELLED'
-export type RiskStatus = 'PENDING' | 'IN_PROGRESS' | 'PENDING_VERIFICATION' | 'CLOSED' | 'REOPENED'
+export type ProjectStartType = "NORMAL" | "EARLY";
+export type StageStatus =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "PENDING_CONFIRMATION"
+  | "COMPLETED"
+  | "DELAYED"
+  | "SUSPENDED"
+  | "CANCELLED";
+export type RiskStatus =
+  "PENDING" | "IN_PROGRESS" | "PENDING_VERIFICATION" | "CLOSED" | "REOPENED";
 
-export type SettlementBasis = 'FIXED' | 'CONTRACT_REVENUE_EX_TAX' | 'ACTUAL_RECEIPTS' | 'PROJECT_GROSS_PROFIT'
-export type DepositStatus = 'PENDING_PAYMENT' | 'PAID' | 'PENDING_RETURN' | 'RETURNED' | 'OVERDUE' | 'FORFEITED' | 'VOID'
-export type ProjectCloseStatus = 'DRAFT' | 'APPROVAL_PENDING' | 'FINANCE_REVIEW' | 'OPERATIONS_REVIEW' | 'PRINCIPAL_APPROVAL' | 'CLOSED' | 'RETURNED' | 'REJECTED' | 'WITHDRAWN'
+export type SettlementBasis =
+  | "FIXED"
+  | "CONTRACT_REVENUE_EX_TAX"
+  | "ACTUAL_RECEIPTS"
+  | "PROJECT_GROSS_PROFIT";
+export type DepositStatus =
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "PENDING_RETURN"
+  | "RETURNED"
+  | "OVERDUE"
+  | "FORFEITED"
+  | "VOID";
+export type ProjectCloseStatus =
+  | "DRAFT"
+  | "APPROVAL_PENDING"
+  | "FINANCE_REVIEW"
+  | "OPERATIONS_REVIEW"
+  | "PRINCIPAL_APPROVAL"
+  | "CLOSED"
+  | "RETURNED"
+  | "REJECTED"
+  | "WITHDRAWN";

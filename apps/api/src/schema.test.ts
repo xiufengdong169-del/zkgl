@@ -49,6 +49,15 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("受限字段授权包含后端可执行的默认角色基线", () => {
+    expect(schema).toContain(
+      "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",
+    );
+    expect(schema).toContain("SELECT 'bank_account' field_code");
+    expect(schema).toContain("UNION ALL SELECT 'partner_settlement'");
+    expect(schema).toContain("access_level IN ('FULL','MASKED')");
+  });
+
   it("金额字段统一使用 DECIMAL 而非浮点类型", () => {
     const definitions = schema.split(/\r?\n/).filter((line) => {
       const identifier =

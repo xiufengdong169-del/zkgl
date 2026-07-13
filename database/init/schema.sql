@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant (
   explicit_deny TINYINT(1) NOT NULL DEFAULT 0,
   status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
   CONSTRAINT fk_sensitive_grant_role FOREIGN KEY (role_id) REFERENCES iam_role(id),
+  CONSTRAINT chk_sensitive_access CHECK (access_level IN ('FULL','MASKED')),
   UNIQUE KEY uk_role_sensitive_field (role_id, field_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -1561,3 +1562,14 @@ INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
 SELECT id,'CREATOR','' FROM iam_role WHERE code IN('MARKET_BUSINESS','PROJECT_MANAGER','PROJECT_MEMBER','BID_STAFF','EMPLOYEE');
 INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
 SELECT id,'PARTICIPANT','' FROM iam_role WHERE code IN('PROJECT_MANAGER','PROJECT_MEMBER');
+
+INSERT IGNORE INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny)
+SELECT r.id,f.field_code,'FULL',0 FROM iam_role r JOIN (
+  SELECT 'bank_account' field_code UNION ALL SELECT 'profit' UNION ALL SELECT 'partner_settlement'
+) f WHERE r.code IN('ADMIN','COMPANY_PRINCIPAL','FINANCE');
+INSERT IGNORE INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny)
+SELECT r.id,f.field_code,'FULL',0 FROM iam_role r JOIN (
+  SELECT 'profit' field_code UNION ALL SELECT 'partner_settlement'
+) f WHERE r.code='PROJECT_MANAGER';
+INSERT IGNORE INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny)
+SELECT id,'bank_account','MASKED',0 FROM iam_role WHERE code IN('PROJECT_MANAGER','MARKET_BUSINESS');
