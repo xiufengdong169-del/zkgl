@@ -401,6 +401,19 @@ async function createChange() {
     saving.value = false;
   }
 }
+async function submitChange(item: ChangeRecord) {
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_CHANGE",
+      businessId: item.id,
+      title: `项目变更：${item.projectName}`,
+      amount: Math.max(0, Number(item.amountImpact)),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "项目变更提交失败";
+  }
+}
 </script>
 <template>
   <main class="page">
@@ -831,6 +844,7 @@ async function createChange() {
             <th>工期影响</th>
             <th>金额影响</th>
             <th>状态</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -840,6 +854,18 @@ async function createChange() {
             <td>{{ c.scheduleImpactDays }} 天</td>
             <td>{{ c.amountImpact }}</td>
             <td>{{ c.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    c.status,
+                  )
+                "
+                @click="submitChange(c)"
+              >
+                提交审批
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>

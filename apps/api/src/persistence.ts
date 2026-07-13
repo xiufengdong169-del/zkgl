@@ -182,6 +182,16 @@ async function applyBusinessApprovalResult(
       [actorUserId, businessId],
     );
   }
+  if (businessType === "PROJECT_CHANGE") {
+    await connection.execute(
+      `UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id SET p.estimated_cost=GREATEST(0,p.estimated_cost+c.amount_impact),p.estimated_end_on=DATE_ADD(p.estimated_end_on,INTERVAL c.schedule_impact_days DAY),p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      [actorUserId, businessId],
+    );
+    await connection.execute(
+      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=?`,
+      [businessId],
+    );
+  }
   if (businessType === "PROJECT_APPLICATION") {
     const [existing] = await connection.execute<RowDataPacket[]>(
       `SELECT id FROM prj_project WHERE application_id=?`,
