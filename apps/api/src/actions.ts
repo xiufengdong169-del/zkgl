@@ -239,6 +239,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "daily.purchase.create",
     input: dailyPurchaseInput,
   },
+  "daily.purchase.complete": {
+    permission: "daily.purchase.create",
+    input: z.object({ purchaseId: z.string().min(1) }),
+  },
   "partner.plan.create": {
     permission: "partner.plan.create",
     input: partnerPlanInput,

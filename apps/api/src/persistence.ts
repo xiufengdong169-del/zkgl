@@ -104,7 +104,7 @@ async function applyBusinessApprovalResult(
     INVOICE_APPLICATION: {
       table: "fin_invoice_application",
       column: "status",
-      approved: "APPROVED",
+      approved: "PENDING_INVOICE",
     },
     EXPENSE_REIMBURSEMENT: {
       table: "fin_reimbursement",
@@ -114,7 +114,7 @@ async function applyBusinessApprovalResult(
     PROJECT_PAYMENT: {
       table: "fin_payment_application",
       column: "status",
-      approved: "APPROVED",
+      approved: "PENDING_PAYMENT",
     },
     PARTNER_SETTLEMENT: {
       table: "partner_settlement",
@@ -234,7 +234,7 @@ async function applyBusinessApprovalResult(
     }
   } else if (businessType === "PARTNER_SETTLEMENT")
     await connection.execute(
-      `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount WHERE id=?`,
+      `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount,payment_status='PENDING_PAYMENT' WHERE id=?`,
       [businessId],
     );
   else if (businessType === "PROJECT_START")
@@ -1746,7 +1746,12 @@ export class MySqlActionExecutor {
             [input.applicationId],
           );
           const application = applications[0];
-          if (!application || application.status !== "APPROVED")
+          if (
+            !application ||
+            !["PENDING_INVOICE", "PARTIALLY_INVOICED"].includes(
+              application.status,
+            )
+          )
             throw new AppError(
               "INVOICE_APPLICATION_NOT_APPROVED",
               "只有审批通过的开票申请才能完成开票",
@@ -1805,11 +1810,14 @@ export class MySqlActionExecutor {
             Number(applicationUsed[0]?.amount ?? 0) +
               Number(input.taxInclusiveAmount) >=
             Number(application.requestedAmount);
-          if (completed)
-            await connection.execute(
-              `UPDATE fin_invoice_application SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=?`,
-              [user.id, input.applicationId],
-            );
+          await connection.execute(
+            `UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [
+              completed ? "COMPLETED" : "PARTIALLY_INVOICED",
+              user.id,
+              input.applicationId,
+            ],
+          );
           return {
             id: String(result.insertId),
             applicationCompleted: completed,
@@ -2052,13 +2060,13 @@ export class MySqlActionExecutor {
           );
           if (seen[0]) return { idempotent: true, id: String(seen[0].id) };
           const [payments] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,project_id projectId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? FOR UPDATE`,
+            `SELECT id,project_id projectId,source_type sourceType,source_id sourceId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? FOR UPDATE`,
             [input.paymentId],
           );
           const payment = payments[0];
           if (
             !payment ||
-            !["APPROVED", "PARTIALLY_PAID"].includes(payment.status)
+            !["PENDING_PAYMENT", "PARTIALLY_PAID"].includes(payment.status)
           )
             throw new AppError(
               "PAYMENT_NOT_APPROVED",
@@ -2099,6 +2107,16 @@ export class MySqlActionExecutor {
             `UPDATE fin_payment_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
             [status, user.id, input.paymentId],
           );
+          if (payment.sourceType === "REIMBURSEMENT")
+            await connection.execute(
+              `UPDATE fin_reimbursement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
+              [status, user.id, payment.sourceId],
+            );
+          if (payment.sourceType === "PARTNER_SETTLEMENT")
+            await connection.execute(
+              `UPDATE partner_settlement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
+              [status, user.id, payment.sourceId],
+            );
           return {
             idempotent: false,
             id: String(result.insertId),
@@ -2152,6 +2170,19 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId), code };
+        }
+        case "daily.purchase.complete": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
+            [user.id, input.purchaseId],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "PURCHASE_NOT_COMPLETABLE",
+              "只有审批通过的采购申请可以完成",
+              409,
+            );
+          return { id: input.purchaseId, status: "COMPLETED" };
         }
         case "crm.counterparty.create": {
           const code = await allocateNumber(connection, "COUNTERPARTY");

@@ -433,6 +433,14 @@ async function submitPurchase(item: PurchaseDocument) {
     error.value = e instanceof Error ? e.message : "提交采购审批失败";
   }
 }
+async function completePurchase(item: PurchaseDocument) {
+  try {
+    await callApi("daily.purchase.complete", { purchaseId: item.id });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "采购完成失败";
+  }
+}
 </script>
 
 <template>
@@ -623,6 +631,12 @@ async function submitPurchase(item: PurchaseDocument) {
               >
                 提交审批
               </button>
+              <button
+                v-if="item.status === 'APPROVED'"
+                @click="completePurchase(item)"
+              >
+                确认完成
+              </button>
             </td>
           </tr>
         </tbody>
@@ -772,8 +786,8 @@ async function submitPurchase(item: PurchaseDocument) {
         >已审批开票申请<select v-model="salesInvoice.applicationId" required>
           <option value="" disabled>请选择</option>
           <option
-            v-for="a in invoiceApplications.filter(
-              (x) => x.status === 'APPROVED',
+            v-for="a in invoiceApplications.filter((x) =>
+              ['PENDING_INVOICE', 'PARTIALLY_INVOICED'].includes(x.status),
             )"
             :key="a.id"
             :value="a.id"
@@ -989,7 +1003,7 @@ async function submitPurchase(item: PurchaseDocument) {
           <option value="" disabled>请选择</option>
           <option
             v-for="p in payments.filter((x) =>
-              ['APPROVED', 'PARTIALLY_PAID'].includes(x.status),
+              ['PENDING_PAYMENT', 'PARTIALLY_PAID'].includes(x.status),
             )"
             :key="p.id"
             :value="p.id"
