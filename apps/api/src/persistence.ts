@@ -498,6 +498,29 @@ export class MySqlActionExecutor {
           );
           return { items: rows, page, pageSize };
         }
+        case "crm.counterparty.detail": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [rows] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,industry,region,address,phone,website,cooperation_status cooperationStatus,remark FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              [input.counterpartyId, all ? 1 : 0, user.employeeId],
+            );
+          const counterparty = rows[0];
+          if (!counterparty)
+            throw new AppError(
+              "COUNTERPARTY_NOT_FOUND",
+              "往来单位不存在或无权访问",
+              404,
+            );
+          const [contacts] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,name,department_name departmentName,position_name positionName,mobile,phone,email,wechat,is_key_contact isKeyContact,relationship_level relationshipLevel,decision_role decisionRole FROM crm_contact WHERE counterparty_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY is_key_contact DESC,id DESC`,
+              [input.counterpartyId],
+            ),
+            [visits] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,visit_code code,visited_at visitedAt,visit_method method,purpose,communication,next_action nextAction,next_follow_up_at nextFollowUpAt,generate_lead generateLead FROM crm_visit WHERE customer_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY visited_at DESC LIMIT 100`,
+              [input.counterpartyId],
+            );
+          return { counterparty, contacts, visits };
+        }
         case "lead.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
@@ -1598,6 +1621,71 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "crm.visit.create": {
+          if (input.contactId) {
+            const [contacts] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE'`,
+              [input.contactId, input.customerId],
+            );
+            if (!contacts[0])
+              throw new AppError(
+                "CONTACT_CUSTOMER_MISMATCH",
+                "联系人不属于当前客户",
+                409,
+              );
+          }
+          const code = await allocateNumber(connection, "VISIT");
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO crm_visit(visit_code,customer_id,contact_id,visited_at,visit_method,location,purpose,communication,customer_needs,opportunity_assessment,next_action,next_follow_up_at,owner_id,generate_lead,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              code,
+              input.customerId,
+              input.contactId ?? null,
+              input.visitedAt,
+              input.method,
+              input.location ?? null,
+              input.purpose,
+              input.communication,
+              input.customerNeeds ?? null,
+              input.opportunityAssessment ?? null,
+              input.nextAction ?? null,
+              input.nextFollowUpAt ?? null,
+              input.ownerId,
+              input.generateLead,
+              user.id,
+              user.id,
+            ],
+          );
+          for (const employeeId of input.participantIds as string[])
+            await connection.execute(
+              `INSERT INTO crm_visit_participant(visit_id,employee_id) VALUES(?,?)`,
+              [result.insertId, employeeId],
+            );
+          let leadId: string | null = null;
+          if (input.generateLead) {
+            const leadCode = await allocateNumber(connection, "LEAD");
+            const [lead] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO mkt_lead(lead_code,project_name,customer_id,source_code,source_description,discovered_on,project_type,requirement_summary,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by) VALUES(?,?,?,?,?,DATE(?),'OTHER',?,?,?,?,?,?,?)`,
+              [
+                leadCode,
+                input.purpose,
+                input.customerId,
+                "CUSTOMER_VISIT",
+                input.opportunityAssessment ?? null,
+                input.visitedAt,
+                input.communication,
+                10,
+                input.ownerId,
+                input.nextFollowUpAt ?? null,
+                result.insertId,
+                user.id,
+                user.id,
+              ],
+            );
+            leadId = String(lead.insertId);
+          }
+          return { id: String(result.insertId), code, leadId };
         }
         case "lead.create": {
           const code = await allocateNumber(connection, "LEAD");

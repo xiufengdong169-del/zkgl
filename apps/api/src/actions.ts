@@ -60,6 +60,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "crm.counterparty.read",
     input: listInput,
   },
+  "crm.counterparty.detail": {
+    permission: "crm.counterparty.read",
+    input: z.object({ counterpartyId: z.string().min(1) }),
+  },
   "lead.list": { permission: "lead.read", input: listInput },
   "project.application.list": {
     permission: "project.application.read",
