@@ -17,6 +17,7 @@ import {
 } from "./contracts.js";
 import {
   acceptanceInput,
+  acceptanceResultInput,
   deliverableConfirmInput,
   deliverableInput,
   progressInput,
@@ -168,6 +169,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         "DAILY_PURCHASE",
         "PROJECT_START",
         "PROJECT_CHANGE",
+        "PROJECT_ACCEPTANCE",
         "PROJECT_CLOSE",
       ]),
       businessId: z.string().min(1),
@@ -383,6 +385,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "project.acceptance.create": {
     permission: "project.acceptance.create",
     input: acceptanceInput,
+  },
+  "project.acceptance.result": {
+    permission: "project.acceptance.create",
+    input: acceptanceResultInput,
   },
   "project.change.create": {
     permission: "project.change.create",

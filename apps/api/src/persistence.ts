@@ -136,6 +136,11 @@ async function applyBusinessApprovalResult(
       column: "status",
       approved: "APPROVED",
     },
+    PROJECT_ACCEPTANCE: {
+      table: "prj_acceptance",
+      column: "status",
+      approved: "PENDING_ACCEPTANCE",
+    },
     PROJECT_CLOSE: {
       table: "prj_close_application",
       column: "status",
@@ -169,6 +174,12 @@ async function applyBusinessApprovalResult(
         actorUserId,
         change.contractId,
       ],
+    );
+  }
+  if (businessType === "PROJECT_ACCEPTANCE") {
+    await connection.execute(
+      `UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id SET p.status='PENDING_ACCEPTANCE',p.updated_by=?,p.version=p.version+1 WHERE a.id=? AND p.status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+      [actorUserId, businessId],
     );
   }
   if (businessType === "PROJECT_APPLICATION") {
@@ -1286,6 +1297,10 @@ export class MySqlActionExecutor {
             },
             PROJECT_START: { table: "prj_start", statusColumn: "status" },
             PROJECT_CHANGE: { table: "prj_change", statusColumn: "status" },
+            PROJECT_ACCEPTANCE: {
+              table: "prj_acceptance",
+              statusColumn: "status",
+            },
             PROJECT_CLOSE: {
               table: "prj_close_application",
               statusColumn: "status",
@@ -3411,9 +3426,8 @@ export class MySqlActionExecutor {
           return { id: input.deliverableId, status };
         }
         case "project.acceptance.create": {
-          const status = input.result === "FAILED" ? "FAILED" : "COMPLETED";
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO prj_acceptance(project_id,contract_id,acceptance_type,applied_on,acceptance_scope,acceptance_basis,accepted_on,acceptance_organization,result,remaining_issues,rectification_due_on,status,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO prj_acceptance(project_id,contract_id,acceptance_type,applied_on,acceptance_scope,acceptance_basis,status,created_by,updated_by) VALUES(?,?,?,?,?,?,'DRAFT',?,?)`,
             [
               input.projectId,
               input.contractId ?? null,
@@ -3421,6 +3435,29 @@ export class MySqlActionExecutor {
               input.appliedOn,
               input.acceptanceScope,
               input.acceptanceBasis,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId), status: "DRAFT" };
+        }
+        case "project.acceptance.result": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT project_id projectId,status FROM prj_acceptance WHERE id=? FOR UPDATE`,
+            [input.acceptanceId],
+          );
+          if (!rows[0])
+            throw new AppError("ACCEPTANCE_NOT_FOUND", "验收申请不存在", 404);
+          if (rows[0].status !== "PENDING_ACCEPTANCE")
+            throw new AppError(
+              "ACCEPTANCE_RESULT_NOT_ALLOWED",
+              "只有待验收申请可以登记结果",
+              409,
+            );
+          const status = input.result === "FAILED" ? "FAILED" : "COMPLETED";
+          await connection.execute(
+            `UPDATE prj_acceptance SET accepted_on=?,acceptance_organization=?,result=?,remaining_issues=?,rectification_due_on=?,status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [
               input.acceptedOn,
               input.acceptanceOrganization,
               input.result,
@@ -3428,15 +3465,28 @@ export class MySqlActionExecutor {
               input.rectificationDueOn ?? null,
               status,
               user.id,
+              input.acceptanceId,
+            ],
+          );
+          await connection.execute(
+            `UPDATE prj_project SET status=?,updated_by=?,version=version+1 WHERE id=? AND status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+            [
+              status === "COMPLETED" ? "ACCEPTED" : "PENDING_ACCEPTANCE",
+              user.id,
+              rows[0].projectId,
+            ],
+          );
+          await connection.execute(
+            `INSERT INTO sys_status_history(object_type,object_id,from_status,to_status,action,reason,operated_by) VALUES('PROJECT_ACCEPTANCE',?,?,?,'RECORD_RESULT',?,?)`,
+            [
+              input.acceptanceId,
+              "PENDING_ACCEPTANCE",
+              status,
+              input.result,
               user.id,
             ],
           );
-          if (status === "COMPLETED")
-            await connection.execute(
-              `UPDATE prj_project SET status='ACCEPTED',updated_by=?,version=version+1 WHERE id=? AND status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
-              [user.id, input.projectId],
-            );
-          return { id: String(result.insertId), status };
+          return { id: input.acceptanceId, status, result: input.result };
         }
         case "project.change.create": {
           const [result] = await connection.execute<ResultSetHeader>(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  acceptanceInput,
+  acceptanceResultInput,
   projectStartInput,
   transitionRisk,
   transitionStage,
@@ -40,18 +40,14 @@ describe("project delivery", () => {
     expect(transitionRisk("CLOSED", "REOPEN")).toBe("REOPENED"));
   it("有条件验收必须记录整改事项和期限", () => {
     const base = {
-      projectId: "1",
-      acceptanceType: "FINAL",
-      appliedOn: "2026-07-13",
-      acceptanceScope: "全部范围",
-      acceptanceBasis: "合同",
+      acceptanceId: "1",
       acceptedOn: "2026-07-13",
       acceptanceOrganization: "客户",
       result: "CONDITIONAL" as const,
     };
-    expect(() => acceptanceInput.parse(base)).toThrow("整改期限");
+    expect(() => acceptanceResultInput.parse(base)).toThrow("整改期限");
     expect(
-      acceptanceInput.parse({
+      acceptanceResultInput.parse({
         ...base,
         remainingIssues: "补文档",
         rectificationDueOn: "2026-07-20",

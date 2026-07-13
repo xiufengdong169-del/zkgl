@@ -78,9 +78,11 @@ const auth = useAuthStore(),
     | "DELIVERABLE"
     | "CHANGE"
     | "ACCEPTANCE"
+    | "ACCEPTANCE_RESULT"
     | null
   >(null),
   saving = ref(false);
+const acceptanceResultId = ref("");
 const today = new Date().toISOString().slice(0, 10),
   later = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 const form = ref({
@@ -227,16 +229,49 @@ async function createAcceptance() {
   error.value = null;
   try {
     const f = acceptance.value;
-    await callApi("project.acceptance.create", {
-      ...f,
+    const result = await callApi<{ id: string }>("project.acceptance.create", {
+      projectId: f.projectId,
+      acceptanceType: f.acceptanceType,
+      appliedOn: f.appliedOn,
+      acceptanceScope: f.acceptanceScope,
+      acceptanceBasis: f.acceptanceBasis,
       contractId: null,
+    });
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_ACCEPTANCE",
+      businessId: result.id,
+      title: `项目验收申请：${projects.value.find((p) => p.id === f.projectId)?.projectName || f.projectId}`,
+      amount: null,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+function openAcceptanceResult(item: AcceptanceRecord) {
+  acceptanceResultId.value = item.id;
+  mode.value = "ACCEPTANCE_RESULT";
+}
+async function recordAcceptanceResult() {
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = acceptance.value;
+    await callApi("project.acceptance.result", {
+      acceptanceId: acceptanceResultId.value,
+      acceptedOn: f.acceptedOn,
+      acceptanceOrganization: f.acceptanceOrganization,
+      result: f.result,
       remainingIssues: f.remainingIssues || null,
       rectificationDueOn: f.rectificationDueOn || null,
     });
     mode.value = null;
     await load();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "保存失败";
+    error.value = e instanceof Error ? e.message : "验收结果保存失败";
   } finally {
     saving.value = false;
   }
@@ -709,16 +744,16 @@ async function createChange() {
           v-model="acceptance.appliedOn"
           type="date"
           required /></label
-      ><label
+      ><label v-if="false"
         >验收日<input
           v-model="acceptance.acceptedOn"
           type="date"
           required /></label
-      ><label
+      ><label v-if="false"
         >验收单位<input
           v-model="acceptance.acceptanceOrganization"
           required /></label
-      ><label
+      ><label v-if="false"
         >结果<select v-model="acceptance.result">
           <option value="PASSED">通过</option>
           <option value="CONDITIONAL">有条件通过</option>
@@ -734,7 +769,7 @@ async function createChange() {
           v-model="acceptance.acceptanceBasis"
           required
         ></textarea></label
-      ><template v-if="acceptance.result === 'CONDITIONAL'"
+      ><template v-if="false"
         ><label class="wide"
           >遗留问题<textarea
             v-model="acceptance.remainingIssues"
@@ -746,10 +781,45 @@ async function createChange() {
             type="date"
             required /></label></template
       ><button :disabled="saving">
-        {{ saving ? "保存中…" : "保存验收结果" }}</button
+        {{ saving ? "保存中…" : "创建并提交验收审批" }}</button
       ><button type="button" class="secondary-button" @click="mode = null">
         取消
       </button>
+    </form>
+    <form
+      v-if="mode === 'ACCEPTANCE_RESULT'"
+      class="entity-form"
+      @submit.prevent="recordAcceptanceResult"
+    >
+      <h2 class="wide">登记验收结果</h2>
+      <label
+        >验收日<input
+          v-model="acceptance.acceptedOn"
+          type="date"
+          required /></label
+      ><label
+        >验收单位<input
+          v-model="acceptance.acceptanceOrganization"
+          required /></label
+      ><label
+        >结果<select v-model="acceptance.result">
+          <option value="PASSED">通过</option>
+          <option value="CONDITIONAL">有条件通过</option>
+          <option value="FAILED">未通过</option>
+        </select></label
+      ><template v-if="acceptance.result === 'CONDITIONAL'"
+        ><label class="wide"
+          >遗留问题<textarea
+            v-model="acceptance.remainingIssues"
+            required
+          ></textarea></label
+        ><label
+          >整改期限<input
+            v-model="acceptance.rectificationDueOn"
+            type="date"
+            required /></label></template
+      ><button :disabled="saving">保存验收结果</button
+      ><button type="button" @click="mode = null">取消</button>
     </form>
     <section v-if="changeRecords.length" class="data-panel">
       <h2>项目变更</h2>
@@ -912,6 +982,8 @@ async function createChange() {
             <th>类型</th>
             <th>日期</th>
             <th>结果</th>
+            <th>状态</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -920,6 +992,15 @@ async function createChange() {
             <td>{{ a.acceptanceType }}</td>
             <td>{{ a.acceptedOn }}</td>
             <td>{{ a.result }}</td>
+            <td>{{ a.status }}</td>
+            <td>
+              <button
+                v-if="a.status === 'PENDING_ACCEPTANCE'"
+                @click="openAcceptanceResult(a)"
+              >
+                登记结果
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>

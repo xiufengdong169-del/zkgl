@@ -90,14 +90,17 @@ export const deliverableConfirmInput = z.object({
   confirmationResult: z.enum(["ACCEPTED", "REJECTED"]),
   comment: z.string().trim().max(1000).nullable().optional(),
 });
-export const acceptanceInput = z
+export const acceptanceInput = z.object({
+  projectId: z.string().min(1),
+  contractId: z.string().nullable().optional(),
+  acceptanceType: z.string().trim().min(1).max(64),
+  appliedOn: z.iso.date(),
+  acceptanceScope: z.string().trim().min(2),
+  acceptanceBasis: z.string().trim().min(2),
+});
+export const acceptanceResultInput = z
   .object({
-    projectId: z.string().min(1),
-    contractId: z.string().nullable().optional(),
-    acceptanceType: z.string().trim().min(1).max(64),
-    appliedOn: z.iso.date(),
-    acceptanceScope: z.string().trim().min(2),
-    acceptanceBasis: z.string().trim().min(2),
+    acceptanceId: z.string().min(1),
     acceptedOn: z.iso.date(),
     acceptanceOrganization: z.string().trim().min(1).max(255),
     result: z.enum(["PASSED", "FAILED", "CONDITIONAL"]),
