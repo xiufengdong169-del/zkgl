@@ -5,6 +5,9 @@ import { z } from "zod";
 import { bidApplicationInput } from "./bids.js";
 import { contractInput } from "./contracts.js";
 import {
+  acceptanceInput,
+  deliverableConfirmInput,
+  deliverableInput,
   progressInput,
   projectStartInput,
   riskInput,
@@ -206,6 +209,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "project.delivery.read",
     input: z.object({ projectId: z.string().optional() }).default({}),
   },
+  "delivery.records": {
+    permission: "project.delivery.read",
+    input: z.object({}).default({}),
+  },
   "project.stage.create": {
     permission: "project.stage.create",
     input: stageInput,
@@ -217,6 +224,18 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "project.risk.create": {
     permission: "project.risk.create",
     input: riskInput,
+  },
+  "project.deliverable.create": {
+    permission: "project.deliverable.create",
+    input: deliverableInput,
+  },
+  "project.deliverable.confirm": {
+    permission: "project.deliverable.confirm",
+    input: deliverableConfirmInput,
+  },
+  "project.acceptance.create": {
+    permission: "project.acceptance.create",
+    input: acceptanceInput,
   },
   "file.list": { permission: "file.read", input: fileListInput },
   "file.upload.prepare": { permission: "file.upload", input: fileUploadInput },

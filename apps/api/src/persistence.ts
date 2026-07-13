@@ -2148,6 +2148,19 @@ export class MySqlActionExecutor {
             confirmedDeliverableCount: Number(deliverableRows[0]?.count ?? 0),
           };
         }
+        case "delivery.records": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const [deliverables] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          const [acceptances] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return { deliverables, acceptances };
+        }
         case "project.start.create": {
           const [contractRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
@@ -2263,6 +2276,82 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "project.deliverable.create": {
+          if (input.stageId) {
+            const [stages] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0`,
+              [input.stageId, input.projectId],
+            );
+            if (!stages[0])
+              throw new AppError(
+                "STAGE_PROJECT_MISMATCH",
+                "阶段不属于当前项目",
+                409,
+              );
+          }
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO prj_deliverable(project_id,stage_id,deliverable_name,deliverable_type,deliverable_version,submitted_on,submitter_id,recipient,description,status) VALUES(?,?,?,?,?,?,?,?,?,'SUBMITTED')`,
+            [
+              input.projectId,
+              input.stageId ?? null,
+              input.deliverableName,
+              input.deliverableType,
+              input.deliverableVersion,
+              input.submittedOn,
+              input.submitterId,
+              input.recipient ?? null,
+              input.description ?? null,
+            ],
+          );
+          return { id: String(result.insertId), status: "SUBMITTED" };
+        }
+        case "project.deliverable.confirm": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,status FROM prj_deliverable WHERE id=? FOR UPDATE`,
+            [input.deliverableId],
+          );
+          if (!rows[0] || rows[0].status !== "SUBMITTED")
+            throw new AppError(
+              "DELIVERABLE_NOT_CONFIRMABLE",
+              "成果当前不可确认",
+              409,
+            );
+          const status =
+            input.confirmationResult === "ACCEPTED" ? "CONFIRMED" : "REJECTED";
+          await connection.execute(
+            `UPDATE prj_deliverable SET confirmation_result=?,status=? WHERE id=?`,
+            [input.confirmationResult, status, input.deliverableId],
+          );
+          return { id: input.deliverableId, status };
+        }
+        case "project.acceptance.create": {
+          const status = input.result === "FAILED" ? "FAILED" : "COMPLETED";
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO prj_acceptance(project_id,contract_id,acceptance_type,applied_on,acceptance_scope,acceptance_basis,accepted_on,acceptance_organization,result,remaining_issues,rectification_due_on,status,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.projectId,
+              input.contractId ?? null,
+              input.acceptanceType,
+              input.appliedOn,
+              input.acceptanceScope,
+              input.acceptanceBasis,
+              input.acceptedOn,
+              input.acceptanceOrganization,
+              input.result,
+              input.remainingIssues ?? null,
+              input.rectificationDueOn ?? null,
+              status,
+              user.id,
+              user.id,
+            ],
+          );
+          if (status === "COMPLETED")
+            await connection.execute(
+              `UPDATE prj_project SET status='ACCEPTED',updated_by=?,version=version+1 WHERE id=? AND status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+              [user.id, input.projectId],
+            );
+          return { id: String(result.insertId), status };
         }
         default:
           throw new AppError(
