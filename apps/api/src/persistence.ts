@@ -283,7 +283,20 @@ export class MySqlActionExecutor {
             [users] = await connection.execute<RowDataPacket[]>(
               `SELECT u.id,u.username,u.cloudbase_uid cloudbaseUid,u.status,e.name employeeName,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(r.id ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 200`,
             );
-          return { departments, employees, roles, users };
+          const [numberRules] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,rule_code ruleCode,prefix,year_pattern yearPattern,serial_length serialLength,next_serial nextSerial,current_year currentYear,status,version FROM sys_number_rule ORDER BY rule_code`,
+            ),
+            [approvalTemplates] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(t.id AS CHAR) id,t.template_code templateCode,t.name,t.business_type businessType,t.version,t.status,COUNT(n.id) nodeCount FROM wf_template t LEFT JOIN wf_template_node n ON n.template_id=t.id AND n.status='ENABLED' WHERE t.is_deleted=0 GROUP BY t.id ORDER BY t.business_type`,
+            );
+          return {
+            departments,
+            employees,
+            roles,
+            users,
+            numberRules,
+            approvalTemplates,
+          };
         }
         case "admin.department.create": {
           const [result] = await connection.execute<ResultSetHeader>(
@@ -342,6 +355,50 @@ export class MySqlActionExecutor {
               [input.userId, roleId],
             );
           return { userId: input.userId, roleCount: input.roleIds.length };
+        }
+        case "admin.numberRule.update": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE sys_number_rule SET prefix=?,serial_length=?,status=?,updated_by=?,version=version+1 WHERE id=? AND version=?`,
+            [
+              input.prefix,
+              input.serialLength,
+              input.status,
+              user.id,
+              input.ruleId,
+              input.version,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "NUMBER_RULE_CONFLICT",
+              "编号规则已被他人修改，请刷新后重试",
+              409,
+            );
+          return { id: input.ruleId, version: input.version + 1 };
+        }
+        case "admin.audit.list": {
+          const page = input.page as number,
+            pageSize = input.pageSize as number,
+            keyword = (input.keyword as string | undefined) ?? "",
+            pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
+            action = (input.action as string | undefined) ?? "",
+            outcome = (input.outcome as string | undefined) ?? "";
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(a.id AS CHAR) id,a.request_id requestId,a.action,a.resource_type resourceType,a.resource_id resourceId,a.outcome,a.ip_address ipAddress,a.occurred_at occurredAt,u.username FROM sys_audit_log a LEFT JOIN iam_user u ON u.id=a.actor_user_id WHERE (?='' OR a.action=?) AND (?='' OR a.outcome=?) AND (?='' OR a.action LIKE ? ESCAPE '\\\\' OR a.resource_id LIKE ? ESCAPE '\\\\' OR a.request_id LIKE ? ESCAPE '\\\\') ORDER BY a.occurred_at DESC LIMIT ? OFFSET ?`,
+            [
+              action,
+              action,
+              outcome,
+              outcome,
+              keyword,
+              pattern,
+              pattern,
+              pattern,
+              pageSize,
+              (page - 1) * pageSize,
+            ],
+          );
+          return { items: rows, page, pageSize };
         }
         case "file.list": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),

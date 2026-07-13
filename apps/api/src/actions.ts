@@ -338,6 +338,28 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       roleIds: z.array(z.string().min(1)).max(20),
     }),
   },
+  "admin.numberRule.update": {
+    permission: "system.admin",
+    input: z.object({
+      ruleId: z.string().min(1),
+      prefix: z.string().trim().min(1).max(32),
+      serialLength: z.number().int().min(2).max(12),
+      status: z.enum(["ENABLED", "DISABLED"]),
+      version: z.number().int().nonnegative(),
+    }),
+  },
+  "admin.audit.list": {
+    permission: "system.admin",
+    input: z
+      .object({
+        page: z.number().int().positive().default(1),
+        pageSize: z.union([z.literal(20), z.literal(50)]).default(20),
+        keyword: z.string().trim().max(100).optional(),
+        action: z.string().trim().max(128).optional(),
+        outcome: z.enum(["SUCCESS", "FAILURE"]).optional(),
+      })
+      .default({ page: 1, pageSize: 20 }),
+  },
   "report.dashboard": {
     permission: "report.financial.read",
     input: z.object({}).default({}),
