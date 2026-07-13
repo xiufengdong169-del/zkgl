@@ -36,6 +36,16 @@ interface InvoiceDocument {
   amount: string;
   allocatedAmount: string;
 }
+interface PaymentDocument {
+  id: string;
+  code: string;
+  projectId: string;
+  recipientName: string;
+  requestedAmount: string;
+  receivingAccount: string;
+  paidAmount: string;
+  status: string;
+}
 const modules = [
   ["开票申请", "合同额度控制"],
   ["销项发票", "开票与红冲"],
@@ -57,6 +67,7 @@ const auth = useAuthStore(),
   invoiceApplications = ref<InvoiceApplication[]>([]),
   receipts = ref<ReceiptDocument[]>([]),
   salesInvoices = ref<InvoiceDocument[]>([]),
+  payments = ref<PaymentDocument[]>([]),
   error = ref<string | null>(null),
   mode = ref<
     | "INVOICE"
@@ -64,6 +75,7 @@ const auth = useAuthStore(),
     | "REIMBURSEMENT"
     | "PAYMENT"
     | "PURCHASE"
+    | "PAYMENT_DETAIL"
     | "SALES_INVOICE"
     | "ALLOCATION"
     | null
@@ -145,10 +157,18 @@ const allocation = ref({
   allocationAmount: 0,
   allocatedOn: today,
 });
+const paymentDetail = ref({
+  paymentId: "",
+  paidOn: today,
+  amount: 0,
+  payingAccount: "",
+  receivingAccount: "",
+  bankReference: "",
+});
 
 async function load() {
   try {
-    const [s, p, c, o, documents] = await Promise.all([
+    const [s, p, c, o, documents, operations] = await Promise.all([
       callApi<typeof summary.value>("finance.summary", {}),
       callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("contract.list", { page: 1, pageSize: 50 }),
@@ -161,6 +181,7 @@ async function load() {
         receipts: ReceiptDocument[];
         invoices: InvoiceDocument[];
       }>("finance.documents", {}),
+      callApi<{ payments: PaymentDocument[] }>("finance.operations", {}),
     ]);
     summary.value = s;
     projects.value = p.items;
@@ -169,6 +190,7 @@ async function load() {
     invoiceApplications.value = documents.applications;
     receipts.value = documents.receipts;
     salesInvoices.value = documents.invoices;
+    payments.value = operations.payments;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -252,6 +274,36 @@ async function allocateReceipt() {
     error.value = e instanceof Error ? e.message : "核销失败";
   } finally {
     saving.value = false;
+  }
+}
+async function createPaymentDetail() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("payment.detail.create", {
+      ...paymentDetail.value,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "付款登记失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function submitPayment(item: PaymentDocument) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_PAYMENT",
+      businessId: item.id,
+      title: `付款申请：${item.code}`,
+      amount: Number(item.requestedAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交审批失败";
   }
 }
 async function createReimbursement() {
@@ -347,6 +399,8 @@ async function createPurchase() {
           费用报销</button
         ><button class="primary-action" @click="mode = 'PAYMENT'">
           申请付款</button
+        ><button class="primary-action" @click="mode = 'PAYMENT_DETAIL'">
+          登记实际付款</button
         ><button class="primary-action" @click="mode = 'PURCHASE'">
           日常采购
         </button>
@@ -395,6 +449,43 @@ async function createPurchase() {
                 "
                 class="secondary-button"
                 @click="submitInvoiceApplication(a)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="payments.length" class="data-panel">
+      <h2>付款申请</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>收款方</th>
+            <th>申请金额</th>
+            <th>已付</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in payments" :key="p.id">
+            <td>{{ p.code }}</td>
+            <td>{{ p.recipientName }}</td>
+            <td>{{ p.requestedAmount }}</td>
+            <td>{{ p.paidAmount }}</td>
+            <td>{{ p.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    p.status,
+                  )
+                "
+                class="secondary-button"
+                @click="submitPayment(p)"
               >
                 提交审批
               </button>
@@ -742,6 +833,62 @@ async function createPurchase() {
         需要发票</label
       ><button :disabled="saving">
         {{ saving ? "保存中…" : "保存付款申请" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
+      v-if="mode === 'PAYMENT_DETAIL'"
+      class="entity-form"
+      @submit.prevent="createPaymentDetail"
+    >
+      <label
+        >已审批付款申请<select
+          v-model="paymentDetail.paymentId"
+          required
+          @change="
+            paymentDetail.receivingAccount =
+              payments.find((x) => x.id === paymentDetail.paymentId)
+                ?.receivingAccount || ''
+          "
+        >
+          <option value="" disabled>请选择</option>
+          <option
+            v-for="p in payments.filter((x) =>
+              ['APPROVED', 'PARTIALLY_PAID'].includes(x.status),
+            )"
+            :key="p.id"
+            :value="p.id"
+          >
+            {{ p.code }} · 余额 ¥{{
+              (Number(p.requestedAmount) - Number(p.paidAmount)).toFixed(2)
+            }}
+          </option>
+        </select></label
+      ><label
+        >付款日期<input
+          v-model="paymentDetail.paidOn"
+          type="date"
+          required /></label
+      ><label
+        >金额<input
+          v-model.number="paymentDetail.amount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required /></label
+      ><label
+        >付款账户<input v-model="paymentDetail.payingAccount" required /></label
+      ><label
+        >收款账户<input
+          v-model="paymentDetail.receivingAccount"
+          required /></label
+      ><label
+        >银行流水号<input
+          v-model="paymentDetail.bankReference"
+          required /></label
+      ><button :disabled="saving">
+        {{ saving ? "保存中…" : "保存付款明细" }}</button
       ><button type="button" class="secondary-button" @click="mode = null">
         取消
       </button>

@@ -166,6 +166,15 @@ export const dailyPurchaseInput = z
         message: "关联合同时必须选择合同",
       });
   });
+export const paymentDetailInput = z.object({
+  paymentId: z.string().min(1),
+  paidOn: z.iso.date(),
+  amount: z.number().positive(),
+  payingAccount: z.string().trim().min(1).max(128),
+  receivingAccount: z.string().trim().min(1).max(128),
+  bankReference: z.string().trim().min(1).max(128),
+  idempotencyKey: z.string().min(8).max(128),
+});
 export function reimbursementTotal(details: Array<{ amount: number }>): number {
   return (
     Math.round(details.reduce((sum, item) => sum + item.amount, 0) * 100) / 100

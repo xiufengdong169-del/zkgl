@@ -1,25 +1,588 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { callApi } from '../api'
-import { useAuthStore } from '../stores/auth'
+import { onMounted, ref } from "vue";
+import { callApi } from "../api";
+import { useAuthStore } from "../stores/auth";
 
-interface Option { id:string; projectName?:string; name?:string }
-const today=new Date().toISOString().slice(0,10),auth=useAuthStore(),projects=ref<Option[]>([]),partners=ref<Option[]>([]),summary=ref({planCount:0,settledAmount:'0.00',occupiedDeposit:'0.00',pendingCloseCount:0}),error=ref<string|null>(null),mode=ref<'PLAN'|'DEPOSIT'|'CLOSE'|null>(null),saving=ref(false)
-const plan=ref({projectId:'',partnerId:'',settlementMethod:'RATIO',fixedAmount:null as number|null,ratio:.2 as number|null,calculationBasis:'ACTUAL_RECEIPTS',upperLimit:null as number|null,lowerLimit:null as number|null,effectiveFrom:today,effectiveTo:'',conditions:''})
-const deposit=ref({projectId:'',depositType:'BID',direction:'PAY',counterpartyId:'',amount:0,duePaymentOn:today,dueReturnOn:'',account:''})
-const close=ref({projectId:'',appliedOn:today,completionSummary:'',acceptanceConclusion:'',archiveCheckPassed:false,closeDescription:'',closeType:'NORMAL',specialApprovalComment:'',openItemType:'',openItemDescription:'',openItemDueOn:''})
-async function load(){try{const[s,p,c]=await Promise.all([callApi<typeof summary.value>('settlement.summary',{}),callApi<{items:Option[]}>('project.list',{page:1,pageSize:50}),callApi<{items:Option[]}>('crm.counterparty.list',{page:1,pageSize:50})]);summary.value=s;projects.value=p.items;partners.value=c.items}catch(e){error.value=e instanceof Error?e.message:'加载失败'}}
-onMounted(load)
-async function createPlan(){if(!auth.user)return;saving.value=true;error.value=null;try{const f=plan.value;await callApi('partner.plan.create',{...f,fixedAmount:f.settlementMethod==='FIXED'?f.fixedAmount:null,ratio:f.settlementMethod==='RATIO'?f.ratio:null,ownerId:auth.user.employeeId,deductibleCostScope:[],effectiveTo:f.effectiveTo||null,conditions:f.conditions||null});mode.value=null;await load()}catch(e){error.value=e instanceof Error?e.message:'保存失败'}finally{saving.value=false}}
-async function createDeposit(){saving.value=true;error.value=null;try{const f=deposit.value;await callApi('deposit.create',{...f,bidId:null,contractId:null,dueReturnOn:f.dueReturnOn||null,account:f.account||null});mode.value=null;await load()}catch(e){error.value=e instanceof Error?e.message:'保存失败'}finally{saving.value=false}}
-async function createClose(){if(!auth.user)return;saving.value=true;error.value=null;try{const f=close.value,withOpen=f.closeType==='WITH_OPEN_ITEMS';await callApi('project.close.create',{projectId:f.projectId,appliedOn:f.appliedOn,completionSummary:f.completionSummary,acceptanceConclusion:f.acceptanceConclusion,archiveCheckPassed:f.archiveCheckPassed,closeDescription:f.closeDescription,closeType:f.closeType,specialApprovalComment:f.specialApprovalComment||null,openItems:withOpen?[{type:f.openItemType,description:f.openItemDescription,responsibleId:auth.user.employeeId,dueOn:f.openItemDueOn}]:[]});mode.value=null;await load()}catch(e){error.value=e instanceof Error?e.message:'保存失败'}finally{saving.value=false}}
+interface Option {
+  id: string;
+  projectName?: string;
+  name?: string;
+}
+interface PlanDocument {
+  id: string;
+  code: string;
+  projectId: string;
+  partnerName: string;
+  status: string;
+}
+interface SettlementDocument {
+  id: string;
+  code: string;
+  projectId: string;
+  netAmount: string;
+  status: string;
+}
+interface DepositDocument {
+  id: string;
+  code: string;
+  projectId: string;
+  amount: string;
+  occupiedAmount: string;
+  lossAmount: string;
+  status: string;
+}
+const today = new Date().toISOString().slice(0, 10),
+  auth = useAuthStore(),
+  projects = ref<Option[]>([]),
+  partners = ref<Option[]>([]),
+  plans = ref<PlanDocument[]>([]),
+  settlements = ref<SettlementDocument[]>([]),
+  deposits = ref<DepositDocument[]>([]),
+  summary = ref({
+    planCount: 0,
+    settledAmount: "0.00",
+    occupiedDeposit: "0.00",
+    pendingCloseCount: 0,
+  }),
+  error = ref<string | null>(null),
+  mode = ref<
+    "PLAN" | "DEPOSIT" | "CLOSE" | "SETTLEMENT" | "DEPOSIT_EVENT" | null
+  >(null),
+  saving = ref(false);
+const plan = ref({
+  projectId: "",
+  partnerId: "",
+  settlementMethod: "RATIO",
+  fixedAmount: null as number | null,
+  ratio: 0.2 as number | null,
+  calculationBasis: "ACTUAL_RECEIPTS",
+  upperLimit: null as number | null,
+  lowerLimit: null as number | null,
+  effectiveFrom: today,
+  effectiveTo: "",
+  conditions: "",
+});
+const deposit = ref({
+  projectId: "",
+  depositType: "BID",
+  direction: "PAY",
+  counterpartyId: "",
+  amount: 0,
+  duePaymentOn: today,
+  dueReturnOn: "",
+  account: "",
+});
+const close = ref({
+  projectId: "",
+  appliedOn: today,
+  completionSummary: "",
+  acceptanceConclusion: "",
+  archiveCheckPassed: false,
+  closeDescription: "",
+  closeType: "NORMAL",
+  specialApprovalComment: "",
+  openItemType: "",
+  openItemDescription: "",
+  openItemDueOn: "",
+});
+const settlement = ref({
+  planId: "",
+  periodStartOn: today,
+  periodEndOn: today,
+  deductionAmount: 0,
+  invoiceRequirement: "",
+});
+const depositEvent = ref({
+  depositId: "",
+  eventType: "PAY",
+  amount: 0,
+  occurredOn: today,
+  description: "",
+});
+async function load() {
+  try {
+    const [s, p, c, operations] = await Promise.all([
+      callApi<typeof summary.value>("settlement.summary", {}),
+      callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
+      callApi<{ items: Option[] }>("crm.counterparty.list", {
+        page: 1,
+        pageSize: 50,
+      }),
+      callApi<{
+        plans: PlanDocument[];
+        settlements: SettlementDocument[];
+        deposits: DepositDocument[];
+      }>("finance.operations", {}),
+    ]);
+    summary.value = s;
+    projects.value = p.items;
+    partners.value = c.items;
+    plans.value = operations.plans;
+    settlements.value = operations.settlements;
+    deposits.value = operations.deposits;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "加载失败";
+  }
+}
+onMounted(load);
+async function createPlan() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = plan.value;
+    await callApi("partner.plan.create", {
+      ...f,
+      fixedAmount: f.settlementMethod === "FIXED" ? f.fixedAmount : null,
+      ratio: f.settlementMethod === "RATIO" ? f.ratio : null,
+      ownerId: auth.user.employeeId,
+      deductibleCostScope: [],
+      effectiveTo: f.effectiveTo || null,
+      conditions: f.conditions || null,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createDeposit() {
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = deposit.value;
+    await callApi("deposit.create", {
+      ...f,
+      bidId: null,
+      contractId: null,
+      dueReturnOn: f.dueReturnOn || null,
+      account: f.account || null,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createClose() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = close.value,
+      withOpen = f.closeType === "WITH_OPEN_ITEMS";
+    await callApi("project.close.create", {
+      projectId: f.projectId,
+      appliedOn: f.appliedOn,
+      completionSummary: f.completionSummary,
+      acceptanceConclusion: f.acceptanceConclusion,
+      archiveCheckPassed: f.archiveCheckPassed,
+      closeDescription: f.closeDescription,
+      closeType: f.closeType,
+      specialApprovalComment: f.specialApprovalComment || null,
+      openItems: withOpen
+        ? [
+            {
+              type: f.openItemType,
+              description: f.openItemDescription,
+              responsibleId: auth.user.employeeId,
+              dueOn: f.openItemDueOn,
+            },
+          ]
+        : [],
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createSettlement() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("partner.settlement.create", {
+      ...settlement.value,
+      invoiceRequirement: settlement.value.invoiceRequirement || null,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createDepositEvent() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("deposit.event.create", {
+      ...depositEvent.value,
+      description: depositEvent.value.description || null,
+      idempotencyKey: crypto.randomUUID(),
+      lossApprovalPassed: false,
+    });
+    mode.value = null;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function submitSettlement(item: SettlementDocument) {
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "PARTNER_SETTLEMENT",
+      businessId: item.id,
+      title: `合作方结算：${item.code}`,
+      amount: Number(item.netAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交审批失败";
+  }
+}
 </script>
 
-<template><main class="page">
-  <header class="page-header"><div><p class="eyebrow">SETTLEMENT & CLOSE</p><h1>结算、保证金与结项</h1></div><div class="header-actions"><button class="primary-action" @click="mode='PLAN'">新增合作方案</button><button class="primary-action" @click="mode='DEPOSIT'">登记保证金</button><button class="primary-action" @click="mode='CLOSE'">申请结项</button></div></header>
-  <p v-if="error" class="error">{{error}}</p>
-  <section class="contract-panels"><article><p>合作方案</p><strong>{{summary.planCount}}</strong><small>全部有效版本</small></article><article><p>已审批结算</p><strong>¥ {{summary.settledAmount}}</strong><small>已确认成本</small></article><article><p>保证金占用</p><strong>¥ {{summary.occupiedDeposit}}</strong><small>已缴未退</small></article><article><p>待结项</p><strong>{{summary.pendingCloseCount}}</strong><small>流程处理中</small></article></section>
-  <form v-if="mode==='PLAN'" class="entity-form" @submit.prevent="createPlan"><label>项目<select v-model="plan.projectId" required><option value="" disabled>请选择</option><option v-for="p in projects" :key="p.id" :value="p.id">{{p.projectName}}</option></select></label><label>合作方<select v-model="plan.partnerId" required><option value="" disabled>请选择</option><option v-for="p in partners" :key="p.id" :value="p.id">{{p.name}}</option></select></label><label>结算方式<select v-model="plan.settlementMethod"><option value="RATIO">比例</option><option value="FIXED">固定金额</option></select></label><label v-if="plan.settlementMethod==='RATIO'">比例<input v-model.number="plan.ratio" type="number" min="0" max="1" step="0.000001" required></label><label v-else>固定金额<input v-model.number="plan.fixedAmount" type="number" min="0" step="0.01" required></label><label>计算基数<select v-model="plan.calculationBasis"><option value="ACTUAL_RECEIPTS">实际收款</option><option value="CONTRACT_REVENUE_EX_TAX">合同不含税收入</option><option value="PROJECT_GROSS_PROFIT">项目毛利</option><option value="FIXED">固定金额</option></select></label><label>生效日期<input v-model="plan.effectiveFrom" type="date" required></label><label>上限<input v-model.number="plan.upperLimit" type="number" min="0" step="0.01"></label><label>下限<input v-model.number="plan.lowerLimit" type="number" min="0" step="0.01"></label><label class="wide">条件<textarea v-model="plan.conditions"></textarea></label><button :disabled="saving">{{saving?'保存中…':'保存方案'}}</button><button type="button" class="secondary-button" @click="mode=null">取消</button></form>
-  <form v-if="mode==='DEPOSIT'" class="entity-form" @submit.prevent="createDeposit"><label>项目<select v-model="deposit.projectId" required><option value="" disabled>请选择</option><option v-for="p in projects" :key="p.id" :value="p.id">{{p.projectName}}</option></select></label><label>往来单位<select v-model="deposit.counterpartyId" required><option value="" disabled>请选择</option><option v-for="p in partners" :key="p.id" :value="p.id">{{p.name}}</option></select></label><label>保证金类型<input v-model="deposit.depositType" required></label><label>方向<select v-model="deposit.direction"><option value="PAY">我方缴纳</option><option value="RECEIVE">我方收取</option></select></label><label>金额<input v-model.number="deposit.amount" type="number" min="0.01" step="0.01" required></label><label>应缴日<input v-model="deposit.duePaymentOn" type="date" required></label><label>应退日<input v-model="deposit.dueReturnOn" type="date"></label><label>账户<input v-model="deposit.account"></label><button :disabled="saving">{{saving?'保存中…':'保存保证金'}}</button><button type="button" class="secondary-button" @click="mode=null">取消</button></form>
-  <form v-if="mode==='CLOSE'" class="entity-form" @submit.prevent="createClose"><label>项目<select v-model="close.projectId" required><option value="" disabled>请选择</option><option v-for="p in projects" :key="p.id" :value="p.id">{{p.projectName}}</option></select></label><label>申请日<input v-model="close.appliedOn" type="date" required></label><label class="wide">完成情况<textarea v-model="close.completionSummary" required minlength="2"></textarea></label><label class="wide">验收结论<textarea v-model="close.acceptanceConclusion" required minlength="2"></textarea></label><label><input v-model="close.archiveCheckPassed" type="checkbox" required> 归档检查已通过</label><label>结项类型<select v-model="close.closeType"><option value="NORMAL">普通结项</option><option value="WITH_OPEN_ITEMS">带遗留事项</option></select></label><label class="wide">结项说明<textarea v-model="close.closeDescription" required minlength="2"></textarea></label><template v-if="close.closeType==='WITH_OPEN_ITEMS'"><label>遗留类型<input v-model="close.openItemType" required></label><label>完成期限<input v-model="close.openItemDueOn" type="date" required></label><label class="wide">遗留事项<textarea v-model="close.openItemDescription" required></textarea></label><label class="wide">特批说明<textarea v-model="close.specialApprovalComment"></textarea></label></template><button :disabled="saving">{{saving?'保存中…':'提交结项申请'}}</button><button type="button" class="secondary-button" @click="mode=null">取消</button></form>
-</main></template>
+<template>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">SETTLEMENT & CLOSE</p>
+        <h1>结算、保证金与结项</h1>
+      </div>
+      <div class="header-actions">
+        <button class="primary-action" @click="mode = 'PLAN'">
+          新增合作方案</button
+        ><button class="primary-action" @click="mode = 'DEPOSIT'">
+          登记保证金</button
+        ><button class="primary-action" @click="mode = 'SETTLEMENT'">
+          生成结算单</button
+        ><button class="primary-action" @click="mode = 'DEPOSIT_EVENT'">
+          保证金收付</button
+        ><button class="primary-action" @click="mode = 'CLOSE'">
+          申请结项
+        </button>
+      </div>
+    </header>
+    <p v-if="error" class="error">{{ error }}</p>
+    <section class="contract-panels">
+      <article>
+        <p>合作方案</p>
+        <strong>{{ summary.planCount }}</strong
+        ><small>全部有效版本</small>
+      </article>
+      <article>
+        <p>已审批结算</p>
+        <strong>¥ {{ summary.settledAmount }}</strong
+        ><small>已确认成本</small>
+      </article>
+      <article>
+        <p>保证金占用</p>
+        <strong>¥ {{ summary.occupiedDeposit }}</strong
+        ><small>已缴未退</small>
+      </article>
+      <article>
+        <p>待结项</p>
+        <strong>{{ summary.pendingCloseCount }}</strong
+        ><small>流程处理中</small>
+      </article>
+    </section>
+    <section v-if="settlements.length" class="data-panel">
+      <h2>合作方结算单</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>实结金额</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="s in settlements" :key="s.id">
+            <td>{{ s.code }}</td>
+            <td>{{ s.netAmount }}</td>
+            <td>{{ s.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    s.status,
+                  )
+                "
+                class="secondary-button"
+                @click="submitSettlement(s)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <form
+      v-if="mode === 'PLAN'"
+      class="entity-form"
+      @submit.prevent="createPlan"
+    >
+      <label
+        >项目<select v-model="plan.projectId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in projects" :key="p.id" :value="p.id">
+            {{ p.projectName }}
+          </option>
+        </select></label
+      ><label
+        >合作方<select v-model="plan.partnerId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in partners" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select></label
+      ><label
+        >结算方式<select v-model="plan.settlementMethod">
+          <option value="RATIO">比例</option>
+          <option value="FIXED">固定金额</option>
+        </select></label
+      ><label v-if="plan.settlementMethod === 'RATIO'"
+        >比例<input
+          v-model.number="plan.ratio"
+          type="number"
+          min="0"
+          max="1"
+          step="0.000001"
+          required /></label
+      ><label v-else
+        >固定金额<input
+          v-model.number="plan.fixedAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label
+        >计算基数<select v-model="plan.calculationBasis">
+          <option value="ACTUAL_RECEIPTS">实际收款</option>
+          <option value="CONTRACT_REVENUE_EX_TAX">合同不含税收入</option>
+          <option value="PROJECT_GROSS_PROFIT">项目毛利</option>
+          <option value="FIXED">固定金额</option>
+        </select></label
+      ><label
+        >生效日期<input
+          v-model="plan.effectiveFrom"
+          type="date"
+          required /></label
+      ><label
+        >上限<input
+          v-model.number="plan.upperLimit"
+          type="number"
+          min="0"
+          step="0.01" /></label
+      ><label
+        >下限<input
+          v-model.number="plan.lowerLimit"
+          type="number"
+          min="0"
+          step="0.01" /></label
+      ><label class="wide"
+        >条件<textarea v-model="plan.conditions"></textarea></label
+      ><button :disabled="saving">{{ saving ? "保存中…" : "保存方案" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
+      v-if="mode === 'DEPOSIT'"
+      class="entity-form"
+      @submit.prevent="createDeposit"
+    >
+      <label
+        >项目<select v-model="deposit.projectId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in projects" :key="p.id" :value="p.id">
+            {{ p.projectName }}
+          </option>
+        </select></label
+      ><label
+        >往来单位<select v-model="deposit.counterpartyId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in partners" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select></label
+      ><label>保证金类型<input v-model="deposit.depositType" required /></label
+      ><label
+        >方向<select v-model="deposit.direction">
+          <option value="PAY">我方缴纳</option>
+          <option value="RECEIVE">我方收取</option>
+        </select></label
+      ><label
+        >金额<input
+          v-model.number="deposit.amount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required /></label
+      ><label
+        >应缴日<input
+          v-model="deposit.duePaymentOn"
+          type="date"
+          required /></label
+      ><label>应退日<input v-model="deposit.dueReturnOn" type="date" /></label
+      ><label>账户<input v-model="deposit.account" /></label
+      ><button :disabled="saving">
+        {{ saving ? "保存中…" : "保存保证金" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
+      v-if="mode === 'SETTLEMENT'"
+      class="entity-form"
+      @submit.prevent="createSettlement"
+    >
+      <label
+        >合作方案<select v-model="settlement.planId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in plans" :key="p.id" :value="p.id">
+            {{ p.code }} · {{ p.partnerName }}
+          </option>
+        </select></label
+      ><label
+        >期间开始<input
+          v-model="settlement.periodStartOn"
+          type="date"
+          required /></label
+      ><label
+        >期间结束<input
+          v-model="settlement.periodEndOn"
+          type="date"
+          required /></label
+      ><label
+        >扣减金额<input
+          v-model.number="settlement.deductionAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label class="wide"
+        >开票要求<textarea
+          v-model="settlement.invoiceRequirement"
+        ></textarea></label
+      ><button :disabled="saving">
+        {{ saving ? "生成中…" : "生成结算单" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
+      v-if="mode === 'DEPOSIT_EVENT'"
+      class="entity-form"
+      @submit.prevent="createDepositEvent"
+    >
+      <label
+        >保证金<select v-model="depositEvent.depositId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="d in deposits" :key="d.id" :value="d.id">
+            {{ d.code }} · 登记¥{{ d.amount }} · 占用¥{{ d.occupiedAmount }}
+          </option>
+        </select></label
+      ><label
+        >事件<select v-model="depositEvent.eventType">
+          <option value="PAY">缴纳/收取</option>
+          <option value="RETURN">退回</option>
+          <option value="FORFEIT">没收</option>
+          <option value="VOID">作废</option>
+        </select></label
+      ><label
+        >金额<input
+          v-model.number="depositEvent.amount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          required /></label
+      ><label
+        >发生日期<input
+          v-model="depositEvent.occurredOn"
+          type="date"
+          required /></label
+      ><label class="wide"
+        >说明<textarea v-model="depositEvent.description"></textarea></label
+      ><button :disabled="saving">
+        {{ saving ? "保存中…" : "保存保证金事件" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+    <form
+      v-if="mode === 'CLOSE'"
+      class="entity-form"
+      @submit.prevent="createClose"
+    >
+      <label
+        >项目<select v-model="close.projectId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in projects" :key="p.id" :value="p.id">
+            {{ p.projectName }}
+          </option>
+        </select></label
+      ><label
+        >申请日<input v-model="close.appliedOn" type="date" required /></label
+      ><label class="wide"
+        >完成情况<textarea
+          v-model="close.completionSummary"
+          required
+          minlength="2"
+        ></textarea></label
+      ><label class="wide"
+        >验收结论<textarea
+          v-model="close.acceptanceConclusion"
+          required
+          minlength="2"
+        ></textarea></label
+      ><label
+        ><input v-model="close.archiveCheckPassed" type="checkbox" required />
+        归档检查已通过</label
+      ><label
+        >结项类型<select v-model="close.closeType">
+          <option value="NORMAL">普通结项</option>
+          <option value="WITH_OPEN_ITEMS">带遗留事项</option>
+        </select></label
+      ><label class="wide"
+        >结项说明<textarea
+          v-model="close.closeDescription"
+          required
+          minlength="2"
+        ></textarea></label
+      ><template v-if="close.closeType === 'WITH_OPEN_ITEMS'"
+        ><label>遗留类型<input v-model="close.openItemType" required /></label
+        ><label
+          >完成期限<input
+            v-model="close.openItemDueOn"
+            type="date"
+            required /></label
+        ><label class="wide"
+          >遗留事项<textarea
+            v-model="close.openItemDescription"
+            required
+          ></textarea></label
+        ><label class="wide"
+          >特批说明<textarea
+            v-model="close.specialApprovalComment"
+          ></textarea></label></template
+      ><button :disabled="saving">
+        {{ saving ? "保存中…" : "提交结项申请" }}</button
+      ><button type="button" class="secondary-button" @click="mode = null">
+        取消
+      </button>
+    </form>
+  </main>
+</template>

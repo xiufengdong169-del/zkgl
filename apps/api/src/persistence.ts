@@ -1389,6 +1389,88 @@ export class MySqlActionExecutor {
             detailCount: (input.details as unknown[]).length,
           };
         }
+        case "finance.operations": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const [payments] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          const [plans] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.status FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access} ORDER BY x.id DESC LIMIT 200`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          const [settlements] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,x.net_settlement_amount netAmount,x.status FROM partner_settlement x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          const [deposits] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.amount,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status FROM fin_deposit x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return { payments, plans, settlements, deposits };
+        }
+        case "payment.detail.create": {
+          const [seen] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM fin_payment_detail WHERE idempotency_key=?`,
+            [input.idempotencyKey],
+          );
+          if (seen[0]) return { idempotent: true, id: String(seen[0].id) };
+          const [payments] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,project_id projectId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? FOR UPDATE`,
+            [input.paymentId],
+          );
+          const payment = payments[0];
+          if (
+            !payment ||
+            !["APPROVED", "PARTIALLY_PAID"].includes(payment.status)
+          )
+            throw new AppError(
+              "PAYMENT_NOT_APPROVED",
+              "付款申请未审批或已完成",
+              409,
+            );
+          const [paidRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT COALESCE(SUM(amount),0) amount FROM fin_payment_detail WHERE payment_id=? AND status='ACTIVE'`,
+            [input.paymentId],
+          );
+          const paid = Number(paidRows[0]?.amount ?? 0);
+          if (paid + Number(input.amount) > Number(payment.requestedAmount))
+            throw new AppError(
+              "PAYMENT_AMOUNT_EXCEEDED",
+              "累计付款金额超过申请金额",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO fin_payment_detail(payment_id,project_id,paid_on,amount,paying_account,receiving_account,bank_reference,recorder_id,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?)`,
+            [
+              input.paymentId,
+              payment.projectId,
+              input.paidOn,
+              input.amount,
+              input.payingAccount,
+              input.receivingAccount,
+              input.bankReference,
+              user.employeeId,
+              input.idempotencyKey,
+            ],
+          );
+          const total = paid + Number(input.amount),
+            status =
+              total >= Number(payment.requestedAmount)
+                ? "PAID"
+                : "PARTIALLY_PAID";
+          await connection.execute(
+            `UPDATE fin_payment_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [status, user.id, input.paymentId],
+          );
+          return {
+            idempotent: false,
+            id: String(result.insertId),
+            status,
+            remainingAmount: Number(payment.requestedAmount) - total,
+          };
+        }
         case "payment.application.create": {
           const code = await allocateNumber(connection, "PAYMENT");
           const [result] = await connection.execute<ResultSetHeader>(
@@ -1610,7 +1692,7 @@ export class MySqlActionExecutor {
         case "partner.plan.create": {
           if (input.settlementMethod === "RATIO") {
             const [ratioRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status='ENABLED' WHERE p.project_id=? AND p.status='ENABLED' AND v.calculation_basis=? FOR UPDATE`,
+              `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
               [input.projectId, input.calculationBasis],
             );
             const ratioTotal = ratioRows.reduce(
@@ -1834,11 +1916,15 @@ export class MySqlActionExecutor {
             occupied -= Number(input.amount);
             status = "FORFEITED";
           } else if (input.eventType === "CONFIRM_LOSS") {
-            if (!input.lossApprovalPassed)
+            if (
+              !user.roleCodes.some((role) =>
+                ["ADMIN", "COMPANY_PRINCIPAL"].includes(role),
+              )
+            )
               throw new AppError(
                 "DEPOSIT_LOSS_APPROVAL_REQUIRED",
-                "损失确认必须审批通过",
-                409,
+                "仅公司负责人可确认保证金损失",
+                403,
               );
             const [forfeitRows] = await connection.execute<RowDataPacket[]>(
               `SELECT COALESCE(SUM(amount),0) amount FROM fin_deposit_event WHERE deposit_id=? AND event_type='FORFEIT'`,

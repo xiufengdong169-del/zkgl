@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCostMetrics,
   dailyPurchaseInput,
+  paymentDetailInput,
   reimbursementTotal,
   salesInvoiceInput,
   validateInvoiceCapacity,
@@ -105,5 +106,29 @@ describe("finance invariants", () => {
     expect(() => salesInvoiceInput.parse({ ...invoice, taxAmount: 5 })).toThrow(
       "价税合计",
     );
+  });
+  it("实际付款明细要求幂等键和流水号", () => {
+    expect(
+      paymentDetailInput.parse({
+        paymentId: "1",
+        paidOn: "2026-07-13",
+        amount: 100,
+        payingAccount: "A",
+        receivingAccount: "B",
+        bankReference: "BANK-1",
+        idempotencyKey: "payment-001",
+      }).amount,
+    ).toBe(100);
+    expect(() =>
+      paymentDetailInput.parse({
+        paymentId: "1",
+        paidOn: "2026-07-13",
+        amount: 100,
+        payingAccount: "A",
+        receivingAccount: "B",
+        bankReference: "",
+        idempotencyKey: "short",
+      }),
+    ).toThrow();
   });
 });
