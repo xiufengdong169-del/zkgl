@@ -46,6 +46,25 @@ interface PaymentDocument {
   paidAmount: string;
   status: string;
 }
+interface ReimbursementDocument {
+  id: string;
+  code: string;
+  reason: string;
+  paymentRecipient: string;
+  totalAmount: string;
+  approvalStatus: string;
+  paymentStatus: string;
+}
+interface PurchaseDocument {
+  id: string;
+  code: string;
+  purchaseType: string;
+  itemDescription: string;
+  quantity: string;
+  budgetAmount: string;
+  expectedOn: string;
+  status: string;
+}
 const modules = [
   ["开票申请", "合同额度控制"],
   ["销项发票", "开票与红冲"],
@@ -68,6 +87,8 @@ const auth = useAuthStore(),
   receipts = ref<ReceiptDocument[]>([]),
   salesInvoices = ref<InvoiceDocument[]>([]),
   payments = ref<PaymentDocument[]>([]),
+  reimbursements = ref<ReimbursementDocument[]>([]),
+  purchases = ref<PurchaseDocument[]>([]),
   error = ref<string | null>(null),
   mode = ref<
     | "INVOICE"
@@ -168,7 +189,7 @@ const paymentDetail = ref({
 
 async function load() {
   try {
-    const [s, p, c, o, documents, operations] = await Promise.all([
+    const [s, p, c, o, documents, operations, expenses] = await Promise.all([
       callApi<typeof summary.value>("finance.summary", {}),
       callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
       callApi<{ items: Option[] }>("contract.list", { page: 1, pageSize: 50 }),
@@ -182,6 +203,10 @@ async function load() {
         invoices: InvoiceDocument[];
       }>("finance.documents", {}),
       callApi<{ payments: PaymentDocument[] }>("finance.operations", {}),
+      callApi<{
+        reimbursements: ReimbursementDocument[];
+        purchases: PurchaseDocument[];
+      }>("finance.expenseApplications", {}),
     ]);
     summary.value = s;
     projects.value = p.items;
@@ -191,6 +216,8 @@ async function load() {
     receipts.value = documents.receipts;
     salesInvoices.value = documents.invoices;
     payments.value = operations.payments;
+    reimbursements.value = expenses.reimbursements;
+    purchases.value = expenses.purchases;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -339,6 +366,20 @@ async function createReimbursement() {
     saving.value = false;
   }
 }
+async function submitReimbursement(item: ReimbursementDocument) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "EXPENSE_REIMBURSEMENT",
+      businessId: item.id,
+      title: `费用报销：${item.code}`,
+      amount: Number(item.totalAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交报销审批失败";
+  }
+}
 async function createPayment() {
   if (!auth.user) return;
   saving.value = true;
@@ -371,10 +412,25 @@ async function createPurchase() {
       contractId: f.contractRelated ? f.contractId : null,
     });
     mode.value = null;
+    await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
   } finally {
     saving.value = false;
+  }
+}
+async function submitPurchase(item: PurchaseDocument) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "DAILY_PURCHASE",
+      businessId: item.id,
+      title: `日常采购：${item.code}`,
+      amount: Number(item.budgetAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交采购审批失败";
   }
 }
 </script>
@@ -486,6 +542,84 @@ async function createPurchase() {
                 "
                 class="secondary-button"
                 @click="submitPayment(p)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="reimbursements.length" class="data-panel">
+      <h2>费用报销单</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>事由</th>
+            <th>收款人</th>
+            <th>金额</th>
+            <th>审批状态</th>
+            <th>付款状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in reimbursements" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>{{ item.reason }}</td>
+            <td>{{ item.paymentRecipient }}</td>
+            <td>¥ {{ item.totalAmount }}</td>
+            <td>{{ item.approvalStatus }}</td>
+            <td>{{ item.paymentStatus }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.approvalStatus,
+                  )
+                "
+                @click="submitReimbursement(item)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="purchases.length" class="data-panel">
+      <h2>日常采购申请</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>类型</th>
+            <th>采购内容</th>
+            <th>数量</th>
+            <th>预算</th>
+            <th>期望日期</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in purchases" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>{{ item.purchaseType }}</td>
+            <td>{{ item.itemDescription }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>¥ {{ item.budgetAmount }}</td>
+            <td>{{ item.expectedOn }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                @click="submitPurchase(item)"
               >
                 提交审批
               </button>

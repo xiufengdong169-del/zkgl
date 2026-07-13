@@ -1730,6 +1730,18 @@ export class MySqlActionExecutor {
             detailCount: (input.details as unknown[]).length,
           };
         }
+        case "finance.expenseApplications": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            [reimbursements] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(h.id AS CHAR) id,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (?=1 OR h.claimant_id=?) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              [all ? 1 : 0, user.employeeId],
+            ),
+            [purchases] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,purchase_code code,purchase_type purchaseType,item_description itemDescription,quantity,budget_amount budgetAmount,expected_on expectedOn,status,created_at createdAt FROM fin_daily_purchase WHERE is_deleted=0 AND (?=1 OR applicant_id=?) ORDER BY id DESC LIMIT 100`,
+              [all ? 1 : 0, user.employeeId],
+            );
+          return { reimbursements, purchases };
+        }
         case "finance.operations": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;

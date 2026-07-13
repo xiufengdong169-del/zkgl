@@ -202,6 +202,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "reimbursement.create",
     input: reimbursementInput,
   },
+  "finance.expenseApplications": {
+    permission: "reimbursement.create",
+    input: z.object({}).default({}),
+  },
   "payment.application.create": {
     permission: "payment.application.create",
     input: paymentApplicationInput,
