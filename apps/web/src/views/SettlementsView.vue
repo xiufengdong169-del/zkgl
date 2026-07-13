@@ -67,6 +67,17 @@ interface CloseDocument {
   confirmedCost: string;
   status: string;
 }
+interface CloseOpenItemDocument {
+  id: string;
+  closeCode: string;
+  projectName: string;
+  itemType: string;
+  description: string;
+  responsibleId: string;
+  dueOn: string;
+  completedOn: string | null;
+  status: string;
+}
 const today = new Date().toISOString().slice(0, 10),
   auth = useAuthStore(),
   projects = ref<Option[]>([]),
@@ -76,6 +87,7 @@ const today = new Date().toISOString().slice(0, 10),
   deposits = ref<DepositDocument[]>([]),
   depositEvents = ref<DepositEventDocument[]>([]),
   closes = ref<CloseDocument[]>([]),
+  closeOpenItems = ref<CloseOpenItemDocument[]>([]),
   summary = ref({
     planCount: 0,
     settledAmount: "0.00",
@@ -178,7 +190,10 @@ async function load() {
         deposits: DepositDocument[];
         depositEvents: DepositEventDocument[];
       }>("finance.operations", {}),
-      callApi<{ items: CloseDocument[] }>("project.close.list", {
+      callApi<{
+        items: CloseDocument[];
+        openItems: CloseOpenItemDocument[];
+      }>("project.close.list", {
         page: 1,
         pageSize: 50,
       }),
@@ -191,6 +206,7 @@ async function load() {
     deposits.value = operations.deposits;
     depositEvents.value = operations.depositEvents;
     closes.value = closeResult.items;
+    closeOpenItems.value = closeResult.openItems;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -500,6 +516,18 @@ async function submitClose(item: CloseDocument) {
     error.value = e instanceof Error ? e.message : "提交结项审批失败";
   }
 }
+async function completeCloseOpenItem(item: CloseOpenItemDocument) {
+  error.value = null;
+  try {
+    await callApi("project.close.openItem.complete", {
+      itemId: item.id,
+      completedOn: today,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "确认未清事项完成失败";
+  }
+}
 </script>
 
 <template>
@@ -751,6 +779,42 @@ async function submitClose(item: CloseDocument) {
               >
                 提交审批
               </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <section v-if="closeOpenItems.length" class="data-panel">
+      <h2>结项未清事项</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>结项编号</th>
+            <th>项目</th>
+            <th>类型</th>
+            <th>事项</th>
+            <th>完成期限</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in closeOpenItems" :key="item.id">
+            <td>{{ item.closeCode }}</td>
+            <td>{{ item.projectName }}</td>
+            <td>{{ item.itemType }}</td>
+            <td>{{ item.description }}</td>
+            <td>{{ item.dueOn }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="item.status === 'OPEN'"
+                class="secondary-button"
+                @click="completeCloseOpenItem(item)"
+              >
+                确认完成
+              </button>
+              <span v-else>{{ item.completedOn }}</span>
             </td>
           </tr>
         </tbody>

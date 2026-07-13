@@ -3414,8 +3414,58 @@ export class MySqlActionExecutor {
                 pageSize,
                 (page - 1) * pageSize,
               ],
+            ),
+            [openItems] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE (?=1 OR c.created_by=? OR p.project_manager_id=? OR i.responsible_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
+              [
+                all ? 1 : 0,
+                user.id,
+                user.employeeId,
+                user.employeeId,
+                user.employeeId,
+              ],
             );
-          return { items: rows, page, pageSize };
+          return { items: rows, openItems, page, pageSize };
+        }
+        case "project.close.openItem.complete": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE i.id=? FOR UPDATE`,
+            [input.itemId],
+          );
+          const item = rows[0];
+          if (!item)
+            throw new AppError(
+              "CLOSE_OPEN_ITEM_NOT_FOUND",
+              "结项未清事项不存在",
+              404,
+            );
+          if (item.status !== "OPEN")
+            throw new AppError(
+              "CLOSE_OPEN_ITEM_ALREADY_COMPLETED",
+              "结项未清事项已完成",
+              409,
+            );
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            authorized =
+              all ||
+              item.responsibleId === user.employeeId ||
+              item.projectManagerId === user.employeeId ||
+              item.createdBy === user.id;
+          if (!authorized)
+            throw new AppError(
+              "CLOSE_OPEN_ITEM_FORBIDDEN",
+              "仅责任人、项目经理或结项申请人可确认完成",
+              403,
+            );
+          await connection.execute(
+            `UPDATE prj_close_open_item SET status='COMPLETED',completed_on=? WHERE id=? AND status='OPEN'`,
+            [input.completedOn, input.itemId],
+          );
+          return {
+            id: input.itemId,
+            status: "COMPLETED",
+            completedOn: input.completedOn,
+          };
         }
         case "settlement.summary": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
