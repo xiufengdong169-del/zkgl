@@ -1,14 +1,251 @@
-<script setup lang="ts">import {onMounted,ref} from 'vue';import {callApi} from '../api';import{useAuthStore}from'../stores/auth';interface Row{id:string;code:string;contractName:string;contractType:string;taxExclusiveAmount:string;amountStatus:string;status:string};interface Option{id:string;name?:string;projectName?:string};const auth=useAuthStore(),items=ref<Row[]>([]),projects=ref<Option[]>([]),parties=ref<Option[]>([]),error=ref<string|null>(null),showForm=ref(false),saving=ref(false);const form=ref({contractName:'',contractType:'INCOME',projectId:'',partyAId:'',partyBId:'',taxInclusiveAmount:0,taxExclusiveAmount:0,taxRate:.06,amountStatus:'CONFIRMED',signedOn:'',effectiveOn:'',expiresOn:'',serviceContent:'',paymentTerms:'',invoiceTerms:''});async function load(){try{const[c,p,o]=await Promise.all([callApi<{items:Row[]}>('contract.list',{page:1,pageSize:20}),callApi<{items:Option[]}>('project.list',{page:1,pageSize:50}),callApi<{items:Option[]}>('crm.counterparty.list',{page:1,pageSize:50})]);items.value=c.items;projects.value=p.items;parties.value=o.items}catch(e){error.value=e instanceof Error?e.message:'加载失败'}};onMounted(load);async function createContract(){if(!auth.user)return;saving.value=true;error.value=null;try{await callApi('contract.create',{...form.value,signingEntityId:form.value.partyBId,taxAmount:Math.round((form.value.taxInclusiveAmount-form.value.taxExclusiveAmount)*100)/100,signedOn:form.value.signedOn||null,effectiveOn:form.value.effectiveOn||null,expiresOn:form.value.expiresOn||null,invoiceTerms:form.value.invoiceTerms||null,ownerId:auth.user.employeeId,parentContractId:null});showForm.value=false;await load()}catch(e){error.value=e instanceof Error?e.message:'保存失败'}finally{saving.value=false}}</script>
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { callApi } from "../api";
+import { useAuthStore } from "../stores/auth";
+interface Row {
+  id: string;
+  code: string;
+  contractName: string;
+  contractType: string;
+  taxExclusiveAmount: string;
+  amountStatus: string;
+  status: string;
+}
+interface Option {
+  id: string;
+  name?: string;
+  projectName?: string;
+}
+const auth = useAuthStore(),
+  items = ref<Row[]>([]),
+  projects = ref<Option[]>([]),
+  parties = ref<Option[]>([]),
+  error = ref<string | null>(null),
+  showForm = ref(false),
+  saving = ref(false);
+const form = ref({
+  contractName: "",
+  contractType: "INCOME",
+  projectId: "",
+  partyAId: "",
+  partyBId: "",
+  taxInclusiveAmount: 0,
+  taxExclusiveAmount: 0,
+  taxRate: 0.06,
+  amountStatus: "CONFIRMED",
+  signedOn: "",
+  effectiveOn: "",
+  expiresOn: "",
+  serviceContent: "",
+  paymentTerms: "",
+  invoiceTerms: "",
+});
+async function load() {
+  try {
+    const [c, p, o] = await Promise.all([
+      callApi<{ items: Row[] }>("contract.list", { page: 1, pageSize: 20 }),
+      callApi<{ items: Option[] }>("project.list", { page: 1, pageSize: 50 }),
+      callApi<{ items: Option[] }>("crm.counterparty.list", {
+        page: 1,
+        pageSize: 50,
+      }),
+    ]);
+    items.value = c.items;
+    projects.value = p.items;
+    parties.value = o.items;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "加载失败";
+  }
+}
+onMounted(load);
+async function createContract() {
+  if (!auth.user) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("contract.create", {
+      ...form.value,
+      signingEntityId: form.value.partyBId,
+      taxAmount:
+        Math.round(
+          (form.value.taxInclusiveAmount - form.value.taxExclusiveAmount) * 100,
+        ) / 100,
+      signedOn: form.value.signedOn || null,
+      effectiveOn: form.value.effectiveOn || null,
+      expiresOn: form.value.expiresOn || null,
+      invoiceTerms: form.value.invoiceTerms || null,
+      ownerId: auth.user.employeeId,
+      parentContractId: null,
+    });
+    showForm.value = false;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function submitContract(item: Row) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "CONTRACT",
+      businessId: item.id,
+      title: `合同审批：${item.contractName}`,
+      amount: Number(item.taxExclusiveAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交审批失败";
+  }
+}
+</script>
 <template>
   <main class="page">
-    <header class="page-header"><div><p class="eyebrow">CONTRACTS</p><h1>合同管理</h1></div><button class="primary-action" @click="showForm=!showForm">{{showForm?'取消':'新增合同'}}</button></header>
-    <form v-if="showForm" class="entity-form" @submit.prevent="createContract"><label>合同名称<input v-model="form.contractName" required minlength="2"></label><label>合同类型<select v-model="form.contractType"><option value="INCOME">收入合同</option><option value="EXPENSE">支出合同</option></select></label><label>项目<select v-model="form.projectId" required><option value="" disabled>请选择</option><option v-for="p in projects" :key="p.id" :value="p.id">{{p.projectName}}</option></select></label><label>甲方<select v-model="form.partyAId" required><option value="" disabled>请选择</option><option v-for="p in parties" :key="p.id" :value="p.id">{{p.name}}</option></select></label><label>乙方/签约主体<select v-model="form.partyBId" required><option value="" disabled>请选择</option><option v-for="p in parties" :key="p.id" :value="p.id">{{p.name}}</option></select></label><label>金额状态<select v-model="form.amountStatus"><option value="CONFIRMED">已确认</option><option value="PROVISIONAL">暂定</option></select></label><label>含税金额<input v-model.number="form.taxInclusiveAmount" type="number" min="0" step="0.01" required></label><label>不含税金额<input v-model.number="form.taxExclusiveAmount" type="number" min="0" step="0.01" required></label><label>税率<input v-model.number="form.taxRate" type="number" min="0" max="1" step="0.000001" required></label><label>签订日期<input v-model="form.signedOn" type="date"></label><label>生效日期<input v-model="form.effectiveOn" type="date"></label><label>到期日期<input v-model="form.expiresOn" type="date"></label><label class="wide">服务内容<textarea v-model="form.serviceContent" required minlength="2"></textarea></label><label class="wide">付款条件<textarea v-model="form.paymentTerms" required minlength="2"></textarea></label><label class="wide">开票条件<textarea v-model="form.invoiceTerms"></textarea></label><button :disabled="saving">{{saving?'保存中…':'保存合同'}}</button></form>
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">CONTRACTS</p>
+        <h1>合同管理</h1>
+      </div>
+      <button class="primary-action" @click="showForm = !showForm">
+        {{ showForm ? "取消" : "新增合同" }}
+      </button>
+    </header>
+    <form v-if="showForm" class="entity-form" @submit.prevent="createContract">
+      <label
+        >合同名称<input
+          v-model="form.contractName"
+          required
+          minlength="2" /></label
+      ><label
+        >合同类型<select v-model="form.contractType">
+          <option value="INCOME">收入合同</option>
+          <option value="EXPENSE">支出合同</option>
+        </select></label
+      ><label
+        >项目<select v-model="form.projectId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in projects" :key="p.id" :value="p.id">
+            {{ p.projectName }}
+          </option>
+        </select></label
+      ><label
+        >甲方<select v-model="form.partyAId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in parties" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select></label
+      ><label
+        >乙方/签约主体<select v-model="form.partyBId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="p in parties" :key="p.id" :value="p.id">
+            {{ p.name }}
+          </option>
+        </select></label
+      ><label
+        >金额状态<select v-model="form.amountStatus">
+          <option value="CONFIRMED">已确认</option>
+          <option value="PROVISIONAL">暂定</option>
+        </select></label
+      ><label
+        >含税金额<input
+          v-model.number="form.taxInclusiveAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label
+        >不含税金额<input
+          v-model.number="form.taxExclusiveAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required /></label
+      ><label
+        >税率<input
+          v-model.number="form.taxRate"
+          type="number"
+          min="0"
+          max="1"
+          step="0.000001"
+          required /></label
+      ><label>签订日期<input v-model="form.signedOn" type="date" /></label
+      ><label>生效日期<input v-model="form.effectiveOn" type="date" /></label
+      ><label>到期日期<input v-model="form.expiresOn" type="date" /></label
+      ><label class="wide"
+        >服务内容<textarea
+          v-model="form.serviceContent"
+          required
+          minlength="2"
+        ></textarea></label
+      ><label class="wide"
+        >付款条件<textarea
+          v-model="form.paymentTerms"
+          required
+          minlength="2"
+        ></textarea></label
+      ><label class="wide"
+        >开票条件<textarea v-model="form.invoiceTerms"></textarea></label
+      ><button :disabled="saving">{{ saving ? "保存中…" : "保存合同" }}</button>
+    </form>
     <section class="contract-panels">
-      <article><p>收入合同</p><strong>¥ 0.00</strong><small>确认不含税金额</small></article>
-      <article><p>支出合同</p><strong>¥ 0.00</strong><small>有效履约金额</small></article>
-      <article><p>临期提醒</p><strong>0</strong><small>未来 30 天到期</small></article>
+      <article>
+        <p>收入合同</p>
+        <strong>¥ 0.00</strong><small>确认不含税金额</small>
+      </article>
+      <article>
+        <p>支出合同</p>
+        <strong>¥ 0.00</strong><small>有效履约金额</small>
+      </article>
+      <article>
+        <p>临期提醒</p>
+        <strong>0</strong><small>未来 30 天到期</small>
+      </article>
     </section>
-    <section v-if="!items.length && !error" class="empty-state"><span>合</span><h2>暂无合同记录</h2><p>合同审批、变更、履约节点和到期提醒将在这里统一管理。</p></section>
-    <section class="data-panel"><h2>最近合同</h2><p v-if="error" class="error">{{error}}</p><table v-else-if="items.length"><thead><tr><th>编号</th><th>名称</th><th>类型</th><th>不含税金额</th><th>状态</th></tr></thead><tbody><tr v-for="item in items" :key="item.id"><td>{{item.code}}</td><td>{{item.contractName}}</td><td>{{item.contractType}}</td><td>{{item.taxExclusiveAmount}}</td><td>{{item.status}}</td></tr></tbody></table><p v-else>暂无合同</p></section>
+    <section v-if="!items.length && !error" class="empty-state">
+      <span>合</span>
+      <h2>暂无合同记录</h2>
+      <p>合同审批、变更、履约节点和到期提醒将在这里统一管理。</p>
+    </section>
+    <section class="data-panel">
+      <h2>最近合同</h2>
+      <p v-if="error" class="error">{{ error }}</p>
+      <table v-else-if="items.length">
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>名称</th>
+            <th>类型</th>
+            <th>不含税金额</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in items" :key="item.id">
+            <td>{{ item.code }}</td>
+            <td>{{ item.contractName }}</td>
+            <td>{{ item.contractType }}</td>
+            <td>{{ item.taxExclusiveAmount }}</td>
+            <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                class="secondary-button"
+                @click="submitContract(item)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else>暂无合同</p>
+    </section>
   </main>
 </template>
