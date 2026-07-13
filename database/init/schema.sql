@@ -313,6 +313,37 @@ CREATE TABLE IF NOT EXISTS sys_number_rule (
   version INT UNSIGNED NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS sys_dictionary_type (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  type_code VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  description VARCHAR(500) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS sys_dictionary_item (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  type_id BIGINT UNSIGNED NOT NULL,
+  item_code VARCHAR(64) NOT NULL,
+  label VARCHAR(128) NOT NULL,
+  value_text VARCHAR(255) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  created_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_dictionary_item_type FOREIGN KEY (type_id) REFERENCES sys_dictionary_type(id),
+  UNIQUE KEY uk_dictionary_item_code (type_id, item_code),
+  INDEX idx_dictionary_item_sort (type_id, status, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 INSERT INTO sys_number_rule (rule_code, prefix, current_year, updated_by)
 VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', YEAR(CURRENT_DATE), 0)
   , ('COUNTERPARTY', 'DW', YEAR(CURRENT_DATE), 0)
@@ -468,6 +499,7 @@ CREATE TABLE IF NOT EXISTS wf_template_node (
   maximum_amount DECIMAL(18,2) NULL,
   is_cc TINYINT(1) NOT NULL DEFAULT 0,
   status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_template_node_template FOREIGN KEY (template_id) REFERENCES wf_template(id),
   UNIQUE KEY uk_template_node_order (template_id, node_order, is_cc),
   INDEX idx_template_node_amount (template_id, minimum_amount, maximum_amount)

@@ -315,6 +315,18 @@ export class MySqlActionExecutor {
             ),
             [approvalTemplates] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(t.id AS CHAR) id,t.template_code templateCode,t.name,t.business_type businessType,t.version,t.status,COUNT(n.id) nodeCount FROM wf_template t LEFT JOIN wf_template_node n ON n.template_id=t.id AND n.status='ENABLED' WHERE t.is_deleted=0 GROUP BY t.id ORDER BY t.business_type`,
+            ),
+            [approvalNodes] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(n.id AS CHAR) id,CAST(n.template_id AS CHAR) templateId,n.node_order nodeOrder,n.node_name nodeName,n.position_code positionCode,n.minimum_amount minimumAmount,n.maximum_amount maximumAmount,n.is_cc isCc,n.status,n.version FROM wf_template_node n ORDER BY n.template_id,n.node_order,n.is_cc`,
+            ),
+            [positions] = await connection.execute<RowDataPacket[]>(
+              `SELECT position_code code,name FROM org_position WHERE status='ENABLED' ORDER BY position_code`,
+            ),
+            [dictionaryTypes] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(t.id AS CHAR) id,t.type_code typeCode,t.name,t.description,t.status,t.version FROM sys_dictionary_type t ORDER BY t.type_code`,
+            ),
+            [dictionaryItems] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(i.id AS CHAR) id,CAST(i.type_id AS CHAR) typeId,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder,i.status,i.version FROM sys_dictionary_item i ORDER BY i.type_id,i.sort_order,i.id`,
             );
           return {
             departments,
@@ -323,6 +335,10 @@ export class MySqlActionExecutor {
             users,
             numberRules,
             approvalTemplates,
+            approvalNodes,
+            positions,
+            dictionaryTypes,
+            dictionaryItems,
           };
         }
         case "admin.department.create": {
@@ -426,6 +442,77 @@ export class MySqlActionExecutor {
             ],
           );
           return { items: rows, page, pageSize };
+        }
+        case "admin.dictionary.type.create": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO sys_dictionary_type(type_code,name,description,created_by,updated_by) VALUES(?,?,?,?,?)`,
+            [
+              input.typeCode,
+              input.name,
+              input.description ?? null,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "admin.dictionary.item.create": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO sys_dictionary_item(type_id,item_code,label,value_text,sort_order,created_by,updated_by) VALUES(?,?,?,?,?,?,?)`,
+            [
+              input.typeId,
+              input.itemCode,
+              input.label,
+              input.valueText,
+              input.sortOrder,
+              user.id,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "admin.dictionary.item.update": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE sys_dictionary_item SET label=?,value_text=?,sort_order=?,status=?,updated_by=?,version=version+1 WHERE id=? AND version=?`,
+            [
+              input.label,
+              input.valueText,
+              input.sortOrder,
+              input.status,
+              user.id,
+              input.itemId,
+              input.version,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "DICTIONARY_ITEM_CONFLICT",
+              "字典项已被修改，请刷新后重试",
+              409,
+            );
+          return { id: input.itemId, version: input.version + 1 };
+        }
+        case "admin.approvalNode.update": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE wf_template_node SET node_name=?,position_code=?,minimum_amount=?,maximum_amount=?,is_cc=?,status=?,version=version+1 WHERE id=? AND version=?`,
+            [
+              input.nodeName,
+              input.positionCode,
+              input.minimumAmount,
+              input.maximumAmount,
+              input.isCc,
+              input.status,
+              input.nodeId,
+              input.version,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "APPROVAL_NODE_CONFLICT",
+              "审批节点已被修改，请刷新后重试",
+              409,
+            );
+          return { id: input.nodeId, version: input.version + 1 };
         }
         case "file.list": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),

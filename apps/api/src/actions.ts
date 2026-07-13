@@ -412,6 +412,61 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       })
       .default({ page: 1, pageSize: 20 }),
   },
+  "admin.dictionary.type.create": {
+    permission: "system.admin",
+    input: z.object({
+      typeCode: z
+        .string()
+        .trim()
+        .min(2)
+        .max(64)
+        .regex(/^[A-Z][A-Z0-9_]*$/),
+      name: z.string().trim().min(2).max(128),
+      description: z.string().trim().max(500).nullable().optional(),
+    }),
+  },
+  "admin.dictionary.item.create": {
+    permission: "system.admin",
+    input: z.object({
+      typeId: z.string().min(1),
+      itemCode: z.string().trim().min(1).max(64),
+      label: z.string().trim().min(1).max(128),
+      valueText: z.string().trim().min(1).max(255),
+      sortOrder: z.number().int().min(-10000).max(10000).default(0),
+    }),
+  },
+  "admin.dictionary.item.update": {
+    permission: "system.admin",
+    input: z.object({
+      itemId: z.string().min(1),
+      label: z.string().trim().min(1).max(128),
+      valueText: z.string().trim().min(1).max(255),
+      sortOrder: z.number().int().min(-10000).max(10000),
+      status: z.enum(["ENABLED", "DISABLED"]),
+      version: z.number().int().nonnegative(),
+    }),
+  },
+  "admin.approvalNode.update": {
+    permission: "system.admin",
+    input: z
+      .object({
+        nodeId: z.string().min(1),
+        nodeName: z.string().trim().min(2).max(128),
+        positionCode: z.string().trim().min(2).max(64),
+        minimumAmount: z.number().nonnegative().nullable(),
+        maximumAmount: z.number().nonnegative().nullable(),
+        isCc: z.boolean(),
+        status: z.enum(["ENABLED", "DISABLED"]),
+        version: z.number().int().nonnegative(),
+      })
+      .refine(
+        (value) =>
+          value.minimumAmount == null ||
+          value.maximumAmount == null ||
+          value.maximumAmount >= value.minimumAmount,
+        { message: "最高金额不得低于最低金额", path: ["maximumAmount"] },
+      ),
+  },
   "report.dashboard": {
     permission: "report.financial.read",
     input: z.object({}).default({}),

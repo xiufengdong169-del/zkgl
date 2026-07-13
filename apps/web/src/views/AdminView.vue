@@ -47,6 +47,40 @@ interface ApprovalTemplate {
   status: string;
   nodeCount: number;
 }
+interface ApprovalNode {
+  id: string;
+  templateId: string;
+  nodeOrder: number;
+  nodeName: string;
+  positionCode: string;
+  minimumAmount: number | null;
+  maximumAmount: number | null;
+  isCc: number | boolean;
+  status: "ENABLED" | "DISABLED";
+  version: number;
+}
+interface Position {
+  code: string;
+  name: string;
+}
+interface DictionaryType {
+  id: string;
+  typeCode: string;
+  name: string;
+  description: string | null;
+  status: string;
+  version: number;
+}
+interface DictionaryItem {
+  id: string;
+  typeId: string;
+  itemCode: string;
+  label: string;
+  valueText: string;
+  sortOrder: number;
+  status: "ENABLED" | "DISABLED";
+  version: number;
+}
 interface AuditLog {
   id: string;
   requestId: string;
@@ -65,15 +99,27 @@ const roles = ref<Role[]>([]);
 const users = ref<User[]>([]);
 const numberRules = ref<NumberRule[]>([]);
 const approvalTemplates = ref<ApprovalTemplate[]>([]);
+const approvalNodes = ref<ApprovalNode[]>([]);
+const positions = ref<Position[]>([]);
+const dictionaryTypes = ref<DictionaryType[]>([]);
+const dictionaryItems = ref<DictionaryItem[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
 const error = ref<string | null>(null);
 const saving = ref(false);
-const activeTab = ref<"organization" | "numbers" | "approvals" | "audit">(
-  "organization",
-);
+const activeTab = ref<
+  "organization" | "numbers" | "dictionary" | "approvals" | "audit"
+>("organization");
 const auditKeyword = ref("");
 const auditOutcome = ref("");
 const department = ref({ code: "", name: "" });
+const dictionaryTypeForm = ref({ typeCode: "", name: "", description: "" });
+const dictionaryItemForm = ref({
+  typeId: "",
+  itemCode: "",
+  label: "",
+  valueText: "",
+  sortOrder: 0,
+});
 const employee = ref({
   employeeCode: "",
   name: "",
@@ -95,6 +141,10 @@ async function load() {
       users: User[];
       numberRules: NumberRule[];
       approvalTemplates: ApprovalTemplate[];
+      approvalNodes: ApprovalNode[];
+      positions: Position[];
+      dictionaryTypes: DictionaryType[];
+      dictionaryItems: DictionaryItem[];
     }>("admin.overview", {});
     departments.value = data.departments;
     employees.value = data.employees;
@@ -102,6 +152,10 @@ async function load() {
     users.value = data.users;
     numberRules.value = data.numberRules;
     approvalTemplates.value = data.approvalTemplates;
+    approvalNodes.value = data.approvalNodes;
+    positions.value = data.positions;
+    dictionaryTypes.value = data.dictionaryTypes;
+    dictionaryItems.value = data.dictionaryItems;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -193,6 +247,79 @@ async function saveNumberRule(rule: NumberRule) {
     saving.value = false;
   }
 }
+async function createDictionaryType() {
+  saving.value = true;
+  try {
+    await callApi("admin.dictionary.type.create", {
+      ...dictionaryTypeForm.value,
+      description: dictionaryTypeForm.value.description || null,
+    });
+    dictionaryTypeForm.value = { typeCode: "", name: "", description: "" };
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "字典类型保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function createDictionaryItem() {
+  saving.value = true;
+  try {
+    await callApi("admin.dictionary.item.create", dictionaryItemForm.value);
+    dictionaryItemForm.value = {
+      typeId: dictionaryItemForm.value.typeId,
+      itemCode: "",
+      label: "",
+      valueText: "",
+      sortOrder: 0,
+    };
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "字典项保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function saveDictionaryItem(item: DictionaryItem) {
+  saving.value = true;
+  try {
+    await callApi("admin.dictionary.item.update", {
+      itemId: item.id,
+      label: item.label,
+      valueText: item.valueText,
+      sortOrder: Number(item.sortOrder),
+      status: item.status,
+      version: item.version,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "字典项更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function saveApprovalNode(node: ApprovalNode) {
+  saving.value = true;
+  try {
+    await callApi("admin.approvalNode.update", {
+      nodeId: node.id,
+      nodeName: node.nodeName,
+      positionCode: node.positionCode,
+      minimumAmount:
+        node.minimumAmount == null ? null : Number(node.minimumAmount),
+      maximumAmount:
+        node.maximumAmount == null ? null : Number(node.maximumAmount),
+      isCc: Boolean(node.isCc),
+      status: node.status,
+      version: node.version,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "审批节点更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
 
 async function switchTab(tab: typeof activeTab.value) {
   activeTab.value = tab;
@@ -232,6 +359,7 @@ onMounted(load);
     <nav class="workflow-steps">
       <button @click="switchTab('organization')">组织与权限</button
       ><button @click="switchTab('numbers')">编号规则</button>
+      <button @click="switchTab('dictionary')">数据字典</button>
       <button @click="switchTab('approvals')">审批配置</button
       ><button @click="switchTab('audit')">审计日志</button>
     </nav>
@@ -338,6 +466,90 @@ onMounted(load);
       </table>
     </section>
 
+    <section v-else-if="activeTab === 'dictionary'" class="data-panel">
+      <h2>数据字典</h2>
+      <form class="entity-form" @submit.prevent="createDictionaryType">
+        <h3 class="wide">新增字典类型</h3>
+        <label
+          >类型编码<input
+            v-model="dictionaryTypeForm.typeCode"
+            required
+            pattern="[A-Z][A-Z0-9_]*"
+            placeholder="PROJECT_TYPE" /></label
+        ><label
+          >类型名称<input v-model="dictionaryTypeForm.name" required /></label
+        ><label class="wide"
+          >说明<input v-model="dictionaryTypeForm.description" /></label
+        ><button :disabled="saving">保存类型</button>
+      </form>
+      <form class="entity-form" @submit.prevent="createDictionaryItem">
+        <h3 class="wide">新增字典项</h3>
+        <label
+          >字典类型<select v-model="dictionaryItemForm.typeId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="type in dictionaryTypes"
+              :key="type.id"
+              :value="type.id"
+            >
+              {{ type.name }}（{{ type.typeCode }}）
+            </option>
+          </select></label
+        ><label
+          >项编码<input v-model="dictionaryItemForm.itemCode" required /></label
+        ><label
+          >显示名称<input v-model="dictionaryItemForm.label" required /></label
+        ><label
+          >实际值<input
+            v-model="dictionaryItemForm.valueText"
+            required /></label
+        ><label
+          >排序<input
+            v-model.number="dictionaryItemForm.sortOrder"
+            type="number" /></label
+        ><button :disabled="saving">保存字典项</button>
+      </form>
+      <table v-if="dictionaryItems.length">
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>项编码</th>
+            <th>显示名称</th>
+            <th>实际值</th>
+            <th>排序</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in dictionaryItems" :key="item.id">
+            <td>
+              {{
+                dictionaryTypes.find((type) => type.id === item.typeId)
+                  ?.typeCode
+              }}
+            </td>
+            <td>{{ item.itemCode }}</td>
+            <td><input v-model="item.label" /></td>
+            <td><input v-model="item.valueText" /></td>
+            <td><input v-model.number="item.sortOrder" type="number" /></td>
+            <td>
+              <select v-model="item.status">
+                <option value="ENABLED">启用</option>
+                <option value="DISABLED">停用</option>
+              </select>
+            </td>
+            <td>
+              <button :disabled="saving" @click="saveDictionaryItem(item)">
+                保存
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else>暂无字典项</p>
+    </section>
+
     <section v-else-if="activeTab === 'approvals'" class="data-panel">
       <h2>审批模板</h2>
       <p>审批模板按业务类型预置，节点数量用于核对配置完整性。</p>
@@ -360,6 +572,74 @@ onMounted(load);
             <td>V{{ template.version }}</td>
             <td>{{ template.nodeCount }}</td>
             <td>{{ template.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>审批节点</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>模板</th>
+            <th>顺序</th>
+            <th>节点名称</th>
+            <th>审批岗位</th>
+            <th>最低金额</th>
+            <th>最高金额</th>
+            <th>抄送</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="node in approvalNodes" :key="node.id">
+            <td>
+              {{
+                approvalTemplates.find(
+                  (template) => template.id === node.templateId,
+                )?.templateCode
+              }}
+            </td>
+            <td>{{ node.nodeOrder }}</td>
+            <td><input v-model="node.nodeName" /></td>
+            <td>
+              <select v-model="node.positionCode">
+                <option
+                  v-for="position in positions"
+                  :key="position.code"
+                  :value="position.code"
+                >
+                  {{ position.name }}
+                </option>
+              </select>
+            </td>
+            <td>
+              <input
+                v-model.number="node.minimumAmount"
+                type="number"
+                min="0"
+                step="0.01"
+              />
+            </td>
+            <td>
+              <input
+                v-model.number="node.maximumAmount"
+                type="number"
+                min="0"
+                step="0.01"
+              />
+            </td>
+            <td><input v-model="node.isCc" type="checkbox" /></td>
+            <td>
+              <select v-model="node.status">
+                <option value="ENABLED">启用</option>
+                <option value="DISABLED">停用</option>
+              </select>
+            </td>
+            <td>
+              <button :disabled="saving" @click="saveApprovalNode(node)">
+                保存
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
