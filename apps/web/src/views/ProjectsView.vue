@@ -107,6 +107,20 @@ async function loadDetail(projectId: string) {
     error.value = e instanceof Error ? e.message : "加载详情失败";
   }
 }
+async function submitApplication(item: ApplicationRow) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "PROJECT_APPLICATION",
+      businessId: item.id,
+      title: `项目立项：${item.projectName}`,
+      amount: null,
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交审批失败";
+  }
+}
 const workflow = [
   {
     number: "01",
@@ -326,6 +340,7 @@ const workflow = [
             <th>项目名称</th>
             <th>预计利润</th>
             <th>状态</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -334,6 +349,19 @@ const workflow = [
             <td>{{ item.projectName }}</td>
             <td>{{ item.estimatedProfit }}</td>
             <td>{{ item.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    item.status,
+                  )
+                "
+                class="secondary-button"
+                @click="submitApplication(item)"
+              >
+                提交审批
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>

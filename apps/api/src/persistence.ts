@@ -38,6 +38,8 @@ interface ApprovalTaskRow extends RowDataPacket {
   current_node_order: number;
   applicant_id: string;
   configuration_snapshot: string | object;
+  business_type: string;
+  business_id: string;
 }
 async function allocateNumber(
   connection: PoolConnection,
@@ -61,6 +63,133 @@ async function allocateNumber(
     [year, serial + 1, row.id, row.version],
   );
   return `${row.prefix}-${year}-${String(serial).padStart(row.serial_length, "0")}`;
+}
+
+async function applyBusinessApprovalResult(
+  connection: PoolConnection,
+  businessType: string,
+  businessId: string,
+  status: "APPROVED" | "RETURNED" | "REJECTED" | "WITHDRAWN",
+  actorUserId: string,
+) {
+  const map: Record<
+    string,
+    { table: string; column: string; approved: string }
+  > = {
+    PROJECT_APPLICATION: {
+      table: "prj_project_application",
+      column: "status",
+      approved: "APPROVED",
+    },
+    BID_APPLICATION: {
+      table: "bid_application",
+      column: "status",
+      approved: "PREPARING",
+    },
+    CONTRACT: {
+      table: "con_contract",
+      column: "status",
+      approved: "PENDING_SIGNATURE",
+    },
+    INVOICE_APPLICATION: {
+      table: "fin_invoice_application",
+      column: "status",
+      approved: "APPROVED",
+    },
+    EXPENSE_REIMBURSEMENT: {
+      table: "fin_reimbursement",
+      column: "approval_status",
+      approved: "APPROVED",
+    },
+    PROJECT_PAYMENT: {
+      table: "fin_payment_application",
+      column: "status",
+      approved: "APPROVED",
+    },
+    PARTNER_SETTLEMENT: {
+      table: "partner_settlement",
+      column: "status",
+      approved: "APPROVED",
+    },
+    DAILY_PURCHASE: {
+      table: "fin_daily_purchase",
+      column: "status",
+      approved: "APPROVED",
+    },
+    PROJECT_START: {
+      table: "prj_start",
+      column: "status",
+      approved: "APPROVED",
+    },
+    PROJECT_CLOSE: {
+      table: "prj_close_application",
+      column: "status",
+      approved: "CLOSED",
+    },
+  };
+  const config = map[businessType];
+  if (!config) return;
+  const target = status === "APPROVED" ? config.approved : status;
+  await connection.execute(
+    `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?`,
+    [target, actorUserId, businessId],
+  );
+  if (status !== "APPROVED") return;
+  if (businessType === "PROJECT_APPLICATION") {
+    const [existing] = await connection.execute<RowDataPacket[]>(
+      `SELECT id FROM prj_project WHERE application_id=?`,
+      [businessId],
+    );
+    if (!existing[0]) {
+      const [apps] = await connection.execute<RowDataPacket[]>(
+        `SELECT project_name,customer_id,project_type,service_scope,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=?`,
+        [businessId],
+      );
+      const app = apps[0];
+      if (!app)
+        throw new AppError(
+          "PROJECT_APPLICATION_NOT_FOUND",
+          "立项申请不存在",
+          404,
+        );
+      const code = await allocateNumber(connection, "PROJECT");
+      await connection.execute(
+        `INSERT INTO prj_project(project_code,application_id,project_name,customer_id,project_type,service_scope,project_manager_id,estimated_revenue,estimated_cost,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          code,
+          businessId,
+          app.project_name,
+          app.customer_id,
+          app.project_type,
+          app.service_scope,
+          app.proposed_manager_id,
+          app.estimated_revenue,
+          app.estimated_cost,
+          actorUserId,
+          actorUserId,
+        ],
+      );
+      if (app.source_lead_id)
+        await connection.execute(
+          `UPDATE mkt_lead SET status='CONVERTED',updated_by=?,version=version+1 WHERE id=?`,
+          [actorUserId, app.source_lead_id],
+        );
+    }
+  } else if (businessType === "PARTNER_SETTLEMENT")
+    await connection.execute(
+      `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount WHERE id=?`,
+      [businessId],
+    );
+  else if (businessType === "PROJECT_START")
+    await connection.execute(
+      `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
+      [actorUserId, businessId],
+    );
+  else if (businessType === "PROJECT_CLOSE")
+    await connection.execute(
+      `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      [actorUserId, businessId],
+    );
 }
 
 export class MySqlActionExecutor {
@@ -536,6 +665,211 @@ export class MySqlActionExecutor {
           );
           return { items: rows, page, pageSize };
         }
+        case "approval.instance.submit": {
+          const businessMap: Record<
+            string,
+            { table: string; statusColumn: string }
+          > = {
+            PROJECT_APPLICATION: {
+              table: "prj_project_application",
+              statusColumn: "status",
+            },
+            BID_APPLICATION: {
+              table: "bid_application",
+              statusColumn: "status",
+            },
+            CONTRACT: { table: "con_contract", statusColumn: "status" },
+            INVOICE_APPLICATION: {
+              table: "fin_invoice_application",
+              statusColumn: "status",
+            },
+            EXPENSE_REIMBURSEMENT: {
+              table: "fin_reimbursement",
+              statusColumn: "approval_status",
+            },
+            PROJECT_PAYMENT: {
+              table: "fin_payment_application",
+              statusColumn: "status",
+            },
+            PARTNER_SETTLEMENT: {
+              table: "partner_settlement",
+              statusColumn: "status",
+            },
+            DAILY_PURCHASE: {
+              table: "fin_daily_purchase",
+              statusColumn: "status",
+            },
+            PROJECT_START: { table: "prj_start", statusColumn: "status" },
+            PROJECT_CLOSE: {
+              table: "prj_close_application",
+              statusColumn: "status",
+            },
+          };
+          const config = businessMap[input.businessType];
+          if (!config)
+            throw new AppError(
+              "APPROVAL_BUSINESS_UNSUPPORTED",
+              "不支持的审批业务类型",
+              400,
+            );
+          const [records] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,created_by createdBy,${config.statusColumn} businessStatus FROM ${config.table} WHERE id=? FOR UPDATE`,
+            [input.businessId],
+          );
+          const record = records[0];
+          if (!record)
+            throw new AppError(
+              "APPROVAL_BUSINESS_NOT_FOUND",
+              "待审批业务不存在",
+              404,
+            );
+          if (
+            String(record.createdBy) !== String(user.id) &&
+            !user.roleCodes.includes("ADMIN")
+          )
+            throw new AppError(
+              "APPROVAL_SUBMIT_FORBIDDEN",
+              "仅创建人可提交审批",
+              403,
+            );
+          if (
+            !["DRAFT", "RETURNED", "REJECTED", "WITHDRAWN"].includes(
+              String(record.businessStatus),
+            )
+          )
+            throw new AppError(
+              "APPROVAL_BUSINESS_STATUS_INVALID",
+              "当前业务状态不能提交审批",
+              409,
+            );
+          const [templates] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,template_code code,version FROM wf_template WHERE business_type=? AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
+            [input.businessType],
+          );
+          const template = templates[0];
+          if (!template)
+            throw new AppError(
+              "APPROVAL_TEMPLATE_NOT_FOUND",
+              "审批模板不存在",
+              409,
+            );
+          const [nodeRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT node_order nodeOrder,node_name nodeName,position_code positionCode,minimum_amount minimumAmount,maximum_amount maximumAmount,is_cc isCc FROM wf_template_node WHERE template_id=? AND status='ENABLED' ORDER BY node_order`,
+            [template.id],
+          );
+          const amount = input.amount == null ? null : Number(input.amount),
+            nodes = nodeRows.filter(
+              (node) =>
+                (node.minimumAmount == null ||
+                  (amount != null && amount >= Number(node.minimumAmount))) &&
+                (node.maximumAmount == null ||
+                  (amount != null && amount <= Number(node.maximumAmount))),
+            );
+          const approvalNodes = nodes.filter((n) => !n.isCc);
+          if (!approvalNodes.length)
+            throw new AppError(
+              "APPROVAL_NODES_EMPTY",
+              "审批模板没有适用节点",
+              409,
+            );
+          const firstNode = approvalNodes[0]!;
+          const assignments = new Map<string, string[]>();
+          for (const node of nodes) {
+            if (assignments.has(node.positionCode)) continue;
+            const [people] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(employee_id AS CHAR) employeeId FROM org_position_assignment a JOIN org_position p ON p.id=a.position_id WHERE p.position_code=? AND a.status='ENABLED' AND a.starts_on<=CURDATE() AND (a.ends_on IS NULL OR a.ends_on>=CURDATE())`,
+              [node.positionCode],
+            );
+            if (!people.length && !node.isCc)
+              throw new AppError(
+                "APPROVER_NOT_CONFIGURED",
+                `岗位 ${node.positionCode} 未配置有效任职人员`,
+                409,
+              );
+            assignments.set(
+              node.positionCode,
+              people.map((p) => String(p.employeeId)),
+            );
+          }
+          const snapshot = {
+            templateId: String(template.id),
+            templateCode: template.code,
+            templateVersion: template.version,
+            approvalNodes,
+            ccNodes: nodes.filter((n) => n.isCc),
+          };
+          const [existing] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,status FROM wf_instance WHERE business_type=? AND business_id=? FOR UPDATE`,
+            [input.businessType, input.businessId],
+          );
+          let instanceId: string;
+          if (existing[0]) {
+            if (existing[0].status === "PENDING")
+              throw new AppError(
+                "APPROVAL_ALREADY_PENDING",
+                "业务已在审批中",
+                409,
+              );
+            instanceId = String(existing[0].id);
+            await connection.execute(
+              `UPDATE wf_instance SET title=?,amount=?,applicant_id=?,current_node_order=?,status='PENDING',configuration_snapshot=?,submitted_at=NOW(3),completed_at=NULL,version=version+1 WHERE id=?`,
+              [
+                input.title,
+                amount,
+                user.id,
+                firstNode.nodeOrder,
+                JSON.stringify(snapshot),
+                instanceId,
+              ],
+            );
+            await connection.execute(
+              `UPDATE wf_task SET status='CANCELLED',completed_at=NOW(3) WHERE instance_id=? AND status IN('PENDING','WAITING')`,
+              [instanceId],
+            );
+          } else {
+            const code = `WF-${crypto.randomUUID()}`;
+            const [result] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO wf_instance(instance_code,template_id,business_type,business_id,title,amount,applicant_id,current_node_order,configuration_snapshot,submitted_at) VALUES(?,?,?,?,?,?,?,?,?,NOW(3))`,
+              [
+                code,
+                template.id,
+                input.businessType,
+                input.businessId,
+                input.title,
+                amount,
+                user.id,
+                firstNode.nodeOrder,
+                JSON.stringify(snapshot),
+              ],
+            );
+            instanceId = String(result.insertId);
+          }
+          for (const node of approvalNodes)
+            for (const employeeId of assignments.get(node.positionCode) ?? [])
+              await connection.execute(
+                `INSERT INTO wf_task(instance_id,node_order,position_code,assignee_id,status,assigned_at) VALUES(?,?,?,?,?,NOW(3)) ON DUPLICATE KEY UPDATE position_code=VALUES(position_code),status=VALUES(status),assigned_at=NOW(3),completed_at=NULL,completed_by=NULL`,
+                [
+                  instanceId,
+                  node.nodeOrder,
+                  node.positionCode,
+                  employeeId,
+                  node.nodeOrder === firstNode.nodeOrder
+                    ? "PENDING"
+                    : "WAITING",
+                ],
+              );
+          for (const node of nodes.filter((n) => n.isCc))
+            for (const employeeId of assignments.get(node.positionCode) ?? [])
+              await connection.execute(
+                `INSERT IGNORE INTO wf_cc_recipient(instance_id,position_code,recipient_id) VALUES(?,?,?)`,
+                [instanceId, node.positionCode, employeeId],
+              );
+          await connection.execute(
+            `UPDATE ${config.table} SET ${config.statusColumn}='APPROVAL_PENDING',approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?`,
+            [instanceId, user.id, input.businessId],
+          );
+          return { instanceId, status: "PENDING" };
+        }
         case "approval.task.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number;
@@ -558,7 +892,8 @@ export class MySqlActionExecutor {
           if (existing[0]) return { idempotent: true };
           const [rows] = await connection.execute<ApprovalTaskRow[]>(
             `SELECT CAST(t.id AS CHAR) task_id,CAST(t.instance_id AS CHAR) instance_id,t.node_order,CAST(t.assignee_id AS CHAR) assignee_id,
-                    t.status task_status,i.status instance_status,i.current_node_order,CAST(i.applicant_id AS CHAR) applicant_id,i.configuration_snapshot
+                    t.status task_status,i.status instance_status,i.current_node_order,CAST(i.applicant_id AS CHAR) applicant_id,i.configuration_snapshot,
+                    i.business_type,CAST(i.business_id AS CHAR) business_id
                FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.id=? FOR UPDATE`,
             [input.taskId],
           );
@@ -602,12 +937,19 @@ export class MySqlActionExecutor {
               [task.instance_id, task.node_order],
             );
             const next = nextRows[0]?.next_order as number | null;
-            if (next == null)
+            if (next == null) {
               await connection.execute(
                 `UPDATE wf_instance SET status='APPROVED',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,
                 [task.instance_id],
               );
-            else {
+              await applyBusinessApprovalResult(
+                connection,
+                task.business_type,
+                task.business_id,
+                "APPROVED",
+                user.id,
+              );
+            } else {
               await connection.execute(
                 `UPDATE wf_task SET status='PENDING',assigned_at=NOW(3) WHERE instance_id=? AND node_order=? AND status='WAITING'`,
                 [task.instance_id, next],
@@ -627,6 +969,13 @@ export class MySqlActionExecutor {
               `UPDATE wf_instance SET status=?,current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,
               [status, task.instance_id],
             );
+            await applyBusinessApprovalResult(
+              connection,
+              task.business_type,
+              task.business_id,
+              status,
+              user.id,
+            );
           }
           return { idempotent: false, status: input.action };
         }
@@ -637,7 +986,7 @@ export class MySqlActionExecutor {
           );
           if (existing[0]) return { idempotent: true };
           const [instances] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status FROM wf_instance WHERE id=? FOR UPDATE`,
+            `SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status,business_type businessType,CAST(business_id AS CHAR) businessId FROM wf_instance WHERE id=? FOR UPDATE`,
             [input.instanceId],
           );
           const instance = instances[0];
@@ -668,6 +1017,13 @@ export class MySqlActionExecutor {
           await connection.execute(
             `UPDATE wf_instance SET status='WITHDRAWN',current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,
             [input.instanceId],
+          );
+          await applyBusinessApprovalResult(
+            connection,
+            instance.businessType,
+            instance.businessId,
+            "WITHDRAWN",
+            user.id,
           );
           return { idempotent: false, status: "WITHDRAWN" };
         }
@@ -712,20 +1068,204 @@ export class MySqlActionExecutor {
           };
         }
         case "finance.documents": {
-          const projectId=(input.projectId as string|undefined)??null,all=user.dataScopes.some(scope=>scope.type==="ALL"),access=`(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
-          const[applications]=await connection.execute<RowDataPacket[]>(`SELECT CAST(x.id AS CHAR) id,x.application_code code,x.project_id projectId,x.contract_id contractId,x.requested_amount requestedAmount,x.status FROM fin_invoice_application x WHERE x.is_deleted=0 AND x.status='APPROVED' AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId]);
-          const[receipts]=await connection.execute<RowDataPacket[]>(`SELECT CAST(x.id AS CHAR) id,x.receipt_code code,x.project_id projectId,x.contract_id contractId,x.amount,x.receipt_type receiptType,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.receipt_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId]);
-          const[invoices]=await connection.execute<RowDataPacket[]>(`SELECT CAST(x.id AS CHAR) id,x.invoice_number invoiceNumber,x.project_id projectId,x.contract_id contractId,x.tax_inclusive_amount amount,x.status,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.invoice_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,[projectId,projectId,all?1:0,user.employeeId,user.employeeId]);return{applications,receipts,invoices};
+          const projectId = (input.projectId as string | undefined) ?? null,
+            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const [applications] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.application_code code,x.project_id projectId,x.contract_id contractId,x.requested_amount requestedAmount,x.status FROM fin_invoice_application x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
+            [
+              projectId,
+              projectId,
+              all ? 1 : 0,
+              user.employeeId,
+              user.employeeId,
+            ],
+          );
+          const [receipts] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.receipt_code code,x.project_id projectId,x.contract_id contractId,x.amount,x.receipt_type receiptType,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.receipt_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
+            [
+              projectId,
+              projectId,
+              all ? 1 : 0,
+              user.employeeId,
+              user.employeeId,
+            ],
+          );
+          const [invoices] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(x.id AS CHAR) id,x.invoice_number invoiceNumber,x.project_id projectId,x.contract_id contractId,x.tax_inclusive_amount amount,x.status,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.invoice_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
+            [
+              projectId,
+              projectId,
+              all ? 1 : 0,
+              user.employeeId,
+              user.employeeId,
+            ],
+          );
+          return { applications, receipts, invoices };
         }
         case "sales.invoice.create": {
-          const[applications]=await connection.execute<RowDataPacket[]>(`SELECT id,project_id projectId,contract_id contractId,requested_amount requestedAmount,status FROM fin_invoice_application WHERE id=? AND is_deleted=0 FOR UPDATE`,[input.applicationId]);const application=applications[0];if(!application||application.status!=="APPROVED")throw new AppError("INVOICE_APPLICATION_NOT_APPROVED","只有审批通过的开票申请才能完成开票",409);
-          const[applicationUsed]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE application_id=? AND is_reversed=0`,[input.applicationId]);if(Number(applicationUsed[0]?.amount??0)+Number(input.taxInclusiveAmount)>Number(application.requestedAmount))throw new AppError("INVOICE_APPLICATION_AMOUNT_EXCEEDED","开票金额超过申请额度",409);
-          const[contracts]=await connection.execute<RowDataPacket[]>(`SELECT tax_inclusive_amount amount FROM con_contract WHERE id=? FOR UPDATE`,[application.contractId]),[contractUsed]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,[application.contractId]);if(Number(contractUsed[0]?.amount??0)+Number(input.taxInclusiveAmount)>Number(contracts[0]?.amount??0))throw new AppError("INVOICE_CAPACITY_EXCEEDED","开票金额超过合同可开票余额",409);
-          const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_sales_invoice(application_id,project_id,contract_id,invoice_number,invoice_code,invoiced_on,tax_inclusive_amount,tax_exclusive_amount,tax_amount,buyer_name,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,[input.applicationId,application.projectId,application.contractId,input.invoiceNumber,input.invoiceCode??null,input.invoicedOn,input.taxInclusiveAmount,input.taxExclusiveAmount,input.taxAmount,input.buyerName,user.id,user.id]);const completed=Number(applicationUsed[0]?.amount??0)+Number(input.taxInclusiveAmount)>=Number(application.requestedAmount);if(completed)await connection.execute(`UPDATE fin_invoice_application SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=?`,[user.id,input.applicationId]);return{id:String(result.insertId),applicationCompleted:completed};
+          const [applications] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,project_id projectId,contract_id contractId,requested_amount requestedAmount,status FROM fin_invoice_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.applicationId],
+          );
+          const application = applications[0];
+          if (!application || application.status !== "APPROVED")
+            throw new AppError(
+              "INVOICE_APPLICATION_NOT_APPROVED",
+              "只有审批通过的开票申请才能完成开票",
+              409,
+            );
+          const [applicationUsed] = await connection.execute<RowDataPacket[]>(
+            `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE application_id=? AND is_reversed=0`,
+            [input.applicationId],
+          );
+          if (
+            Number(applicationUsed[0]?.amount ?? 0) +
+              Number(input.taxInclusiveAmount) >
+            Number(application.requestedAmount)
+          )
+            throw new AppError(
+              "INVOICE_APPLICATION_AMOUNT_EXCEEDED",
+              "开票金额超过申请额度",
+              409,
+            );
+          const [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT tax_inclusive_amount amount FROM con_contract WHERE id=? FOR UPDATE`,
+              [application.contractId],
+            ),
+            [contractUsed] = await connection.execute<RowDataPacket[]>(
+              `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,
+              [application.contractId],
+            );
+          if (
+            Number(contractUsed[0]?.amount ?? 0) +
+              Number(input.taxInclusiveAmount) >
+            Number(contracts[0]?.amount ?? 0)
+          )
+            throw new AppError(
+              "INVOICE_CAPACITY_EXCEEDED",
+              "开票金额超过合同可开票余额",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO fin_sales_invoice(application_id,project_id,contract_id,invoice_number,invoice_code,invoiced_on,tax_inclusive_amount,tax_exclusive_amount,tax_amount,buyer_name,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              input.applicationId,
+              application.projectId,
+              application.contractId,
+              input.invoiceNumber,
+              input.invoiceCode ?? null,
+              input.invoicedOn,
+              input.taxInclusiveAmount,
+              input.taxExclusiveAmount,
+              input.taxAmount,
+              input.buyerName,
+              user.id,
+              user.id,
+            ],
+          );
+          const completed =
+            Number(applicationUsed[0]?.amount ?? 0) +
+              Number(input.taxInclusiveAmount) >=
+            Number(application.requestedAmount);
+          if (completed)
+            await connection.execute(
+              `UPDATE fin_invoice_application SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=?`,
+              [user.id, input.applicationId],
+            );
+          return {
+            id: String(result.insertId),
+            applicationCompleted: completed,
+          };
         }
         case "receipt.invoice.allocate": {
-          const[receipts]=await connection.execute<RowDataPacket[]>(`SELECT id,project_id projectId,contract_id contractId,amount,receipt_type receiptType FROM fin_receipt WHERE id=? AND status='ACTIVE' FOR UPDATE`,[input.receiptId]),[invoices]=await connection.execute<RowDataPacket[]>(`SELECT id,project_id projectId,contract_id contractId,tax_inclusive_amount amount FROM fin_sales_invoice WHERE id=? AND is_reversed=0 FOR UPDATE`,[input.invoiceId]);const receipt=receipts[0],invoice=invoices[0];if(!receipt||!invoice)throw new AppError("ALLOCATION_OBJECT_NOT_FOUND","收款或发票不存在",404);if(receipt.receiptType==="ADVANCE")throw new AppError("ADVANCE_RECEIPT_NOT_ALLOCATABLE","预收款暂不允许核销发票",409);if(String(receipt.projectId)!==String(invoice.projectId)||String(receipt.contractId)!==String(invoice.contractId))throw new AppError("ALLOCATION_BUSINESS_MISMATCH","收款与发票必须属于同一项目和合同",409);
-          const[receiptUsed]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE receipt_id=? AND status='ACTIVE'`,[input.receiptId]),[invoiceUsed]=await connection.execute<RowDataPacket[]>(`SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE invoice_id=? AND status='ACTIVE'`,[input.invoiceId]);if(Number(input.allocationAmount)>Number(receipt.amount)-Number(receiptUsed[0]?.amount??0))throw new AppError("RECEIPT_BALANCE_EXCEEDED","核销金额超过收款未分配余额",409);if(Number(input.allocationAmount)>Number(invoice.amount)-Number(invoiceUsed[0]?.amount??0))throw new AppError("INVOICE_BALANCE_EXCEEDED","核销金额超过发票未核销余额",409);const[result]=await connection.execute<ResultSetHeader>(`INSERT INTO fin_receipt_invoice_allocation(receipt_id,invoice_id,allocated_amount,allocated_on,operator_id) VALUES(?,?,?,?,?)`,[input.receiptId,input.invoiceId,input.allocationAmount,input.allocatedOn,user.employeeId]);const total=Number(invoiceUsed[0]?.amount??0)+Number(input.allocationAmount),status=total>=Number(invoice.amount)?"ALLOCATED":"PARTIALLY_ALLOCATED";await connection.execute(`UPDATE fin_sales_invoice SET status=?,updated_by=?,version=version+1 WHERE id=?`,[status,user.id,input.invoiceId]);return{id:String(result.insertId),invoiceStatus:status,receiptRemaining:Number(receipt.amount)-Number(receiptUsed[0]?.amount??0)-Number(input.allocationAmount),invoiceRemaining:Number(invoice.amount)-total};
+          const [receipts] = await connection.execute<RowDataPacket[]>(
+              `SELECT id,project_id projectId,contract_id contractId,amount,receipt_type receiptType FROM fin_receipt WHERE id=? AND status='ACTIVE' FOR UPDATE`,
+              [input.receiptId],
+            ),
+            [invoices] = await connection.execute<RowDataPacket[]>(
+              `SELECT id,project_id projectId,contract_id contractId,tax_inclusive_amount amount FROM fin_sales_invoice WHERE id=? AND is_reversed=0 FOR UPDATE`,
+              [input.invoiceId],
+            );
+          const receipt = receipts[0],
+            invoice = invoices[0];
+          if (!receipt || !invoice)
+            throw new AppError(
+              "ALLOCATION_OBJECT_NOT_FOUND",
+              "收款或发票不存在",
+              404,
+            );
+          if (receipt.receiptType === "ADVANCE")
+            throw new AppError(
+              "ADVANCE_RECEIPT_NOT_ALLOCATABLE",
+              "预收款暂不允许核销发票",
+              409,
+            );
+          if (
+            String(receipt.projectId) !== String(invoice.projectId) ||
+            String(receipt.contractId) !== String(invoice.contractId)
+          )
+            throw new AppError(
+              "ALLOCATION_BUSINESS_MISMATCH",
+              "收款与发票必须属于同一项目和合同",
+              409,
+            );
+          const [receiptUsed] = await connection.execute<RowDataPacket[]>(
+              `SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE receipt_id=? AND status='ACTIVE'`,
+              [input.receiptId],
+            ),
+            [invoiceUsed] = await connection.execute<RowDataPacket[]>(
+              `SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE invoice_id=? AND status='ACTIVE'`,
+              [input.invoiceId],
+            );
+          if (
+            Number(input.allocationAmount) >
+            Number(receipt.amount) - Number(receiptUsed[0]?.amount ?? 0)
+          )
+            throw new AppError(
+              "RECEIPT_BALANCE_EXCEEDED",
+              "核销金额超过收款未分配余额",
+              409,
+            );
+          if (
+            Number(input.allocationAmount) >
+            Number(invoice.amount) - Number(invoiceUsed[0]?.amount ?? 0)
+          )
+            throw new AppError(
+              "INVOICE_BALANCE_EXCEEDED",
+              "核销金额超过发票未核销余额",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO fin_receipt_invoice_allocation(receipt_id,invoice_id,allocated_amount,allocated_on,operator_id) VALUES(?,?,?,?,?)`,
+            [
+              input.receiptId,
+              input.invoiceId,
+              input.allocationAmount,
+              input.allocatedOn,
+              user.employeeId,
+            ],
+          );
+          const total =
+              Number(invoiceUsed[0]?.amount ?? 0) +
+              Number(input.allocationAmount),
+            status =
+              total >= Number(invoice.amount)
+                ? "ALLOCATED"
+                : "PARTIALLY_ALLOCATED";
+          await connection.execute(
+            `UPDATE fin_sales_invoice SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            [status, user.id, input.invoiceId],
+          );
+          return {
+            id: String(result.insertId),
+            invoiceStatus: status,
+            receiptRemaining:
+              Number(receipt.amount) -
+              Number(receiptUsed[0]?.amount ?? 0) -
+              Number(input.allocationAmount),
+            invoiceRemaining: Number(invoice.amount) - total,
+          };
         }
         case "invoice.application.create": {
           const [contracts] = await connection.execute<RowDataPacket[]>(

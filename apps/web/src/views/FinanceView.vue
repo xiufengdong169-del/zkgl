@@ -17,6 +17,7 @@ interface InvoiceApplication {
   projectId: string;
   contractId: string;
   requestedAmount: string;
+  status: string;
 }
 interface ReceiptDocument {
   id: string;
@@ -226,6 +227,20 @@ async function createSalesInvoice() {
     saving.value = false;
   }
 }
+async function submitInvoiceApplication(item: InvoiceApplication) {
+  error.value = null;
+  try {
+    await callApi("approval.instance.submit", {
+      businessType: "INVOICE_APPLICATION",
+      businessId: item.id,
+      title: `开票申请：${item.code}`,
+      amount: Number(item.requestedAmount),
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提交审批失败";
+  }
+}
 async function allocateReceipt() {
   saving.value = true;
   error.value = null;
@@ -354,6 +369,39 @@ async function createPurchase() {
         <strong>¥ {{ summary.paidAmount }}</strong
         ><small>实际经营付款</small>
       </article>
+    </section>
+    <section v-if="invoiceApplications.length" class="data-panel">
+      <h2>开票申请</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>编号</th>
+            <th>金额</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in invoiceApplications" :key="a.id">
+            <td>{{ a.code }}</td>
+            <td>{{ a.requestedAmount }}</td>
+            <td>{{ a.status }}</td>
+            <td>
+              <button
+                v-if="
+                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
+                    a.status,
+                  )
+                "
+                class="secondary-button"
+                @click="submitInvoiceApplication(a)"
+              >
+                提交审批
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </section>
     <form
       v-if="mode === 'INVOICE'"
@@ -498,7 +546,13 @@ async function createPurchase() {
       <label
         >已审批开票申请<select v-model="salesInvoice.applicationId" required>
           <option value="" disabled>请选择</option>
-          <option v-for="a in invoiceApplications" :key="a.id" :value="a.id">
+          <option
+            v-for="a in invoiceApplications.filter(
+              (x) => x.status === 'APPROVED',
+            )"
+            :key="a.id"
+            :value="a.id"
+          >
             {{ a.code }} · ¥{{ a.requestedAmount }}
           </option>
         </select></label
