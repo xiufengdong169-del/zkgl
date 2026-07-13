@@ -39,6 +39,12 @@ describe("empty database initialization schema", () => {
     expect(schema).not.toMatch(/schema_migration|migration_version/i);
   });
 
+  it("内部账号与人员、CloudBase UID 均为一对一映射", () => {
+    expect(schema).toMatch(/cloudbase_uid VARCHAR\(128\) NOT NULL UNIQUE/);
+    expect(schema).toContain("UNIQUE KEY uk_iam_user_employee (employee_id)");
+    expect(schema).not.toMatch(/password|password_hash|password_salt/i);
+  });
+
   it("保证金缴纳和没收损失均配置审批模板与状态字段", () => {
     expect(schema).toContain("('DEPOSIT_PAYMENT', '保证金缴纳', 'DEPOSIT'");
     expect(schema).toContain(

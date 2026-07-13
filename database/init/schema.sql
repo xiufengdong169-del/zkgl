@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS iam_user (
   is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_iam_user_department FOREIGN KEY (department_id) REFERENCES org_department(id),
-  INDEX idx_iam_user_employee (employee_id)
+  UNIQUE KEY uk_iam_user_employee (employee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS iam_role (

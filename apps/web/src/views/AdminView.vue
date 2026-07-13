@@ -23,7 +23,9 @@ interface Role {
 interface User {
   id: string;
   username: string;
+  cloudbaseUid: string;
   employeeName: string;
+  status: "ENABLED" | "DISABLED";
   roleNames?: string;
   roleIds?: string;
 }
@@ -117,6 +119,7 @@ const dictionaryTypes = ref<DictionaryType[]>([]);
 const dictionaryItems = ref<DictionaryItem[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
 const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
 const saving = ref(false);
 const activeTab = ref<
   "organization" | "numbers" | "dictionary" | "approvals" | "audit"
@@ -148,6 +151,12 @@ const employee = ref({
   mobile: "",
   email: "",
   joinedOn: "",
+});
+const account = ref({
+  employeeId: "",
+  username: "",
+  cloudbaseUid: "",
+  roleIds: [] as string[],
 });
 
 async function load() {
@@ -239,6 +248,25 @@ async function createEmployee() {
   }
 }
 
+async function createAccount() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.user.create", account.value);
+    account.value = {
+      employeeId: "",
+      username: "",
+      cloudbaseUid: "",
+      roleIds: [],
+    };
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "账号创建失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function createPositionAssignment() {
   saving.value = true;
   try {
@@ -274,6 +302,25 @@ async function setRoles(user: User, event: Event) {
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "授权失败";
+  }
+}
+
+async function toggleUserStatus(item: User) {
+  error.value = null;
+  notice.value = null;
+  try {
+    const result = await callApi<{ cloudbaseSyncRequired: boolean }>(
+      "admin.user.status",
+      {
+        userId: item.id,
+        status: item.status === "ENABLED" ? "DISABLED" : "ENABLED",
+      },
+    );
+    if (result.cloudbaseSyncRequired)
+      notice.value = "内部账号状态已更新；请同步更新云开发身份账号状态。";
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "账号状态更新失败";
   }
 }
 
@@ -385,6 +432,7 @@ onMounted(load);
       </div>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="notice" class="notice">{{ notice }}</p>
     <section class="contract-panels">
       <article>
         <p>部门</p>
@@ -448,6 +496,42 @@ onMounted(load);
         ><label>邮箱<input v-model="employee.email" type="email" /></label
         ><label>入职日<input v-model="employee.joinedOn" type="date" /></label
         ><button :disabled="saving">保存人员</button>
+      </form>
+      <form class="entity-form" @submit.prevent="createAccount">
+        <h2 class="wide">关联登录账号</h2>
+        <label
+          >人员<select v-model="account.employeeId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="person in employees"
+              :key="person.id"
+              :value="person.id"
+            >
+              {{ person.name }}（{{ person.employeeCode }}）
+            </option>
+          </select></label
+        ><label
+          >登录账号<input
+            v-model="account.username"
+            required
+            minlength="3"
+            maxlength="64" /></label
+        ><label
+          >云开发 UID<input
+            v-model="account.cloudbaseUid"
+            required
+            minlength="6"
+            maxlength="128" /></label
+        ><label
+          >初始角色<select v-model="account.roleIds" multiple required>
+            <option v-for="role in roles" :key="role.id" :value="role.id">
+              {{ role.name }}
+            </option>
+          </select></label
+        ><button :disabled="saving">保存账号映射</button>
+        <p class="wide muted">
+          密码仅由云开发身份服务管理，本系统不接收或保存密码。
+        </p>
       </form>
       <form class="entity-form" @submit.prevent="createPositionAssignment">
         <h2 class="wide">审批岗位任职</h2>
@@ -516,7 +600,8 @@ onMounted(load);
         <article v-for="item in users" :key="item.id" class="data-row">
           <div>
             <strong>{{ item.employeeName }} · {{ item.username }}</strong>
-            <p>{{ item.roleNames || "未授权" }}</p>
+            <p>{{ item.roleNames || "未授权" }} · {{ item.status }}</p>
+            <small>UID：{{ item.cloudbaseUid }}</small>
           </div>
           <select
             multiple
@@ -527,6 +612,9 @@ onMounted(load);
               {{ role.name }}
             </option>
           </select>
+          <button type="button" @click="toggleUserStatus(item)">
+            {{ item.status === "ENABLED" ? "停用" : "启用" }}
+          </button>
         </article>
       </section>
     </template>

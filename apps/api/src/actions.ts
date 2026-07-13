@@ -521,6 +521,27 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       roleIds: z.array(z.string().min(1)).max(20),
     }),
   },
+  "admin.user.create": {
+    permission: "system.admin",
+    input: z.object({
+      employeeId: z.string().min(1),
+      username: z
+        .string()
+        .trim()
+        .min(3)
+        .max(64)
+        .regex(/^[A-Za-z0-9._@-]+$/, "账号只能包含字母、数字和 . _ @ -"),
+      cloudbaseUid: z.string().trim().min(6).max(128),
+      roleIds: z.array(z.string().min(1)).min(1).max(20),
+    }),
+  },
+  "admin.user.status": {
+    permission: "system.admin",
+    input: z.object({
+      userId: z.string().min(1),
+      status: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
   "admin.numberRule.update": {
     permission: "system.admin",
     input: z.object({

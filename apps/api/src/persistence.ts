@@ -21,6 +21,7 @@ import { resolveContractAmountStatus } from "./contracts.js";
 import { assertProjectApplicationEditable } from "./project-applications.js";
 import { validatePaymentSource } from "./finance.js";
 import { refreshReminders } from "./reminders.js";
+import { assertAccountStatusChangeAllowed } from "./accounts.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -426,7 +427,7 @@ export class MySqlActionExecutor {
               `SELECT id,code,name,status FROM iam_role WHERE is_deleted=0 ORDER BY id`,
             ),
             [users] = await connection.execute<RowDataPacket[]>(
-              `SELECT u.id,u.username,u.cloudbase_uid cloudbaseUid,u.status,e.name employeeName,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(r.id ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 200`,
+              `SELECT u.id,u.username,u.cloudbase_uid cloudbaseUid,u.status,u.last_synced_at lastSyncedAt,e.name employeeName,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(r.id ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 200`,
             );
           const [numberRules] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(id AS CHAR) id,rule_code ruleCode,prefix,year_pattern yearPattern,serial_length serialLength,next_serial nextSerial,current_year currentYear,status,version FROM sys_number_rule ORDER BY rule_code`,
@@ -557,6 +558,82 @@ export class MySqlActionExecutor {
               [input.userId, roleId],
             );
           return { userId: input.userId, roleCount: input.roleIds.length };
+        }
+        case "admin.user.create": {
+          const [employees] = await connection.execute<RowDataPacket[]>(
+            `SELECT e.id,e.department_id FROM org_employee e LEFT JOIN iam_user u ON u.employee_id=e.id AND u.is_deleted=0 WHERE e.id=? AND e.is_deleted=0 AND e.account_status='ENABLED' AND u.id IS NULL FOR UPDATE`,
+            [input.employeeId],
+          );
+          if (!employees[0])
+            throw new AppError(
+              "EMPLOYEE_ACCOUNT_UNAVAILABLE",
+              "人员不存在、已停用或已经关联账号",
+              409,
+            );
+          const roleIds = [...new Set(input.roleIds as string[])];
+          const placeholders = roleIds.map(() => "?").join(",");
+          const [validRoles] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM iam_role WHERE id IN (${placeholders}) AND status='ENABLED' AND is_deleted=0`,
+            roleIds,
+          );
+          if (validRoles.length !== roleIds.length)
+            throw new AppError("ROLE_INVALID", "所选角色不存在或已停用", 409);
+          const [duplicates] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM iam_user WHERE (username=? OR cloudbase_uid=?) AND is_deleted=0 FOR UPDATE`,
+            [input.username, input.cloudbaseUid],
+          );
+          if (duplicates[0])
+            throw new AppError(
+              "ACCOUNT_MAPPING_EXISTS",
+              "登录账号或 CloudBase UID 已被关联",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO iam_user(cloudbase_uid,employee_id,department_id,username,status,last_synced_at) VALUES(?,?,?,?, 'ENABLED',NOW(3))`,
+            [
+              input.cloudbaseUid,
+              input.employeeId,
+              employees[0].department_id,
+              input.username,
+            ],
+          );
+          for (const roleId of roleIds)
+            await connection.execute(
+              `INSERT INTO iam_user_role(user_id,role_id) VALUES(?,?)`,
+              [result.insertId, roleId],
+            );
+          return {
+            id: String(result.insertId),
+            username: input.username,
+            cloudbaseUid: input.cloudbaseUid,
+          };
+        }
+        case "admin.user.status": {
+          const [targets] = await connection.execute<RowDataPacket[]>(
+            `SELECT u.id,u.status,EXISTS(SELECT 1 FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN') isAdmin FROM iam_user u WHERE u.id=? AND u.is_deleted=0 FOR UPDATE`,
+            [input.userId],
+          );
+          if (!targets[0])
+            throw new AppError("USER_NOT_FOUND", "账号不存在", 404);
+          const [adminCounts] = await connection.execute<RowDataPacket[]>(
+            `SELECT COUNT(DISTINCT u.id) count FROM iam_user u JOIN iam_user_role ur ON ur.user_id=u.id JOIN iam_role r ON r.id=ur.role_id WHERE u.status='ENABLED' AND u.is_deleted=0 AND r.code='ADMIN'`,
+          );
+          assertAccountStatusChangeAllowed({
+            targetUserId: String(targets[0].id),
+            actorUserId: user.id,
+            nextStatus: input.status,
+            targetIsAdmin: Number(targets[0].isAdmin) === 1,
+            enabledAdminCount: Number(adminCounts[0]?.count ?? 0),
+          });
+          await connection.execute(
+            `UPDATE iam_user u JOIN org_employee e ON e.id=u.employee_id SET u.status=?,u.version=u.version+1,e.account_status=?,e.updated_by=?,e.version=e.version+1 WHERE u.id=?`,
+            [input.status, input.status, user.id, input.userId],
+          );
+          return {
+            userId: input.userId,
+            status: input.status,
+            cloudbaseSyncRequired: true,
+          };
         }
         case "admin.numberRule.update": {
           const [result] = await connection.execute<ResultSetHeader>(

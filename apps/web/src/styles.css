@@ -7,6 +7,7 @@ button, input { font: inherit; }
 .eyebrow { margin: 0 0 8px; color: #356cad; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
 h1 { margin: 0; font-size: 28px; }
 .muted { margin: 10px 0 28px; color: #6c778b; }
+.notice { margin: 0 0 18px; padding: 12px 16px; border: 1px solid #f0c36d; border-radius: 8px; background: #fff8e6; color: #805b12; }
 label { display: grid; gap: 8px; margin-top: 18px; color: #344056; font-weight: 650; }
 input { width: 100%; padding: 12px 14px; border: 1px solid #cdd7e5; border-radius: 9px; outline: none; }
 input:focus { border-color: #3975bd; box-shadow: 0 0 0 3px rgba(57,117,189,.13); }
