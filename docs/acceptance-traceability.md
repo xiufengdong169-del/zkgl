@@ -4,7 +4,7 @@
 
 最后复核日期：2026-07-16。
 
-## 自动化验收覆盖
+## 自动化与现场验收覆盖
 
 | 验收项 | 验收重点 | 主要自动化覆盖 |
 | --- | --- | --- |
@@ -21,8 +21,8 @@
 | AC-11 | 历史结算快照不受后续方案修改影响 | `apps/api/src/settlements.test.ts` |
 | AC-12 | 无关项目详情、导出和附件地址均按数据范围拒绝并审计 | `apps/api/src/handler.test.ts` |
 | AC-13 | 暂定金额经金额变更审批后转为已确认 | `apps/api/src/contracts.test.ts` |
-| AC-14 | 普通结项必须通过验收归档且不存在遗留事项 | `apps/api/src/settlements.test.ts` |
-| AC-15 | 带遗留事项结项必须完整登记事项且最终特批人为公司负责人 | `apps/api/src/settlements.test.ts` |
+| AC-14 | 30 用户在基准数据量下混合查询、保存和审批，95% 请求满足 V2.2 性能阈值且无重复审批或越权 | `docs/operations-acceptance.md` 现场负载验收 |
+| AC-15 | 存在未收款、未退保证金和未关闭问题时普通结项被阻止；带遗留事项必须完整登记且最终特批人为公司负责人 | `apps/api/src/settlements.test.ts` |
 
 ## 交付前必跑命令
 
@@ -47,7 +47,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 40 个测试文件 / 147 条测试通过；Web 6 个测试文件 / 19 条测试通过。
+- `npm run test`：API 41 个测试文件 / 148 条测试通过；Web 6 个测试文件 / 19 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
