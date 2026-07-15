@@ -33,3 +33,10 @@ tcb fn trigger create -e cloudbase-d7gc2b32cd4196059
 `zkgl-reminder` 使用 CloudBase 七段 Cron `0 0 8 * * * *` 每日触发。部署后在控制台核对触发器时区和最近执行日志，并在云函数权限控制中禁止客户端调用 `zkgl-reminder`；CloudBase 定时触发器不受客户端安全规则影响，仍可正常执行。`cloudbaserc.json` 不包含数据库密码或 API Key。
 
 前端构建前设置浏览器可公开变量：`VITE_CLOUDBASE_ENV_ID`、`VITE_CLOUDBASE_REGION`、真实 Publishable Key 和部署后的 `VITE_API_BASE_URL`。API Key、SecretKey 和数据库密码禁止使用 `VITE_` 前缀。
+
+## Export worker
+
+`npm run build:function` also prepares `functions/zkgl-export-worker`.
+Deploy it as an event function together with `zkgl-api` and `zkgl-reminder`, then create a CloudBase timer trigger named `zkglExportWorker`.
+Recommended schedule: every 5 minutes, for example CloudBase seven-field cron `0 */5 * * * * *`.
+Only the timer should invoke `zkgl-export-worker`; do not expose it through the client HTTP API.

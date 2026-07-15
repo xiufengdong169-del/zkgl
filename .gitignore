@@ -23,3 +23,4 @@ npm-debug.log*
 # Generated CloudBase function package
 functions/zkgl-api/
 functions/zkgl-reminder/
+functions/zkgl-export-worker/

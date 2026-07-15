@@ -1,6 +1,7 @@
-﻿import type { SessionUser } from "@zkgl/shared";
+import type { SessionUser } from "@zkgl/shared";
 import { describe, expect, it } from "vitest";
 
+import { processPendingProjectExportTasks } from "./export-tasks.js";
 import { MySqlActionExecutor } from "./persistence.js";
 
 const user: SessionUser = {
@@ -53,5 +54,47 @@ describe("export task persistence", () => {
     expect(connection.calls.some((sql) => sql.startsWith("INSERT INTO sys_export_task"))).toBe(true);
     expect(connection.calls.some((sql) => sql.includes("project_code projectCode"))).toBe(false);
     expect(connection.calls).toContain("COMMIT");
+  });
+});
+
+function exportWorkerConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM sys_export_task"))
+        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }] }) }], []];
+      if (sql.includes("FROM prj_project p"))
+        return [[{ projectCode: "=ZK-001", projectName: "项目A", customerName: "客户A", status: "IN_PROGRESS", estimatedRevenue: "100.00", estimatedCost: "20.00", confirmedIncome: "80.00", receivedAmount: "60.00" }], []];
+      if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 88 }, []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
+describe("export task worker", () => {
+  it("uploads CSV output and links the finished task to a private file", async () => {
+    const connection = exportWorkerConnection();
+    const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async (cloudPath, content) => {
+        uploads.push({ cloudPath, content });
+        return "cloud://exports/DC-2026-0007.csv";
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 1, failed: 0 });
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]!.cloudPath).toBe("exports/DC-2026-0007.csv");
+    expect(uploads[0]!.content.toString("utf8")).toContain('"\'=ZK-001"');
+    const projectQuery = connection.calls.find((call) => call.sql.includes("FROM prj_project p"));
+    expect(projectQuery!.sql).toContain("p.id IN (?)");
+    expect(projectQuery!.sql).toContain("pm.department_id IN (?)");
+    expect(projectQuery!.params).toEqual([0, "e1", "e1", "p9", "d2"]);
+    expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_object"))).toBe(true);
+    expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_version"))).toBe(true);
+    expect(connection.calls.some((call) => call.sql.includes("status='COMPLETED'"))).toBe(true);
   });
 });
