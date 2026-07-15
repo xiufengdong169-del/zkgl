@@ -17,6 +17,7 @@ const summary = ref({
   }),
   messages = ref<Message[]>([]),
   error = ref<string | null>(null),
+  notice = ref<string | null>(null),
   exporting = ref(false);
 onMounted(async () => {
   const [report, notice] = await Promise.allSettled([
@@ -35,21 +36,35 @@ const safe = (value: unknown) => {
 async function exportProjects() {
   exporting.value = true;
   error.value = null;
+  notice.value = null;
   try {
-    const data = await callApi<{
-        rows: Record<string, unknown>[];
-        disclaimer: string;
-      }>("report.project.export", {}),
-      headers: Array<[string, string]> = [
-        ["projectCode", "项目编号"],
-        ["projectName", "项目名称"],
-        ["customerName", "客户"],
-        ["status", "状态"],
-        ["estimatedRevenue", "预计收入"],
-        ["estimatedCost", "预计成本"],
-        ["confirmedIncome", "已确认合同收入"],
-        ["receivedAmount", "已收款"],
-      ];
+    const data = await callApi<
+      | {
+          mode: "SYNCHRONOUS";
+          rows: Record<string, unknown>[];
+          disclaimer: string;
+        }
+      | {
+          mode: "BACKGROUND";
+          taskCode: string;
+          estimatedRows: number;
+          message: string;
+        }
+    >("report.project.export", {});
+    if (data.mode === "BACKGROUND") {
+      notice.value = data.message;
+      return;
+    }
+    const headers: Array<[string, string]> = [
+      ["projectCode", "项目编号"],
+      ["projectName", "项目名称"],
+      ["customerName", "客户"],
+      ["status", "状态"],
+      ["estimatedRevenue", "预计收入"],
+      ["estimatedCost", "预计成本"],
+      ["confirmedIncome", "已确认合同收入"],
+      ["receivedAmount", "已收款"],
+    ];
     const quote = (v: unknown) => `"${safe(v).replaceAll('"', '""')}"`,
       csv = [
         "\uFEFF" + headers.map((x) => quote(x[1])).join(","),
@@ -97,6 +112,8 @@ async function markRead(message: Message) {
       </button>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="notice" class="accounting-disclaimer">{{ notice }}</p>
+    <p v-if="notice" class="accounting-disclaimer">{{ notice }}</p>
     <section class="hero">
       <h2>经营工作台</h2>
       <p>当前数据范围内共 {{ summary.projectCount }} 个项目。</p>

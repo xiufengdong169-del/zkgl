@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 
 import { AppError } from "./errors.js";
 import { withTransaction } from "./database.js";
+import { chooseExportMode } from "./metrics.js";
 import {
   calculateSettlement,
   validateProjectClose,
@@ -447,17 +448,48 @@ export class MySqlActionExecutor {
         case "report.project.export": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             access = `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE'))`;
-          const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id WHERE p.is_deleted=0 AND ${access} ORDER BY p.id DESC LIMIT 1001`,
+          const [countRows] = await connection.execute<RowDataPacket[]>(
+            `SELECT COUNT(*) count FROM prj_project p WHERE p.is_deleted=0 AND ${access}`,
             [all ? 1 : 0, user.employeeId, user.employeeId],
           );
-          if (rows.length > 1000)
-            throw new AppError(
-              "EXPORT_BACKGROUND_REQUIRED",
-              "超过 1000 条的导出必须转后台任务",
-              409,
+          const estimatedRows = Number(countRows[0]?.count ?? 0);
+          if (chooseExportMode(estimatedRows) === "BACKGROUND") {
+            const code = await allocateNumber(connection, "EXPORT_TASK");
+            const [task] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO sys_export_task(task_code,requester_id,export_type,filter_snapshot,permission_snapshot,estimated_rows,status) VALUES(?,?,?,?,?,?,'PENDING')`,
+              [
+                code,
+                user.id,
+                "PROJECT_OPERATING",
+                JSON.stringify({}),
+                JSON.stringify({
+                  employeeId: user.employeeId,
+                  dataScopes: user.dataScopes,
+                  permissionCodes: user.permissionCodes.filter((code) =>
+                    ["project.export", "project.read"].includes(code),
+                  ),
+                }),
+                estimatedRows,
+              ],
             );
-          return { rows, disclaimer: "内部项目经营口径，不属于会计利润" };
+            return {
+              mode: "BACKGROUND",
+              taskId: String(task.insertId),
+              taskCode: code,
+              status: "PENDING",
+              estimatedRows,
+              message: `导出数据约 ${estimatedRows} 条，已转入后台任务 ${code}`,
+            };
+          }
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id WHERE p.is_deleted=0 AND ${access} ORDER BY p.id DESC LIMIT 1000`,
+            [all ? 1 : 0, user.employeeId, user.employeeId],
+          );
+          return {
+            mode: "SYNCHRONOUS",
+            rows,
+            disclaimer: "内部项目经营口径，不属于会计利润",
+          };
         }
         case "admin.overview": {
           const [departments] = await connection.execute<RowDataPacket[]>(
