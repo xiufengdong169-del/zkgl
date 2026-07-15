@@ -149,14 +149,13 @@ function buildProjectDataScope(user: SessionUser) {
 }
 
 function buildFileAccessScope(user: SessionUser) {
+  const projectScope = buildProjectDataScope(user);
   return {
-    sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+    sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=f.project_id AND ${projectScope.sql}))))`,
     params: [
       user.id,
-      user.dataScopes.some((scope) => scope.type === "ALL") ? 1 : 0,
       user.id,
-      user.employeeId,
-      user.employeeId,
+      ...projectScope.params,
     ],
   };
 }
@@ -891,10 +890,10 @@ export class MySqlActionExecutor {
         case "file.upload.prepare": {
           const file = validateUpload(input);
           if (file.projectId) {
-            const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            const projectScope = buildProjectDataScope(user),
               [access] = await connection.execute<RowDataPacket[]>(
-                `SELECT p.id FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=? AND (?=1 OR p.project_manager_id=? OR m.employee_id=?) LIMIT 1`,
-                [file.projectId, all ? 1 : 0, user.employeeId, user.employeeId],
+                `SELECT p.id FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND ${projectScope.sql} LIMIT 1`,
+                [file.projectId, ...projectScope.params],
               );
             if (!access[0])
               throw new AppError(
