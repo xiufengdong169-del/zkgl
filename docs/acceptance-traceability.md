@@ -45,7 +45,7 @@ npm run build:function
 
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 37 个测试文件 / 135 条测试通过；Web 1 个测试文件 / 3 条测试通过。
+- `npm run test`：API 38 个测试文件 / 136 条测试通过；Web 1 个测试文件 / 3 条测试通过。
 - `npm run build`：通过。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
 
