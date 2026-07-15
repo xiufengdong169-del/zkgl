@@ -2641,10 +2641,23 @@ export class MySqlActionExecutor {
         }
         case "payment.detail.create": {
           const [seen] = await connection.execute<RowDataPacket[]>(
-            `SELECT id FROM fin_payment_detail WHERE idempotency_key=?`,
+            `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,amount,receiving_account receivingAccount,bank_reference bankReference FROM fin_payment_detail WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
-          if (seen[0]) return { idempotent: true, id: String(seen[0].id) };
+          if (seen[0]) {
+            if (
+              seen[0].paymentId !== input.paymentId ||
+              Math.abs(Number(seen[0].amount) - Number(input.amount)) > 0.005 ||
+              seen[0].receivingAccount !== input.receivingAccount ||
+              seen[0].bankReference !== input.bankReference
+            )
+              throw new AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "幂等键已用于其他付款明细",
+                409,
+              );
+            return { idempotent: true, id: String(seen[0].id) };
+          }
           const [payments] = await connection.execute<RowDataPacket[]>(
             `SELECT id,project_id projectId,source_type sourceType,source_id sourceId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? FOR UPDATE`,
             [input.paymentId],
