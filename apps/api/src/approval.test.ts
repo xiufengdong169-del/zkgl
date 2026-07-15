@@ -46,6 +46,23 @@ describe('approval engine', () => {
     expect(approveCurrentNode(approved, 'u1', 'action-1', resolve)).toBe(approved)
   })
 
+  it('逐级审批到最后节点后实例变为已通过且重复 actionKey 不会重复推进', () => {
+    template.nodes[0]!.positionCode = 'PROJECT_MANAGER'
+    const state = startApproval({ id: 'i-final', businessType: 'X', businessId: 'b-final', applicantId: 'app', amount: 120000 }, template, resolve)
+    const first = approveCurrentNode(state, 'u1', 'approve-project-manager', resolve)
+    const second = approveCurrentNode(first, 'u3', 'approve-finance', resolve)
+    const final = approveCurrentNode(second, 'u4', 'approve-company', resolve)
+
+    expect(final.status).toBe('APPROVED')
+    expect(final.currentNodeOrder).toBeNull()
+    expect(final.completedActionKeys).toEqual([
+      'approve-project-manager',
+      'approve-finance',
+      'approve-company'
+    ])
+    expect(approveCurrentNode(final, 'u4', 'approve-company', resolve)).toBe(final)
+  })
+
   it('仅申请人可以撤回', () => {
     const state = startApproval({ id: 'i2', businessType: 'X', businessId: 'b2', applicantId: 'app', amount: 1000 }, template, resolve)
     expect(() => terminateApproval(state, 'WITHDRAW', 'other', 'a2')).toThrow('仅申请人可撤回')
