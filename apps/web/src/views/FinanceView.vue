@@ -63,6 +63,15 @@ interface ReimbursementDocument {
   paymentStatus: string;
   hasPaymentApplication: number;
 }
+interface ReimbursementDetailForm {
+  expenseType: string;
+  incurredOn: string;
+  amount: number;
+  description: string;
+  hasInvoice: boolean;
+  invoiceNumber: string;
+  invoicingParty: string;
+}
 interface PurchaseDocument {
   id: string;
   code: string;
@@ -144,6 +153,9 @@ const reimbursement = ref({
   reason: "",
   paymentRecipient: "",
   receivingAccount: "",
+});
+function newReimbursementDetail(): ReimbursementDetailForm {
+  return {
   expenseType: "TRAVEL",
   incurredOn: today,
   amount: 0,
@@ -151,7 +163,11 @@ const reimbursement = ref({
   hasInvoice: false,
   invoiceNumber: "",
   invoicingParty: "",
-});
+  };
+}
+const reimbursementDetails = ref<ReimbursementDetailForm[]>([
+  newReimbursementDetail(),
+]);
 const payment = ref({
   projectId: "",
   sourceType: "EXPENSE_CONTRACT" as
@@ -360,18 +376,23 @@ async function createReimbursement() {
       reason: f.reason,
       paymentRecipient: f.paymentRecipient,
       receivingAccount: f.receivingAccount,
-      details: [
-        {
-          expenseType: f.expenseType,
-          incurredOn: f.incurredOn,
-          amount: f.amount,
-          description: f.description,
-          hasInvoice: f.hasInvoice,
-          invoiceNumber: f.invoiceNumber || null,
-          invoicingParty: f.invoicingParty || null,
-        },
-      ],
+      details: reimbursementDetails.value.map((detail) => ({
+        expenseType: detail.expenseType,
+        incurredOn: detail.incurredOn,
+        amount: detail.amount,
+        description: detail.description,
+        hasInvoice: detail.hasInvoice,
+        invoiceNumber: detail.invoiceNumber || null,
+        invoicingParty: detail.invoicingParty || null,
+      })),
     });
+    reimbursement.value = {
+      projectId: "",
+      reason: "",
+      paymentRecipient: "",
+      receivingAccount: "",
+    };
+    reimbursementDetails.value = [newReimbursementDetail()];
     mode.value = null;
     await load();
   } catch (e) {
@@ -379,6 +400,13 @@ async function createReimbursement() {
   } finally {
     saving.value = false;
   }
+}
+function addReimbursementDetail() {
+  reimbursementDetails.value.push(newReimbursementDetail());
+}
+function removeReimbursementDetail(index: number) {
+  if (reimbursementDetails.value.length === 1) return;
+  reimbursementDetails.value.splice(index, 1);
 }
 async function submitReimbursement(item: ReimbursementDocument) {
   error.value = null;
@@ -1001,30 +1029,54 @@ async function completePurchase(item: PurchaseDocument) {
         >收款账户<input
           v-model="reimbursement.receivingAccount"
           required /></label
-      ><label
-        >费用类型<input v-model="reimbursement.expenseType" required /></label
-      ><label
-        >发生日期<input
-          v-model="reimbursement.incurredOn"
-          type="date"
-          required /></label
-      ><label
-        >金额<input
-          v-model.number="reimbursement.amount"
-          type="number"
-          min="0.01"
-          step="0.01"
-          required /></label
-      ><label
-        >费用说明<input v-model="reimbursement.description" required /></label
-      ><label
-        ><input v-model="reimbursement.hasInvoice" type="checkbox" />
-        已取得发票</label
-      ><label v-if="reimbursement.hasInvoice"
-        >发票号<input v-model="reimbursement.invoiceNumber" /></label
-      ><label v-if="reimbursement.hasInvoice"
-        >开票方<input v-model="reimbursement.invoicingParty" /></label
-      ><button :disabled="saving">
+      ><section class="wide data-list">
+        <h3>费用明细</h3>
+        <article
+          v-for="(detail, index) in reimbursementDetails"
+          :key="index"
+          class="data-row"
+        >
+          <label
+            >费用类型<input v-model="detail.expenseType" required /></label
+          ><label
+            >发生日期<input
+              v-model="detail.incurredOn"
+              type="date"
+              required /></label
+          ><label
+            >金额<input
+              v-model.number="detail.amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required /></label
+          ><label
+            >费用说明<input v-model="detail.description" required /></label
+          ><label
+            ><input v-model="detail.hasInvoice" type="checkbox" />
+            已取得发票</label
+          ><label v-if="detail.hasInvoice"
+            >发票号<input v-model="detail.invoiceNumber" /></label
+          ><label v-if="detail.hasInvoice"
+            >开票方<input v-model="detail.invoicingParty" /></label
+          ><button
+            type="button"
+            class="secondary-button"
+            :disabled="reimbursementDetails.length === 1"
+            @click="removeReimbursementDetail(index)"
+          >
+            删除明细
+          </button>
+        </article>
+        <button
+          type="button"
+          class="secondary-button"
+          @click="addReimbursementDetail"
+        >
+          新增明细
+        </button>
+      </section>
+      <button :disabled="saving">
         {{ saving ? "保存中…" : "保存报销单" }}</button
       ><button type="button" class="secondary-button" @click="mode = null">
         取消
