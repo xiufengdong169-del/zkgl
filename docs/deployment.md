@@ -5,7 +5,7 @@
 1. CloudBase 环境：`cloudbase-d7gc2b32cd4196059`，地域为广州南沙。
 2. 在 CloudBase 控制台开启用户名密码登录，并配置 Web 安全域名。
 3. 登录安全策略必须设置为：首次登录强制修改初始密码；连续失败 5 次后锁定 15 分钟。
-4. 在云函数环境变量中配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`。这些值不得提交到 Git。
+4. 在云函数环境变量中配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`。这些值不得提交到 Git。
 5. 从空 MySQL 数据库执行 `database/init/schema.sql`，再按项目方名单维护部门、人员、内部用户、角色和授权。
 
 ## 账号开通与停用

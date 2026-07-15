@@ -12,6 +12,14 @@ const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
   "utf8",
 );
+const envExample = readFileSync(
+  new URL("../../../.env.example", import.meta.url),
+  "utf8",
+);
+const webEnvTypes = readFileSync(
+  new URL("../../web/src/env.d.ts", import.meta.url),
+  "utf8",
+);
 
 const verificationCommands = [
   "npm run verify",
@@ -21,6 +29,20 @@ const verificationCommands = [
   "node scripts/verify-web-dist-security.mjs",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
+];
+const browserEnvironmentVariables = [
+  "VITE_CLOUDBASE_ENV_ID",
+  "VITE_CLOUDBASE_REGION",
+  "VITE_CLOUDBASE_PUBLISHABLE_KEY",
+  "VITE_API_BASE_URL",
+];
+const serverEnvironmentVariables = [
+  "DB_HOST",
+  "DB_PORT",
+  "DB_NAME",
+  "DB_USER",
+  "DB_PASSWORD",
+  "CLOUDBASE_ENV_ID",
 ];
 
 describe("deployment documentation", () => {
@@ -43,5 +65,27 @@ describe("deployment documentation", () => {
         /npm run typecheck\s+npm run test\s+npm run build\s+npm run build:function/,
       );
     }
+  });
+
+  it("keeps environment variable examples, frontend types, and deployment docs aligned", () => {
+    for (const variable of browserEnvironmentVariables) {
+      expect(envExample, `.env.example missing ${variable}`).toContain(
+        `${variable}=`,
+      );
+      expect(webEnvTypes, `frontend env type missing ${variable}`).toContain(
+        variable,
+      );
+    }
+
+    for (const variable of serverEnvironmentVariables) {
+      expect(envExample, `.env.example missing ${variable}`).toContain(
+        `${variable}=`,
+      );
+      expect(
+        deploymentDoc,
+        `deployment docs missing server-only variable ${variable}`,
+      ).toContain(variable);
+    }
+    expect(deploymentDoc).toContain("VITE_API_BASE_URL");
   });
 });
