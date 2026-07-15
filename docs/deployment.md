@@ -22,10 +22,7 @@
 
 ```powershell
 npm install
-npm run typecheck
-npm run test
-npm run build
-npm run build:function
+npm run verify
 ```
 
 函数包生成在：
@@ -49,8 +46,8 @@ tcb fn deploy zkgl-export-worker --yes
 
 ## 定时触发器
 
-- `zkgl-reminder`：建议每日 08:00 执行，CloudBase 七段 Cron 示例：`0 0 8 * * * *`。
-- `zkgl-export-worker`：建议每 5 分钟执行一次，七段 Cron 示例：`0 */5 * * * * *`。
+- `zkgl-reminder`：触发器名称必须为 `zkglDailyReminder`，建议每日 08:00 执行，CloudBase 七段 Cron 示例：`0 0 8 * * * *`。
+- `zkgl-export-worker`：触发器名称必须为 `zkglExportWorker`，建议每 5 分钟执行一次，七段 Cron 示例：`0 */5 * * * * *`。
 
 部署后应在控制台核对触发器名称、时区、最近执行日志和函数权限控制。
 
