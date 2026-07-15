@@ -2088,10 +2088,21 @@ export class MySqlActionExecutor {
         }
         case "approval.task.action": {
           const [existing] = await connection.execute<RowDataPacket[]>(
-            "SELECT id FROM wf_action_history WHERE action_key=? LIMIT 1",
+            "SELECT CAST(task_id AS CHAR) taskId,action FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
-          if (existing[0]) return { idempotent: true };
+          if (existing[0]) {
+            if (
+              existing[0].taskId !== input.taskId ||
+              existing[0].action !== input.action
+            )
+              throw new AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "幂等键已用于其他审批动作",
+                409,
+              );
+            return { idempotent: true, status: existing[0].action };
+          }
           const [rows] = await connection.execute<ApprovalTaskRow[]>(
             `SELECT CAST(t.id AS CHAR) task_id,CAST(t.instance_id AS CHAR) instance_id,t.node_order,t.position_code,CAST(t.assignee_id AS CHAR) assignee_id,
                     t.status task_status,i.status instance_status,i.current_node_order,CAST(i.applicant_id AS CHAR) applicant_id,i.configuration_snapshot,
@@ -2199,10 +2210,21 @@ export class MySqlActionExecutor {
         }
         case "approval.instance.withdraw": {
           const [existing] = await connection.execute<RowDataPacket[]>(
-            "SELECT id FROM wf_action_history WHERE action_key=? LIMIT 1",
+            "SELECT CAST(instance_id AS CHAR) instanceId,action FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
-          if (existing[0]) return { idempotent: true };
+          if (existing[0]) {
+            if (
+              existing[0].instanceId !== input.instanceId ||
+              existing[0].action !== "WITHDRAW"
+            )
+              throw new AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "幂等键已用于其他审批动作",
+                409,
+              );
+            return { idempotent: true, status: "WITHDRAWN" };
+          }
           const [instances] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status,business_type businessType,CAST(business_id AS CHAR) businessId FROM wf_instance WHERE id=? FOR UPDATE`,
             [input.instanceId],
