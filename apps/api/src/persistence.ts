@@ -34,6 +34,23 @@ const toCents = (value: unknown) =>
   BigInt(Math.round(Number(value ?? 0) * 100));
 const fromCents = (value: bigint) => (Number(value) / 100).toFixed(2);
 
+async function loadNumberParameter(
+  connection: PoolConnection,
+  paramKey: string,
+  fallback: number,
+  minimum = 0,
+  maximum = 3650,
+) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT param_value paramValue FROM sys_parameter WHERE param_key=? AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
+    [paramKey],
+  );
+  const parsed = Number(rows[0]?.paramValue);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum)
+    return fallback;
+  return parsed;
+}
+
 interface NumberRow extends RowDataPacket {
   id: number;
   prefix: string;
@@ -1737,9 +1754,14 @@ export class MySqlActionExecutor {
           return { contract: contracts[0], changes, milestones };
         }
         case "contract.summary": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            expiryDays = await loadNumberParameter(
+              connection,
+              "reminder.contract_expiry_days",
+              30,
+            );
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 30 DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract WHERE is_deleted=0 AND (?=1 OR owner_id=?)`,
+            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract WHERE is_deleted=0 AND (?=1 OR owner_id=?)`,
             [all ? 1 : 0, user.employeeId],
           );
           return (
