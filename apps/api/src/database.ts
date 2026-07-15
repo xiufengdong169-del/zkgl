@@ -10,18 +10,47 @@ import type { AuditEvent, AuditWriter } from "./audit.js";
 import { AppError } from "./errors.js";
 import { resolveSensitiveFieldAccess } from "./sensitive-fields.js";
 
+const requiredDatabaseEnvironment = (name: string) =>
+  z
+    .string()
+    .refine((value) => value.trim().length > 0, `${name} 不能为空`);
+
 const databaseEnvironment = z.object({
-  DB_HOST: z.string().min(1),
+  DB_HOST: requiredDatabaseEnvironment("DB_HOST").transform((value) =>
+    value.trim(),
+  ),
   DB_PORT: z.coerce.number().int().positive().default(3306),
-  DB_NAME: z.string().min(1),
-  DB_USER: z.string().min(1),
-  DB_PASSWORD: z.string().min(1),
+  DB_NAME: requiredDatabaseEnvironment("DB_NAME").transform((value) =>
+    value.trim(),
+  ),
+  DB_USER: requiredDatabaseEnvironment("DB_USER").transform((value) =>
+    value.trim(),
+  ),
+  DB_PASSWORD: requiredDatabaseEnvironment("DB_PASSWORD"),
 });
 
 let singletonPool: Pool | undefined;
+
+export function parseDatabaseEnvironment(environment: NodeJS.ProcessEnv) {
+  const result = databaseEnvironment.safeParse(environment);
+  if (!result.success) {
+    const fields = [
+      ...new Set(
+        result.error.issues.map((issue) => String(issue.path[0] ?? "DB")),
+      ),
+    ].sort();
+    throw new AppError(
+      "CONFIGURATION_ERROR",
+      `数据库环境变量配置不完整或不合法：${fields.join("、")}`,
+      500,
+    );
+  }
+  return result.data;
+}
+
 export function getPool(environment: NodeJS.ProcessEnv = process.env): Pool {
   if (singletonPool) return singletonPool;
-  const config = databaseEnvironment.parse(environment);
+  const config = parseDatabaseEnvironment(environment);
   singletonPool = mysql.createPool({
     host: config.DB_HOST,
     port: config.DB_PORT,
