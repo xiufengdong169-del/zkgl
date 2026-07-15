@@ -1,8 +1,12 @@
 import type { SessionUser } from "@zkgl/shared";
 import { describe, expect, it } from "vitest";
 
-import { ForbiddenError } from "./errors.js";
-import { requireDataAccess, requirePermission } from "./rbac.js";
+import { ForbiddenError, UnauthorizedError } from "./errors.js";
+import {
+  requireDataAccess,
+  requireEnabledUser,
+  requirePermission,
+} from "./rbac.js";
 
 const user: SessionUser = {
   id: "u-1",
@@ -25,11 +29,17 @@ describe("RBAC", () => {
     expect(() => requirePermission(user, "project.export")).toThrow(
       ForbiddenError,
     );
+    expect(() => requirePermission(user, "project.export")).toThrow(
+      "缺少权限：project.export",
+    );
   });
 
   it("按项目数据范围拒绝无关项目", () => {
     expect(() => requireDataAccess(user, { projectId: "p-2" })).toThrow(
       ForbiddenError,
+    );
+    expect(() => requireDataAccess(user, { projectId: "p-2" })).toThrow(
+      "数据范围不允许访问该对象",
     );
   });
 
@@ -41,5 +51,12 @@ describe("RBAC", () => {
     expect(() =>
       requireDataAccess(creator, { creatorId: "u-1" }),
     ).not.toThrow();
+  });
+
+  it("拒绝未登录或已停用的内部账号", () => {
+    expect(() => requireEnabledUser(null)).toThrow(UnauthorizedError);
+    expect(() => requireEnabledUser({ ...user, enabled: false })).toThrow(
+      "内部账号已停用",
+    );
   });
 });

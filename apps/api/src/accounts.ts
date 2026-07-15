@@ -9,7 +9,11 @@ export function assertAccountStatusChangeAllowed(input: {
 }) {
   if (input.nextStatus !== "DISABLED") return;
   if (input.targetUserId === input.actorUserId)
-    throw new AppError("SELF_DISABLE_FORBIDDEN", "不能停用当前登录账号", 409);
+    throw new AppError(
+      "SELF_DISABLE_FORBIDDEN",
+      "不能停用当前登录账号",
+      409,
+    );
   if (input.targetIsAdmin && input.enabledAdminCount <= 1)
     throw new AppError(
       "LAST_ADMIN_REQUIRED",
