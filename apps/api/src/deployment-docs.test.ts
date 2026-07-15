@@ -24,6 +24,9 @@ const gitignore = readFileSync(
   new URL("../../../.gitignore", import.meta.url),
   "utf8",
 );
+const cloudbaseConfig = JSON.parse(
+  readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
+) as { functions: Array<{ name: string; handler: string; runtime: string }> };
 
 const verificationCommands = [
   "npm run verify",
@@ -123,6 +126,19 @@ describe("deployment documentation", () => {
         deploymentDoc,
         `deployment docs missing generated package ${directory}`,
       ).toContain(directory.replace(/\/$/, ""));
+    }
+  });
+
+  it("deployment docs and verification cover CloudBase function config", () => {
+    expect(deploymentDoc).toContain("cloudbaserc.json");
+    expect(operationsAcceptanceDoc).toContain("cloudbaserc.json");
+
+    for (const fn of cloudbaseConfig.functions) {
+      expect(deploymentDoc, `deployment docs missing ${fn.name}`).toContain(
+        fn.name,
+      );
+      expect(fn.handler, `${fn.name} handler`).toBe("index.main");
+      expect(fn.runtime, `${fn.name} runtime`).toBe("Nodejs18.15");
     }
   });
 
