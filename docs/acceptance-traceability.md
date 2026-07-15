@@ -38,6 +38,7 @@ npm run verify
 npm run typecheck
 npm run test
 npm run build
+node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
@@ -49,6 +50,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 - `npm run typecheck`：通过。
 - `npm run test`：API 41 个测试文件 / 150 条测试通过；Web 6 个测试文件 / 20 条测试通过。
 - `npm run build`：通过。
+- `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
 - `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口和依赖清单校验通过。
