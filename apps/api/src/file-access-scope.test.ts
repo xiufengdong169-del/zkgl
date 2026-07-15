@@ -58,7 +58,17 @@ describe("file access scopes", () => {
     const query = connection.calls.find((call) => call.sql.includes("storage_key storageKey"))!;
     expect(query.sql).toContain("f.business_type='EXPORT_TASK' AND f.created_by=?");
     expect(query.sql).toContain("f.business_type<>'EXPORT_TASK'");
-    expect(query.params).toEqual([null, null, "f99", "u2", "u2", 1, "e2", "e2"]);
+    expect(query.params).toEqual([
+      null,
+      null,
+      "f99",
+      "u2",
+      "u2",
+      1,
+      "e2",
+      "e2",
+      "e2",
+    ]);
   });
 
   it("uses project and department scopes when preparing project file uploads", async () => {
@@ -86,6 +96,6 @@ describe("file access scopes", () => {
     expect(query.sql).toContain("JOIN org_employee pm");
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
-    expect(query.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2"]);
+    expect(query.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2", "e3"]);
   });
 });

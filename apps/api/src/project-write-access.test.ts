@@ -47,7 +47,7 @@ describe("project write access", () => {
     expect(call).toBeDefined();
     expect(call!.sql).toContain("p.id IN (?)");
     expect(call!.sql).toContain("pm.department_id IN (?)");
-    expect(call!.params).toEqual(["p1", 0, "e1", "e1", "p1", "d2"]);
+    expect(call!.params).toEqual(["p1", 0, "e1", "e1", "p1", "d2", "e1"]);
   });
 
   it("denies writes when the project is outside the caller data scope", async () => {

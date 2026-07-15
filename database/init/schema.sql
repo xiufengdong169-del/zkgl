@@ -475,6 +475,26 @@ CREATE TABLE IF NOT EXISTS prj_project_member (
   INDEX idx_project_member_employee (employee_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS iam_project_grant (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT UNSIGNED NOT NULL,
+  employee_id BIGINT UNSIGNED NOT NULL,
+  starts_on DATE NOT NULL,
+  ends_on DATE NULL,
+  reason VARCHAR(500) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  granted_by BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_project_grant_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
+  CONSTRAINT fk_project_grant_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id),
+  CONSTRAINT fk_project_grant_user FOREIGN KEY (granted_by) REFERENCES iam_user(id),
+  UNIQUE KEY uk_project_grant_period (project_id, employee_id, starts_on),
+  INDEX idx_project_grant_employee (employee_id, status, starts_on, ends_on),
+  INDEX idx_project_grant_project (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS org_position (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   position_code VARCHAR(64) NOT NULL UNIQUE,

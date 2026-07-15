@@ -97,7 +97,7 @@ describe("export task persistence", () => {
     expect(countCall!.sql).toContain("JOIN org_employee pm");
     expect(countCall!.sql).toContain("p.id IN (?)");
     expect(countCall!.sql).toContain("pm.department_id IN (?)");
-    expect(countCall!.params).toEqual([0, "e1", "e1", "p9", "d2"]);
+    expect(countCall!.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
   });
 });
 

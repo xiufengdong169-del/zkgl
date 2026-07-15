@@ -48,7 +48,7 @@ describe("report project data scopes", () => {
     expect(query.sql).toContain("JOIN org_employee pm");
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
-    expect(query.params).toEqual([0, "e1", "e1", "p9", "d2"]);
+    expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
   });
 
   it("applies the same project scope to analytics project rollups", async () => {
@@ -66,7 +66,7 @@ describe("report project data scopes", () => {
     for (const query of projectQueries) {
       expect(query.sql).toContain("p.id IN (?)");
       expect(query.sql).toContain("pm.department_id IN (?)");
-      expect(query.params).toEqual([0, "e1", "e1", "p9", "d2"]);
+      expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
     }
   });
 
@@ -82,6 +82,6 @@ describe("report project data scopes", () => {
     expect(query.sql).toContain("JOIN org_employee pm");
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
-    expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", 20, 20]);
+    expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1", 20, 20]);
   });
 });

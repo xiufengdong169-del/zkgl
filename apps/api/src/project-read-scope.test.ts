@@ -53,7 +53,19 @@ describe("project read data scopes", () => {
     )!;
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
-    expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "", "%%", "%%", 20, 0]);
+    expect(query.params).toEqual([
+      0,
+      "e1",
+      "e1",
+      "p9",
+      "d2",
+      "e1",
+      "",
+      "%%",
+      "%%",
+      20,
+      0,
+    ]);
   });
 
   it("applies explicit project and department scopes to project detail", async () => {
@@ -69,6 +81,6 @@ describe("project read data scopes", () => {
     )!;
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
-    expect(query.params).toEqual(["p9", 0, "e1", "e1", "p9", "d2"]);
+    expect(query.params).toEqual(["p9", 0, "e1", "e1", "p9", "d2", "e1"]);
   });
 });

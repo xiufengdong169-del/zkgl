@@ -514,6 +514,28 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       status: z.enum(["ENABLED", "DISABLED"]),
     }),
   },
+  "admin.projectGrant.create": {
+    permission: "system.admin",
+    input: z
+      .object({
+        projectId: z.string().min(1),
+        employeeId: z.string().min(1),
+        startsOn: z.iso.date(),
+        endsOn: z.iso.date().nullable().optional(),
+        reason: z.string().trim().max(500).nullable().optional(),
+      })
+      .refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
+        message: "结束日期不得早于开始日期",
+        path: ["endsOn"],
+      }),
+  },
+  "admin.projectGrant.status": {
+    permission: "system.admin",
+    input: z.object({
+      grantId: z.string().min(1),
+      status: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
   "admin.user.role.set": {
     permission: "system.admin",
     input: z.object({

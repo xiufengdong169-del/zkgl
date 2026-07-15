@@ -104,7 +104,7 @@ export async function requireProjectWriteAccess(
        JOIN org_employee pm ON pm.id=p.project_manager_id
        LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE'
       WHERE p.id=? AND p.is_deleted=0
-        AND (?=1 OR p.project_manager_id=? OR m.employee_id=? OR ${projectScope} OR ${departmentScope})
+        AND (?=1 OR p.project_manager_id=? OR m.employee_id=? OR ${projectScope} OR ${departmentScope} OR EXISTS(SELECT 1 FROM iam_project_grant g WHERE g.project_id=p.id AND g.employee_id=? AND g.status='ENABLED' AND g.starts_on<=CURDATE() AND (g.ends_on IS NULL OR g.ends_on>=CURDATE())))
       LIMIT 1`,
     [
       projectId,
@@ -113,6 +113,7 @@ export async function requireProjectWriteAccess(
       user.employeeId,
       ...scopedProjectIds,
       ...scopedDepartmentIds,
+      user.employeeId,
     ],
   );
   if (!rows[0])
@@ -137,13 +138,14 @@ function buildProjectDataScope(user: SessionUser) {
     ? `pm.department_id IN (${departmentIds.map(() => "?").join(",")})`
     : "0=1";
   return {
-    sql: `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope})`,
+    sql: `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope} OR EXISTS(SELECT 1 FROM iam_project_grant g WHERE g.project_id=p.id AND g.employee_id=? AND g.status='ENABLED' AND g.starts_on<=CURDATE() AND (g.ends_on IS NULL OR g.ends_on>=CURDATE())))`,
     params: [
       user.dataScopes.some((scope) => scope.type === "ALL") ? 1 : 0,
       user.employeeId,
       user.employeeId,
       ...projectIds,
       ...departmentIds,
+      user.employeeId,
     ],
   };
 }
@@ -581,6 +583,12 @@ export class MySqlActionExecutor {
             [positionAssignments] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(a.id AS CHAR) id,p.position_code positionCode,p.name positionName,CAST(a.employee_id AS CHAR) employeeId,e.name employeeName,a.starts_on startsOn,a.ends_on endsOn,a.is_delegate isDelegate,a.status FROM org_position_assignment a JOIN org_position p ON p.id=a.position_id JOIN org_employee e ON e.id=a.employee_id ORDER BY p.position_code,a.status,a.starts_on DESC`,
             ),
+            [projectOptions] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,project_code projectCode,project_name projectName,status FROM prj_project WHERE is_deleted=0 ORDER BY id DESC LIMIT 500`,
+            ),
+            [projectGrants] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(g.id AS CHAR) id,CAST(g.project_id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,CAST(g.employee_id AS CHAR) employeeId,e.name employeeName,g.starts_on startsOn,g.ends_on endsOn,g.reason,g.status,iu.username grantedBy,g.created_at createdAt FROM iam_project_grant g JOIN prj_project p ON p.id=g.project_id JOIN org_employee e ON e.id=g.employee_id JOIN iam_user iu ON iu.id=g.granted_by ORDER BY g.status,g.starts_on DESC,g.id DESC LIMIT 200`,
+            ),
             [dictionaryTypes] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(t.id AS CHAR) id,t.type_code typeCode,t.name,t.description,t.status,t.version FROM sys_dictionary_type t ORDER BY t.type_code`,
             ),
@@ -604,6 +612,8 @@ export class MySqlActionExecutor {
             approvalNodes,
             positions,
             positionAssignments,
+            projectOptions,
+            projectGrants,
             dictionaryTypes,
             dictionaryItems,
             parameters,
@@ -670,6 +680,41 @@ export class MySqlActionExecutor {
               404,
             );
           return { id: input.assignmentId, status: input.status };
+        }
+        case "admin.projectGrant.create": {
+          const [projects] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM prj_project WHERE id=? AND is_deleted=0`,
+            [input.projectId],
+          );
+          if (!projects[0])
+            throw new AppError("PROJECT_NOT_FOUND", "项目不存在", 404);
+          const [employees] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM org_employee WHERE id=? AND is_deleted=0 AND account_status='ENABLED'`,
+            [input.employeeId],
+          );
+          if (!employees[0])
+            throw new AppError("EMPLOYEE_NOT_FOUND", "人员不存在或已停用", 404);
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO iam_project_grant(project_id,employee_id,starts_on,ends_on,reason,granted_by) VALUES(?,?,?,?,?,?)`,
+            [
+              input.projectId,
+              input.employeeId,
+              input.startsOn,
+              input.endsOn ?? null,
+              input.reason ?? null,
+              user.id,
+            ],
+          );
+          return { id: String(result.insertId) };
+        }
+        case "admin.projectGrant.status": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE iam_project_grant SET status=?,version=version+1 WHERE id=?`,
+            [input.status, input.grantId],
+          );
+          if (!result.affectedRows)
+            throw new AppError("PROJECT_GRANT_NOT_FOUND", "临时项目授权不存在", 404);
+          return { id: input.grantId, status: input.status };
         }
         case "admin.user.role.set": {
           const [current] = await connection.execute<RowDataPacket[]>(

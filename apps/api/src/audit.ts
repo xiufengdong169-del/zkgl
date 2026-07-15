@@ -69,6 +69,7 @@ const resourceIdKeys = [
   "employeeId",
   "departmentId",
   "assignmentId",
+  "grantId",
   "ruleId",
   "parameterId",
   "typeId",

@@ -53,6 +53,13 @@ describe("empty database initialization schema", () => {
     expect(schema).toContain("('export.retention_days'");
   });
 
+  it("临时项目授权记录起止时间和授权人", () => {
+    expect(schema).toContain("CREATE TABLE IF NOT EXISTS iam_project_grant");
+    expect(schema).toContain("starts_on DATE NOT NULL");
+    expect(schema).toContain("ends_on DATE NULL");
+    expect(schema).toContain("granted_by BIGINT UNSIGNED NOT NULL");
+  });
+
   it("所有接口权限码均存在初始化权限种子", () => {
     const actionPermissions = [
       ...new Set(

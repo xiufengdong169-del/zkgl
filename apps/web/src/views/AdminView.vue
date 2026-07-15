@@ -121,6 +121,26 @@ interface PositionAssignment {
   isDelegate: number;
   status: "ENABLED" | "DISABLED";
 }
+interface ProjectOption {
+  id: string;
+  projectCode: string;
+  projectName: string;
+  status: string;
+}
+interface ProjectGrant {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  employeeId: string;
+  employeeName: string;
+  startsOn: string;
+  endsOn: string | null;
+  reason: string | null;
+  status: "ENABLED" | "DISABLED";
+  grantedBy: string;
+  createdAt: string;
+}
 interface DictionaryType {
   id: string;
   typeCode: string;
@@ -165,6 +185,8 @@ const approvalTemplates = ref<ApprovalTemplate[]>([]);
 const approvalNodes = ref<ApprovalNode[]>([]);
 const positions = ref<Position[]>([]);
 const positionAssignments = ref<PositionAssignment[]>([]);
+const projectOptions = ref<ProjectOption[]>([]);
+const projectGrants = ref<ProjectGrant[]>([]);
 const dictionaryTypes = ref<DictionaryType[]>([]);
 const dictionaryItems = ref<DictionaryItem[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
@@ -189,6 +211,13 @@ const assignmentForm = ref({
   startsOn: new Date().toISOString().slice(0, 10),
   endsOn: "",
   isDelegate: false,
+});
+const projectGrantForm = ref({
+  projectId: "",
+  employeeId: "",
+  startsOn: new Date().toISOString().slice(0, 10),
+  endsOn: "",
+  reason: "",
 });
 const dictionaryItemForm = ref({
   typeId: "",
@@ -232,6 +261,8 @@ async function load() {
       approvalNodes: ApprovalNode[];
       positions: Position[];
       positionAssignments: PositionAssignment[];
+      projectOptions: ProjectOption[];
+      projectGrants: ProjectGrant[];
       dictionaryTypes: DictionaryType[];
       dictionaryItems: DictionaryItem[];
     }>("admin.overview", {});
@@ -249,6 +280,8 @@ async function load() {
     approvalNodes.value = data.approvalNodes;
     positions.value = data.positions;
     positionAssignments.value = data.positionAssignments;
+    projectOptions.value = data.projectOptions;
+    projectGrants.value = data.projectGrants;
     dictionaryTypes.value = data.dictionaryTypes;
     dictionaryItems.value = data.dictionaryItems;
   } catch (e) {
@@ -355,6 +388,43 @@ async function togglePositionAssignment(item: PositionAssignment) {
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "任职状态更新失败";
+  }
+}
+
+async function createProjectGrant() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.projectGrant.create", {
+      ...projectGrantForm.value,
+      endsOn: projectGrantForm.value.endsOn || null,
+      reason: projectGrantForm.value.reason || null,
+    });
+    projectGrantForm.value = {
+      projectId: "",
+      employeeId: "",
+      startsOn: new Date().toISOString().slice(0, 10),
+      endsOn: "",
+      reason: "",
+    };
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "临时项目授权保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function toggleProjectGrant(item: ProjectGrant) {
+  error.value = null;
+  try {
+    await callApi("admin.projectGrant.status", {
+      grantId: item.id,
+      status: item.status === "ENABLED" ? "DISABLED" : "ENABLED",
+    });
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "临时项目授权状态更新失败";
   }
 }
 
@@ -810,6 +880,58 @@ onMounted(load);
           </button>
         </article>
         <p v-if="!positionAssignments.length">暂无岗位任职</p>
+      </section>
+      <form class="entity-form" @submit.prevent="createProjectGrant">
+        <h2 class="wide">临时项目授权</h2>
+        <label
+          >项目<select v-model="projectGrantForm.projectId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="project in projectOptions"
+              :key="project.id"
+              :value="project.id"
+            >
+              {{ project.projectName }}（{{ project.projectCode }}）
+            </option>
+          </select></label
+        ><label
+          >授权人员<select v-model="projectGrantForm.employeeId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="person in employees"
+              :key="person.id"
+              :value="person.id"
+            >
+              {{ person.name }}（{{ person.employeeCode }}）
+            </option>
+          </select></label
+        ><label
+          >开始日期<input
+            v-model="projectGrantForm.startsOn"
+            type="date"
+            required /></label
+        ><label
+          >结束日期<input v-model="projectGrantForm.endsOn" type="date" /></label
+        ><label class="wide"
+          >授权原因<input v-model="projectGrantForm.reason" maxlength="500" /></label
+        ><button :disabled="saving">保存临时授权</button>
+      </form>
+      <section class="data-list">
+        <h2>临时项目授权记录</h2>
+        <article v-for="grant in projectGrants" :key="grant.id" class="data-row">
+          <div>
+            <strong>{{ grant.projectName }} · {{ grant.employeeName }}</strong>
+            <p>
+              {{ grant.startsOn }} 至 {{ grant.endsOn || "长期" }} ·
+              {{ grant.status }} · 授权人 {{ grant.grantedBy }}
+            </p>
+            <small v-if="grant.reason">{{ grant.reason }}</small>
+          </div>
+          <button type="button" @click="toggleProjectGrant(grant)">
+            {{ grant.status === "ENABLED" ? "停用" : "启用" }}
+          </button>
+        </article>
+        <p v-if="!projectGrants.length">暂无临时项目授权</p>
       </section>
       <section class="data-list">
         <h2>账号角色</h2>

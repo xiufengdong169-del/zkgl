@@ -13,6 +13,7 @@ describe('audit sanitization', () => {
     expect(deriveAuditResourceId({ roleId: 'r-admin' })).toBe('r-admin')
     expect(deriveAuditResourceId({ nodeId: 'wf-node-1' })).toBe('wf-node-1')
     expect(deriveAuditResourceId({ parameterId: 'param-1' })).toBe('param-1')
+    expect(deriveAuditResourceId({ grantId: 'grant-1' })).toBe('grant-1')
   })
 
   it('优先使用执行结果里的新建资源 ID', () => {
