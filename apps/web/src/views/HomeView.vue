@@ -7,6 +7,8 @@ interface Message {
   id: string;
   title: string;
   content: string;
+  businessType: string;
+  businessId: string;
   createdAt: string;
   readAt: string | null;
 }
@@ -277,6 +279,7 @@ async function markRead(message: Message) {
         <div>
           <strong>{{ m.readAt ? "\u5df2\u8bfb" : "\u672a\u8bfb" }} &middot; {{ m.title }}</strong>
           <p>{{ m.content }}</p>
+          <p v-if="m.businessType">来源 {{ m.businessType }} #{{ m.businessId }}</p>
         </div>
         <button v-if="!m.readAt" @click="markRead(m)">&#26631;&#35760;&#24050;&#35835;</button>
       </article>
