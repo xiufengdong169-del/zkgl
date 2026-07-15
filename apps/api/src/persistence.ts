@@ -148,6 +148,19 @@ function buildProjectDataScope(user: SessionUser) {
   };
 }
 
+function buildFileAccessScope(user: SessionUser) {
+  return {
+    sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+    params: [
+      user.id,
+      user.dataScopes.some((scope) => scope.type === "ALL") ? 1 : 0,
+      user.id,
+      user.employeeId,
+      user.employeeId,
+    ],
+  };
+}
+
 async function applyBusinessApprovalResult(
   connection: PoolConnection,
   businessType: string,
@@ -864,16 +877,13 @@ export class MySqlActionExecutor {
           return { id: input.nodeId, version: input.version + 1 };
         }
         case "file.list": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?)))) ORDER BY f.id DESC`,
+              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (${fileAccess.sql}) ORDER BY f.id DESC`,
               [
                 input.businessType,
                 input.businessId,
-                all ? 1 : 0,
-                user.id,
-                user.employeeId,
-                user.employeeId,
+                ...fileAccess.params,
               ],
             );
           return { items: rows };
@@ -958,15 +968,12 @@ export class MySqlActionExecutor {
         }
         case "file.version.prepare": {
           const extension = extractSafeExtension(input.originalName),
-            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            fileAccess = buildFileAccessScope(user),
             [files] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.current_version currentVersion FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?)))) FOR UPDATE`,
+              `SELECT f.id,f.current_version currentVersion FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql}) FOR UPDATE`,
               [
                 input.fileId,
-                all ? 1 : 0,
-                user.id,
-                user.employeeId,
-                user.employeeId,
+                ...fileAccess.params,
               ],
             );
           const file = files[0];
@@ -1047,15 +1054,12 @@ export class MySqlActionExecutor {
           };
         }
         case "file.version.history": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const fileAccess = buildFileAccessScope(user),
             [access] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+              `SELECT f.id FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql})`,
               [
                 input.fileId,
-                all ? 1 : 0,
-                user.id,
-                user.employeeId,
-                user.employeeId,
+                ...fileAccess.params,
               ],
             );
           if (!access[0])
@@ -1073,17 +1077,14 @@ export class MySqlActionExecutor {
               "文件存储服务未配置",
               503,
             );
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (?=1 OR f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=f.project_id AND (p.project_manager_id=? OR m.employee_id=?))))`,
+              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (${fileAccess.sql})`,
               [
                 input.versionId ?? null,
                 input.versionId ?? null,
                 input.fileId,
-                all ? 1 : 0,
-                user.id,
-                user.employeeId,
-                user.employeeId,
+                ...fileAccess.params,
               ],
             );
           const file = rows[0];
