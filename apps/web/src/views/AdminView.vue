@@ -570,6 +570,20 @@ async function saveApprovalNode(node: ApprovalNode) {
   }
 }
 
+async function refreshReminders() {
+  saving.value = true;
+  error.value = null;
+  notice.value = null;
+  try {
+    await callApi("reminder.refresh", {});
+    notice.value = "提醒任务已立即执行，请到工作台消息或审计日志复核结果。";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "提醒任务执行失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 const dataScopeTypes: DataScopeType[] = [
   "ALL",
   "SELF",
@@ -715,6 +729,9 @@ onMounted(load);
         <p class="eyebrow">SYSTEM ADMINISTRATION</p>
         <h1>系统管理</h1>
       </div>
+      <button type="button" :disabled="saving" @click="refreshReminders">
+        立即生成提醒
+      </button>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="notice" class="notice">{{ notice }}</p>

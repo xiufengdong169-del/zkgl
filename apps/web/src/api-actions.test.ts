@@ -10,6 +10,11 @@ const backendActionsSource = readFileSync(
   "utf8",
 );
 const specialHandlerActions = new Set(["session.get"]);
+const backendCompatibilityActions = new Set([
+  // Older generic approval task endpoint kept for compatibility; the UI uses
+  // approval.inbox.list to separate pending, initiated, copied and processed work.
+  "approval.task.list",
+]);
 
 function listSourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -62,6 +67,16 @@ function extractBackendActionDefinitions() {
   );
 }
 
+function extractAllFrontendActions() {
+  return [
+    ...new Set(
+      listSourceFiles(webSourceDir).flatMap(
+        (file) => extractFrontendCallApiActions(file).actions,
+      ),
+    ),
+  ].sort();
+}
+
 describe("frontend API action usage", () => {
   it("前端所有 callApi 动作均使用静态字符串，便于授权和实现一致性校验", () => {
     const dynamicCalls = listSourceFiles(webSourceDir).flatMap(
@@ -73,13 +88,7 @@ describe("frontend API action usage", () => {
 
   it("前端调用的动作均存在后端定义或明确的 handler 特例", () => {
     const backendActions = extractBackendActionDefinitions();
-    const frontendActions = [
-      ...new Set(
-        listSourceFiles(webSourceDir).flatMap(
-          (file) => extractFrontendCallApiActions(file).actions,
-        ),
-      ),
-    ].sort();
+    const frontendActions = extractAllFrontendActions();
 
     expect(frontendActions.length).toBeGreaterThan(70);
     expect(
@@ -88,5 +97,15 @@ describe("frontend API action usage", () => {
           !backendActions.has(action) && !specialHandlerActions.has(action),
       ),
     ).toEqual([]);
+  });
+
+  it("后端业务动作均有前端入口或明确兼容例外", () => {
+    const frontendActions = new Set(extractAllFrontendActions());
+    const missingFrontendEntry = [...extractBackendActionDefinitions()]
+      .filter((action) => !backendCompatibilityActions.has(action))
+      .filter((action) => !frontendActions.has(action))
+      .sort();
+
+    expect(missingFrontendEntry).toEqual([]);
   });
 });
