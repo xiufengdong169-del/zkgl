@@ -1783,6 +1783,7 @@ export class MySqlActionExecutor {
               "只有待签署合同可确认生效",
               409,
             );
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           await connection.execute(
             `UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
             [input.signedOn, input.effectiveOn, user.id, input.contractId],
@@ -3441,11 +3442,10 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "contract.change.create": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT project_id projectId,tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?) FOR UPDATE`,
-              [input.contractId, all ? 1 : 0, user.employeeId],
-            );
+          const [contracts] = await connection.execute<RowDataPacket[]>(
+            `SELECT project_id projectId,tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.contractId],
+          );
           const contract = contracts[0];
           if (!contract)
             throw new AppError(
@@ -3495,17 +3495,17 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "contract.milestone.create": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT id,project_id projectId,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
-              [input.contractId, all ? 1 : 0, user.employeeId],
-            );
+          const [contracts] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,project_id projectId,status FROM con_contract WHERE id=? AND is_deleted=0`,
+            [input.contractId],
+          );
           if (!contracts[0])
             throw new AppError(
               "CONTRACT_NOT_FOUND",
               "合同不存在或无权访问",
               404,
             );
+          await requireProjectWriteAccess(connection, contracts[0].projectId, user);
           if (
             !["PENDING_SIGNATURE", "PERFORMING", "CHANGED"].includes(
               String(contracts[0].status),
@@ -3532,11 +3532,10 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "contract.milestone.complete": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [milestones] = await connection.execute<RowDataPacket[]>(
-              `SELECT m.id,m.status,c.project_id projectId FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 AND (?=1 OR c.owner_id=?) FOR UPDATE`,
-              [input.milestoneId, all ? 1 : 0, user.employeeId],
-            );
+          const [milestones] = await connection.execute<RowDataPacket[]>(
+            `SELECT m.id,m.status,c.project_id projectId FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 FOR UPDATE`,
+            [input.milestoneId],
+          );
           if (!milestones[0])
             throw new AppError(
               "CONTRACT_MILESTONE_NOT_FOUND",
