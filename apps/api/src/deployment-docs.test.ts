@@ -20,6 +20,10 @@ const webEnvTypes = readFileSync(
   new URL("../../web/src/env.d.ts", import.meta.url),
   "utf8",
 );
+const gitignore = readFileSync(
+  new URL("../../../.gitignore", import.meta.url),
+  "utf8",
+);
 
 const verificationCommands = [
   "npm run verify",
@@ -43,6 +47,11 @@ const serverEnvironmentVariables = [
   "DB_USER",
   "DB_PASSWORD",
   "CLOUDBASE_ENV_ID",
+];
+const generatedFunctionPackages = [
+  "functions/zkgl-api/",
+  "functions/zkgl-reminder/",
+  "functions/zkgl-export-worker/",
 ];
 
 describe("deployment documentation", () => {
@@ -87,5 +96,17 @@ describe("deployment documentation", () => {
       ).toContain(variable);
     }
     expect(deploymentDoc).toContain("VITE_API_BASE_URL");
+  });
+
+  it("documents and ignores generated CloudBase function package directories", () => {
+    for (const directory of generatedFunctionPackages) {
+      expect(gitignore, `.gitignore missing generated package ${directory}`).toContain(
+        directory,
+      );
+      expect(
+        deploymentDoc,
+        `deployment docs missing generated package ${directory}`,
+      ).toContain(directory.replace(/\/$/, ""));
+    }
   });
 });
