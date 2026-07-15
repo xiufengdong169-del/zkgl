@@ -6,6 +6,7 @@ const schema = readFileSync(
   new URL("../../../database/init/schema.sql", import.meta.url),
   "utf8",
 );
+const actions = readFileSync(new URL("./actions.ts", import.meta.url), "utf8");
 const statements = schema
   .split(";")
   .map((item) => item.trim())
@@ -50,6 +51,21 @@ describe("empty database initialization schema", () => {
     expect(schema).toContain("param_key VARCHAR(128) NOT NULL UNIQUE");
     expect(schema).toContain("version INT UNSIGNED NOT NULL DEFAULT 0");
     expect(schema).toContain("('export.retention_days'");
+  });
+
+  it("所有接口权限码均存在初始化权限种子", () => {
+    const actionPermissions = [
+      ...new Set(
+        [...actions.matchAll(/permission:\s*"([^"]+)"/g)].map(
+          (match) => match[1]!,
+        ),
+      ),
+    ].sort();
+    expect(actionPermissions.length).toBeGreaterThan(40);
+    for (const permission of actionPermissions)
+      expect(schema, `missing permission seed ${permission}`).toContain(
+        `('${permission}'`,
+      );
   });
 
   it("保证金缴纳和没收损失均配置审批模板与状态字段", () => {
