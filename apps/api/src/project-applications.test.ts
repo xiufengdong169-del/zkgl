@@ -15,7 +15,7 @@ class MemoryRepository implements ApprovalRepository {
   application: ProjectApplicationRecord = {
     id: "a1",
     applicationCode: "LA-2026-0001",
-    projectName: "新建项目",
+    projectName: "新建立项",
     customerId: "c1",
     projectType: "CONSULTING",
     serviceScope: "咨询服务",
@@ -54,7 +54,7 @@ class MemoryRepository implements ApprovalRepository {
 }
 
 describe("project application", () => {
-  it("只允许草稿、退回、驳回或撤回的原申请修改", () => {
+  it("只允许草稿、退回、驳回或撤回的立项申请修改", () => {
     expect(() => assertProjectApplicationEditable("REJECTED")).not.toThrow();
     expect(() => assertProjectApplicationEditable("APPROVAL_PENDING")).toThrow(
       "当前立项申请状态不可修改",
@@ -73,13 +73,28 @@ describe("project application", () => {
     );
   });
 
-  it("审批通过只生成一个正式项目和编号", async () => {
+  it("AC-09：驳回时不生成项目，重新提交通过后仅生成一个正式项目编号", async () => {
     const repository = new MemoryRepository();
+    const originalApplicationCode = repository.application.applicationCode;
+
+    repository.application.status = transitionProjectApplication(
+      "APPROVAL_PENDING",
+      "REJECT",
+    );
+    expect(repository.project).toBeNull();
+    expect(repository.application.applicationCode).toBe(originalApplicationCode);
+
+    repository.application.status = transitionProjectApplication(
+      repository.application.status,
+      "SUBMIT",
+    );
     const first = await approveProjectApplication(repository, "a1", "u1");
     const second = await approveProjectApplication(repository, "a1", "u1");
+
     expect(first).toEqual(second);
     expect(repository.allocations).toBe(1);
-    expect(repository.application.applicationCode).toBe("LA-2026-0001");
+    expect(repository.project?.projectCode).toBe("ZK-2026-0001");
+    expect(repository.application.applicationCode).toBe(originalApplicationCode);
     expect(repository.application.status).toBe("APPROVED");
   });
 

@@ -33,7 +33,10 @@ export const projectApplicationInput = z
 
 export type ProjectApplicationInput = z.infer<typeof projectApplicationInput>;
 export type ProjectApplicationAction =
-  "SUBMIT" | "RETURN" | "REJECT" | "WITHDRAW";
+  | "SUBMIT"
+  | "RETURN"
+  | "REJECT"
+  | "WITHDRAW";
 
 const transitions: Record<
   ProjectApplicationStatus,
