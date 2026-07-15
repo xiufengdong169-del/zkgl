@@ -64,6 +64,31 @@ describe("empty database initialization schema", () => {
       expect(tables, `missing foreign-key table ${target}`).toContain(target);
   });
 
+  it("外键目标表在空库初始化脚本中先于引用表创建", () => {
+    const createdTables = new Set<string>();
+    const forwardReferences: string[] = [];
+
+    for (const statement of statements) {
+      const table = /CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)/i.exec(
+        statement,
+      )?.[1];
+      if (!table) continue;
+
+      const targets = [
+        ...statement.matchAll(/REFERENCES\s+([a-z0-9_]+)/gi),
+      ].map((match) => match[1]!.toLowerCase());
+
+      for (const target of targets) {
+        if (target !== table.toLowerCase() && !createdTables.has(target)) {
+          forwardReferences.push(`${table.toLowerCase()} -> ${target}`);
+        }
+      }
+      createdTables.add(table.toLowerCase());
+    }
+
+    expect(forwardReferences).toEqual([]);
+  });
+
   it("不包含数据库迁移版本表", () => {
     expect(schema).not.toMatch(/schema_migration|migration_version/i);
   });

@@ -30,14 +30,6 @@ CREATE TABLE IF NOT EXISTS iam_permission (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS iam_user_role (
-  user_id BIGINT UNSIGNED NOT NULL,
-  role_id BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (user_id, role_id),
-  CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES iam_user(id),
-  CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES iam_role(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 CREATE TABLE IF NOT EXISTS iam_role_permission (
   role_id BIGINT UNSIGNED NOT NULL,
   permission_id BIGINT UNSIGNED NOT NULL,
@@ -123,6 +115,14 @@ CREATE TABLE IF NOT EXISTS iam_user (
   CONSTRAINT fk_iam_user_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id),
   CONSTRAINT fk_iam_user_department FOREIGN KEY (department_id) REFERENCES org_department(id),
   UNIQUE KEY uk_iam_user_employee (employee_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS iam_user_role (
+  user_id BIGINT UNSIGNED NOT NULL,
+  role_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES iam_user(id),
+  CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES iam_role(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS crm_counterparty (
