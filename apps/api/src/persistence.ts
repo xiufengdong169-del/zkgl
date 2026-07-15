@@ -78,6 +78,49 @@ async function allocateNumber(
   );
   return `${row.prefix}-${year}-${String(serial).padStart(row.serial_length, "0")}`;
 }
+export async function requireProjectWriteAccess(
+  connection: PoolConnection,
+  projectId: string | number | null | undefined,
+  user: SessionUser,
+): Promise<void> {
+  if (projectId == null) return;
+  const all = user.dataScopes.some((scope) => scope.type === "ALL");
+  const scopedProjectIds = user.dataScopes.flatMap((scope) =>
+    scope.type === "PROJECT" ? scope.projectIds : [],
+  );
+  const scopedDepartmentIds = user.dataScopes.flatMap((scope) =>
+    scope.type === "DEPARTMENT" ? scope.departmentIds : [],
+  );
+  const projectScope = scopedProjectIds.length
+    ? `p.id IN (${scopedProjectIds.map(() => "?").join(",")})`
+    : "0=1";
+  const departmentScope = scopedDepartmentIds.length
+    ? `pm.department_id IN (${scopedDepartmentIds.map(() => "?").join(",")})`
+    : "0=1";
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT p.id
+       FROM prj_project p
+       JOIN org_employee pm ON pm.id=p.project_manager_id
+       LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE'
+      WHERE p.id=? AND p.is_deleted=0
+        AND (?=1 OR p.project_manager_id=? OR m.employee_id=? OR ${projectScope} OR ${departmentScope})
+      LIMIT 1`,
+    [
+      projectId,
+      all ? 1 : 0,
+      user.employeeId,
+      user.employeeId,
+      ...scopedProjectIds,
+      ...scopedDepartmentIds,
+    ],
+  );
+  if (!rows[0])
+    throw new AppError(
+      "PROJECT_WRITE_FORBIDDEN",
+      "数据范围不允许写入该项目",
+      403,
+    );
+}
 
 async function applyBusinessApprovalResult(
   connection: PoolConnection,
@@ -1951,6 +1994,7 @@ export class MySqlActionExecutor {
               "只有审批通过的开票申请才能完成开票",
               409,
             );
+          await requireProjectWriteAccess(connection, application.projectId, user);
           const [applicationUsed] = await connection.execute<RowDataPacket[]>(
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE application_id=? AND is_reversed=0`,
             [input.applicationId],
@@ -2034,6 +2078,8 @@ export class MySqlActionExecutor {
               "收款或发票不存在",
               404,
             );
+          await requireProjectWriteAccess(connection, receipt.projectId, user);
+          await requireProjectWriteAccess(connection, invoice.projectId, user);
           if (receipt.receiptType === "ADVANCE")
             throw new AppError(
               "ADVANCE_RECEIPT_NOT_ALLOCATABLE",
@@ -2108,7 +2154,7 @@ export class MySqlActionExecutor {
         }
         case "invoice.application.create": {
           const [contracts] = await connection.execute<RowDataPacket[]>(
-            `SELECT tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,
+            `SELECT project_id projectId,tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,
             [input.contractId],
           );
           const contract = contracts[0];
@@ -2117,6 +2163,13 @@ export class MySqlActionExecutor {
             ["VOID", "REJECTED", "TERMINATED"].includes(contract.status)
           )
             throw new AppError("INCOME_CONTRACT_INVALID", "收入合同无效", 409);
+          if (String(contract.projectId) !== String(input.projectId))
+            throw new AppError(
+              "INVOICE_CONTRACT_PROJECT_MISMATCH",
+              "开票申请与合同项目不一致",
+              409,
+            );
+          await requireProjectWriteAccess(connection, contract.projectId, user);
           const [usedRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,
             [input.contractId],
@@ -2155,6 +2208,7 @@ export class MySqlActionExecutor {
           };
         }
         case "receipt.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const code = await allocateNumber(connection, "RECEIPT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_receipt(receipt_code,project_id,contract_id,customer_id,received_on,amount,receiving_account,payer_name,payer_account,receipt_type,voucher_number,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -2178,6 +2232,7 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "reimbursement.create": {
+          await requireProjectWriteAccess(connection, input.projectId ?? null, user);
           const code = await allocateNumber(connection, "REIMBURSEMENT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_reimbursement(reimbursement_code,claimant_id,department_id,project_id,reason,payment_recipient,receiving_account,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?)`,
@@ -2271,6 +2326,7 @@ export class MySqlActionExecutor {
               "付款申请未审批或已完成",
               409,
             );
+          await requireProjectWriteAccess(connection, payment.projectId, user);
           if (payment.receivingAccount !== input.receivingAccount)
             throw new AppError(
               "PAYMENT_RECEIVING_ACCOUNT_MISMATCH",
@@ -2403,6 +2459,7 @@ export class MySqlActionExecutor {
               "付款来源不存在",
               404,
             );
+          await requireProjectWriteAccess(connection, source.projectId, user);
           if (
             ["DEPOSIT", "EXPENSE_CONTRACT", "PURCHASE"].includes(
               input.sourceType,
@@ -2463,6 +2520,15 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.create": {
+          if (input.contractId) {
+            const [contractRows] = await connection.execute<RowDataPacket[]>(
+              `SELECT project_id projectId FROM con_contract WHERE id=? AND is_deleted=0`,
+              [input.contractId],
+            );
+            if (!contractRows[0])
+              throw new AppError("CONTRACT_NOT_FOUND", "合同不存在", 404);
+            await requireProjectWriteAccess(connection, contractRows[0].projectId, user);
+          }
           const code = await allocateNumber(connection, "DAILY_PURCHASE");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_daily_purchase(purchase_code,applicant_id,department_id,purchase_type,supplier_id,item_description,quantity,budget_amount,purpose,expected_on,payment_method,contract_related,contract_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -2813,6 +2879,7 @@ export class MySqlActionExecutor {
           };
         }
         case "bid.application.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const code = await allocateNumber(connection, "BID");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_application(bid_code,project_id,tenderer_id,agency_id,tender_number,project_budget,bid_ceiling,registration_at,document_purchase_at,clarification_at,deadline_at,opening_at,bid_location,bid_method,deposit_amount,document_fee,business_owner_id,technical_owner_id,pricing_owner_id,application_reason,created_by,updated_by)
@@ -2846,11 +2913,12 @@ export class MySqlActionExecutor {
         }
         case "bid.status.transition": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.bidId],
           );
           if (!rows[0])
             throw new AppError("BID_NOT_FOUND", "投标申请不存在", 404);
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionBid(rows[0].status, input.action);
           await connection.execute(
             `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
@@ -2860,7 +2928,7 @@ export class MySqlActionExecutor {
         }
         case "bid.result.create": {
           const [bids] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.bidId],
           );
           if (!bids[0] || bids[0].status !== "OPENED")
@@ -2869,6 +2937,7 @@ export class MySqlActionExecutor {
               "只有已开标项目可登记结果",
               409,
             );
+          await requireProjectWriteAccess(connection, bids[0].projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_result(bid_id,opened_on,quoted_amount,ranking,result,winning_amount,notice_on,loss_reason,competitors,retrospective,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
@@ -2894,11 +2963,12 @@ export class MySqlActionExecutor {
         }
         case "bid.task.create": {
           const [bids] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM bid_application WHERE id=? AND is_deleted=0`,
+            `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0`,
             [input.bidId],
           );
           if (!bids[0])
             throw new AppError("BID_NOT_FOUND", "投标申请不存在", 404);
+          await requireProjectWriteAccess(connection, bids[0].projectId, user);
           if (!["PREPARING", "SUBMITTED"].includes(String(bids[0].status)))
             throw new AppError(
               "BID_TASK_NOT_ALLOWED",
@@ -2957,6 +3027,13 @@ export class MySqlActionExecutor {
           return { id: input.taskId, status };
         }
         case "bid.check.create": {
+          const [bids] = await connection.execute<RowDataPacket[]>(
+            `SELECT project_id projectId FROM bid_application WHERE id=? AND is_deleted=0`,
+            [input.bidId],
+          );
+          if (!bids[0])
+            throw new AppError("BID_NOT_FOUND", "投标申请不存在", 404);
+          await requireProjectWriteAccess(connection, bids[0].projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_check(bid_id,check_item,check_standard,responsible_id,created_by,updated_by) VALUES(?,?,?,?,?,?)`,
             [
@@ -3004,6 +3081,7 @@ export class MySqlActionExecutor {
           };
         }
         case "bid.partner.create": {
+          await requireProjectWriteAccess(connection, input.projectId ?? null, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_partner_cooperation(project_id,lead_id,partner_id,final_customer_id,cooperation_type,registration_at,quotation_at,bidding_at,our_quotation,owner_id,result,description,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
@@ -3026,6 +3104,7 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "contract.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const code = await allocateNumber(connection, "CONTRACT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO con_contract(contract_code,contract_name,contract_type,project_id,party_a_id,party_b_id,signing_entity_id,tax_inclusive_amount,tax_exclusive_amount,tax_rate,tax_amount,amount_status,signed_on,effective_on,expires_on,service_content,payment_terms,invoice_terms,owner_id,parent_contract_id,created_by,updated_by)
@@ -3060,7 +3139,7 @@ export class MySqlActionExecutor {
         case "contract.change.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?) FOR UPDATE`,
+              `SELECT project_id projectId,tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?) FOR UPDATE`,
               [input.contractId, all ? 1 : 0, user.employeeId],
             );
           const contract = contracts[0];
@@ -3070,6 +3149,7 @@ export class MySqlActionExecutor {
               "合同不存在或无权访问",
               404,
             );
+          await requireProjectWriteAccess(connection, contract.projectId, user);
           if (contract.status !== "PERFORMING")
             throw new AppError(
               "CONTRACT_CHANGE_NOT_ALLOWED",
@@ -3113,7 +3193,7 @@ export class MySqlActionExecutor {
         case "contract.milestone.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT id,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              `SELECT id,project_id projectId,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
               [input.contractId, all ? 1 : 0, user.employeeId],
             );
           if (!contracts[0])
@@ -3150,7 +3230,7 @@ export class MySqlActionExecutor {
         case "contract.milestone.complete": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [milestones] = await connection.execute<RowDataPacket[]>(
-              `SELECT m.id,m.status FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 AND (?=1 OR c.owner_id=?) FOR UPDATE`,
+              `SELECT m.id,m.status,c.project_id projectId FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 AND (?=1 OR c.owner_id=?) FOR UPDATE`,
               [input.milestoneId, all ? 1 : 0, user.employeeId],
             );
           if (!milestones[0])
@@ -3159,6 +3239,7 @@ export class MySqlActionExecutor {
               "履约节点不存在或无权访问",
               404,
             );
+          await requireProjectWriteAccess(connection, milestones[0].projectId, user);
           if (milestones[0].status !== "PENDING")
             throw new AppError(
               "CONTRACT_MILESTONE_COMPLETED",
@@ -3172,6 +3253,7 @@ export class MySqlActionExecutor {
           return { id: input.milestoneId, status: "COMPLETED" };
         }
         case "partner.plan.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.settlementMethod === "RATIO") {
             const [ratioRows] = await connection.execute<RowDataPacket[]>(
               `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
@@ -3222,11 +3304,12 @@ export class MySqlActionExecutor {
         }
         case "partner.plan.version.create": {
           const [plans] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,current_version currentVersion FROM partner_plan WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT id,project_id projectId,current_version currentVersion FROM partner_plan WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.planId],
           );
           if (!plans[0])
             throw new AppError("PARTNER_PLAN_NOT_FOUND", "合作方案不存在", 404);
+          await requireProjectWriteAccess(connection, plans[0].projectId, user);
           const [nextRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COALESCE(MAX(version_number),0)+1 nextVersion FROM partner_plan_version WHERE plan_id=? FOR UPDATE`,
             [input.planId],
@@ -3270,6 +3353,7 @@ export class MySqlActionExecutor {
               "待启用的方案版本不存在",
               409,
             );
+          await requireProjectWriteAccess(connection, version.projectId, user);
           if (version.settlementMethod === "RATIO") {
             const [ratios] = await connection.execute<RowDataPacket[]>(
               `SELECT COALESCE(SUM(v.ratio),0) totalRatio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.version_number=p.current_version WHERE p.project_id=? AND p.id<>? AND p.status='ENABLED' AND v.status='ENABLED' AND v.calculation_basis=?`,
@@ -3315,6 +3399,7 @@ export class MySqlActionExecutor {
               "结算期间没有有效合作方案",
               409,
             );
+          await requireProjectWriteAccess(connection, plan.projectId, user);
           let basisAmount = 0;
           if (plan.basis === "CONTRACT_REVENUE_EX_TAX") {
             const [r] = await connection.execute<RowDataPacket[]>(
@@ -3409,6 +3494,7 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code, snapshot };
         }
         case "deposit.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const code = await allocateNumber(connection, "DEPOSIT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_deposit(deposit_code,project_id,bid_id,contract_id,deposit_type,direction,counterparty_id,amount,due_payment_on,due_return_on,account,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -3432,12 +3518,13 @@ export class MySqlActionExecutor {
         }
         case "deposit.event.create": {
           const [old] = await connection.execute<RowDataPacket[]>(
-            `SELECT amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? FOR UPDATE`,
+            `SELECT project_id projectId,amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? FOR UPDATE`,
             [input.depositId],
           );
           const deposit = old[0];
           if (!deposit)
             throw new AppError("DEPOSIT_NOT_FOUND", "保证金不存在", 404);
+          await requireProjectWriteAccess(connection, deposit.projectId, user);
           const [seen] = await connection.execute<RowDataPacket[]>(
             `SELECT id FROM fin_deposit_event WHERE idempotency_key=?`,
             [input.idempotencyKey],
@@ -3556,6 +3643,7 @@ export class MySqlActionExecutor {
           };
         }
         case "project.close.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [acceptanceRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED'`,
             [input.projectId],
@@ -3811,6 +3899,7 @@ export class MySqlActionExecutor {
           return { deliverables, acceptances, stages, risks, changes };
         }
         case "project.start.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [contractRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PERFORMING','COMPLETED') AND effective_on IS NOT NULL AND effective_on<=CURDATE() AND is_deleted=0`,
             [input.projectId],
@@ -3850,6 +3939,7 @@ export class MySqlActionExecutor {
           };
         }
         case "project.stage.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_stage(project_id,stage_name,stage_order,planned_start_on,planned_end_on,owner_id,objective,deliverables,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?)`,
             [
@@ -3869,11 +3959,12 @@ export class MySqlActionExecutor {
         }
         case "project.stage.transition": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM prj_stage WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT status,project_id projectId FROM prj_stage WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.stageId],
           );
           if (!rows[0])
             throw new AppError("STAGE_NOT_FOUND", "阶段不存在", 404);
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionStage(rows[0].status, input.action);
           await connection.execute(
             `UPDATE prj_stage SET status=?,actual_start_on=CASE WHEN ?='IN_PROGRESS' AND actual_start_on IS NULL THEN CURDATE() ELSE actual_start_on END,actual_end_on=CASE WHEN ?='COMPLETED' THEN CURDATE() ELSE actual_end_on END,updated_by=?,version=version+1 WHERE id=?`,
@@ -3882,6 +3973,7 @@ export class MySqlActionExecutor {
           return { id: input.stageId, status };
         }
         case "project.progress.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.stageId) {
             const [stages] = await connection.execute<RowDataPacket[]>(
               `SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0 FOR UPDATE`,
@@ -3921,6 +4013,7 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "project.risk.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_risk_issue(project_id,item_type,title,description,severity,impact,owner_id,discovered_on,planned_resolution_on,measures,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
@@ -3942,11 +4035,12 @@ export class MySqlActionExecutor {
         }
         case "project.risk.transition": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM prj_risk_issue WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT status,project_id projectId FROM prj_risk_issue WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.riskId],
           );
           if (!rows[0])
             throw new AppError("RISK_NOT_FOUND", "问题风险不存在", 404);
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionRisk(rows[0].status, input.action);
           await connection.execute(
             `UPDATE prj_risk_issue SET status=?,actual_resolution_on=CASE WHEN ?='CLOSED' THEN CURDATE() ELSE actual_resolution_on END,updated_by=?,version=version+1 WHERE id=?`,
@@ -3955,6 +4049,7 @@ export class MySqlActionExecutor {
           return { id: input.riskId, status };
         }
         case "project.deliverable.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.stageId) {
             const [stages] = await connection.execute<RowDataPacket[]>(
               `SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0`,
@@ -3985,7 +4080,7 @@ export class MySqlActionExecutor {
         }
         case "project.deliverable.confirm": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,status FROM prj_deliverable WHERE id=? FOR UPDATE`,
+            `SELECT id,project_id projectId,status FROM prj_deliverable WHERE id=? FOR UPDATE`,
             [input.deliverableId],
           );
           if (!rows[0] || rows[0].status !== "SUBMITTED")
@@ -3994,6 +4089,7 @@ export class MySqlActionExecutor {
               "成果当前不可确认",
               409,
             );
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status =
             input.confirmationResult === "ACCEPTED" ? "CONFIRMED" : "REJECTED";
           await connection.execute(
@@ -4003,6 +4099,7 @@ export class MySqlActionExecutor {
           return { id: input.deliverableId, status };
         }
         case "project.acceptance.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_acceptance(project_id,contract_id,acceptance_type,applied_on,acceptance_scope,acceptance_basis,status,created_by,updated_by) VALUES(?,?,?,?,?,?,'DRAFT',?,?)`,
             [
@@ -4025,6 +4122,7 @@ export class MySqlActionExecutor {
           );
           if (!rows[0])
             throw new AppError("ACCEPTANCE_NOT_FOUND", "验收申请不存在", 404);
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           if (rows[0].status !== "PENDING_ACCEPTANCE")
             throw new AppError(
               "ACCEPTANCE_RESULT_NOT_ALLOWED",
@@ -4066,6 +4164,7 @@ export class MySqlActionExecutor {
           return { id: input.acceptanceId, status, result: input.result };
         }
         case "project.change.create": {
+          await requireProjectWriteAccess(connection, input.projectId, user);
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_change(project_id,change_type,original_content,new_content,reason,impact_scope,schedule_impact_days,amount_impact,applicant_id,effective_on,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
