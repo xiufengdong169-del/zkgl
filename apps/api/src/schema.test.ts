@@ -71,6 +71,9 @@ describe("empty database initialization schema", () => {
   it("内部账号与人员、CloudBase UID 均为一对一映射", () => {
     expect(schema).toMatch(/cloudbase_uid VARCHAR\(128\) NOT NULL UNIQUE/);
     expect(schema).toContain("UNIQUE KEY uk_iam_user_employee (employee_id)");
+    expect(schema).toContain(
+      "CONSTRAINT fk_iam_user_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id)",
+    );
     expect(schema).not.toMatch(/password|password_hash|password_salt/i);
   });
 
