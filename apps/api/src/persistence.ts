@@ -150,6 +150,14 @@ function buildProjectDataScope(user: SessionUser) {
   };
 }
 
+function buildProjectReferenceScope(user: SessionUser, projectIdExpression: string) {
+  const projectScope = buildProjectDataScope(user);
+  return {
+    sql: `EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=${projectIdExpression} AND p.is_deleted=0 AND ${projectScope.sql})`,
+    params: projectScope.params,
+  };
+}
+
 function buildFileAccessScope(user: SessionUser) {
   const projectScope = buildProjectDataScope(user);
   return {
@@ -2207,38 +2215,19 @@ export class MySqlActionExecutor {
           return { idempotent: false, status: "WITHDRAWN" };
         }
         case "finance.summary": {
-          const projectId = (input.projectId as string | undefined) ?? null,
-            all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const projectId = (input.projectId as string | undefined) ?? null;
+          const access = buildProjectReferenceScope(user, "x.project_id");
           const [invoiceRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.tax_inclusive_amount),0) amount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COALESCE(SUM(x.tax_inclusive_amount),0) amount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           const [receiptRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           const [paymentRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_payment_detail x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_payment_detail x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           return {
             invoicedAmount: invoiceRows[0]?.amount ?? "0.00",
@@ -2248,37 +2237,18 @@ export class MySqlActionExecutor {
         }
         case "finance.documents": {
           const projectId = (input.projectId as string | undefined) ?? null,
-            all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+            access = buildProjectReferenceScope(user, "x.project_id");
           const [applications] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.application_code code,x.project_id projectId,x.contract_id contractId,x.requested_amount requestedAmount,x.status FROM fin_invoice_application x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT CAST(x.id AS CHAR) id,x.application_code code,x.project_id projectId,x.contract_id contractId,x.requested_amount requestedAmount,x.status FROM fin_invoice_application x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            [projectId, projectId, ...access.params],
           );
           const [receipts] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.receipt_code code,x.project_id projectId,x.contract_id contractId,x.amount,x.receipt_type receiptType,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.receipt_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT CAST(x.id AS CHAR) id,x.receipt_code code,x.project_id projectId,x.contract_id contractId,x.amount,x.receipt_type receiptType,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.receipt_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_receipt x WHERE x.status='ACTIVE' AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            [projectId, projectId, ...access.params],
           );
           const [invoices] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.invoice_number invoiceNumber,x.project_id projectId,x.contract_id contractId,x.tax_inclusive_amount amount,x.status,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.invoice_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access} ORDER BY x.id DESC LIMIT 200`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT CAST(x.id AS CHAR) id,x.invoice_number invoiceNumber,x.project_id projectId,x.contract_id contractId,x.tax_inclusive_amount amount,x.status,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.invoice_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            [projectId, projectId, ...access.params],
           );
           return { applications, receipts, invoices };
         }
@@ -2587,27 +2557,27 @@ export class MySqlActionExecutor {
           return { reimbursements, purchases };
         }
         case "finance.operations": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const access = buildProjectReferenceScope(user, "x.project_id"),
+            depositEventAccess = buildProjectReferenceScope(user, "d.project_id");
           const [payments] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            access.params,
           );
           const [plans] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.current_version currentVersion,x.status,CAST(v.id AS CHAR) versionId,v.settlement_method settlementMethod,v.ratio,v.fixed_amount fixedAmount,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,v.status versionStatus FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id LEFT JOIN partner_plan_version v ON v.plan_id=x.id AND v.version_number=x.current_version WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access} ORDER BY x.id DESC LIMIT 200`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.current_version currentVersion,x.status,CAST(v.id AS CHAR) versionId,v.settlement_method settlementMethod,v.ratio,v.fixed_amount fixedAmount,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,v.status versionStatus FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id LEFT JOIN partner_plan_version v ON v.plan_id=x.id AND v.version_number=x.current_version WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            access.params,
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            access.params,
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access} ORDER BY x.id DESC LIMIT 200`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            access.params,
           );
           const [depositEvents] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id JOIN prj_project x ON x.id=d.project_id WHERE (?=1 OR x.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=x.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY e.id DESC LIMIT 200`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE ${depositEventAccess.sql} ORDER BY e.id DESC LIMIT 200`,
+            depositEventAccess.params,
           );
           return { payments, plans, settlements, deposits, depositEvents };
         }
@@ -4041,26 +4011,23 @@ export class MySqlActionExecutor {
         case "project.close.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
-            all = user.dataScopes.some((scope) => scope.type === "ALL"),
+            closeAccess = buildProjectReferenceScope(user, "x.project_id"),
+            openItemAccess = buildProjectReferenceScope(user, "c.project_id"),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE (?=1 OR x.created_by=? OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
+              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
               [
-                all ? 1 : 0,
                 user.id,
-                user.employeeId,
-                user.employeeId,
+                ...closeAccess.params,
                 pageSize,
                 (page - 1) * pageSize,
               ],
             ),
             [openItems] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE (?=1 OR c.created_by=? OR p.project_manager_id=? OR i.responsible_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
+              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
               [
-                all ? 1 : 0,
                 user.id,
                 user.employeeId,
-                user.employeeId,
-                user.employeeId,
+                ...openItemAccess.params,
               ],
             );
           return { items: rows, openItems, page, pageSize };
@@ -4112,23 +4079,22 @@ export class MySqlActionExecutor {
           };
         }
         case "settlement.summary": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const access = buildProjectReferenceScope(user, "x.project_id");
           const [planRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM partner_plan x WHERE x.is_deleted=0 AND ${access}`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT COUNT(*) count FROM partner_plan x WHERE x.is_deleted=0 AND ${access.sql}`,
+            access.params,
           );
           const [settlementRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.net_settlement_amount),0) amount FROM partner_settlement x WHERE x.status IN('APPROVED','PAID') AND ${access}`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT COALESCE(SUM(x.net_settlement_amount),0) amount FROM partner_settlement x WHERE x.status IN('APPROVED','PAID') AND ${access.sql}`,
+            access.params,
           );
           const [depositRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.occupied_amount),0) amount FROM fin_deposit x WHERE ${access}`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT COALESCE(SUM(x.occupied_amount),0) amount FROM fin_deposit x WHERE ${access.sql}`,
+            access.params,
           );
           const [closeRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND ${access}`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND ${access.sql}`,
+            access.params,
           );
           return {
             planCount: Number(planRows[0]?.count ?? 0),
@@ -4139,37 +4105,18 @@ export class MySqlActionExecutor {
         }
         case "delivery.summary": {
           const projectId = (input.projectId as string | undefined) ?? null,
-            all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+            access = buildProjectReferenceScope(user, "x.project_id");
           const [stageRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count,COALESCE(AVG(completion_percentage),0) progress FROM prj_stage x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COUNT(*) count,COALESCE(AVG(completion_percentage),0) progress FROM prj_stage x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           const [riskRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_risk_issue x WHERE x.is_deleted=0 AND x.status<>'CLOSED' AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COUNT(*) count FROM prj_risk_issue x WHERE x.is_deleted=0 AND x.status<>'CLOSED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           const [deliverableRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_deliverable x WHERE x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access}`,
-            [
-              projectId,
-              projectId,
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-            ],
+            `SELECT COUNT(*) count FROM prj_deliverable x WHERE x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            [projectId, projectId, ...access.params],
           );
           return {
             stageCount: Number(stageRows[0]?.count ?? 0),
@@ -4179,27 +4126,26 @@ export class MySqlActionExecutor {
           };
         }
         case "delivery.records": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR EXISTS(SELECT 1 FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.id=x.project_id AND (p.project_manager_id=? OR m.employee_id=?)))`;
+          const access = buildProjectReferenceScope(user, "x.project_id");
           const [deliverables] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            access.params,
           );
           const [acceptances] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            access.params,
           );
           const [stages] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access} ORDER BY x.project_id,x.stage_order`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.project_id,x.stage_order`,
+            access.params,
           );
           const [risks] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access} ORDER BY x.id DESC LIMIT 100`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            access.params,
           );
           const [changes] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE ${access} ORDER BY x.id DESC LIMIT 100`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            access.params,
           );
           return { deliverables, acceptances, stages, risks, changes };
         }
