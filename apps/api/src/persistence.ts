@@ -123,6 +123,31 @@ export async function requireProjectWriteAccess(
     );
 }
 
+function buildProjectDataScope(user: SessionUser) {
+  const projectIds = user.dataScopes.flatMap((scope) =>
+    scope.type === "PROJECT" ? scope.projectIds : [],
+  );
+  const departmentIds = user.dataScopes.flatMap((scope) =>
+    scope.type === "DEPARTMENT" ? scope.departmentIds : [],
+  );
+  const projectScope = projectIds.length
+    ? `p.id IN (${projectIds.map(() => "?").join(",")})`
+    : "0=1";
+  const departmentScope = departmentIds.length
+    ? `pm.department_id IN (${departmentIds.map(() => "?").join(",")})`
+    : "0=1";
+  return {
+    sql: `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope})`,
+    params: [
+      user.dataScopes.some((scope) => scope.type === "ALL") ? 1 : 0,
+      user.employeeId,
+      user.employeeId,
+      ...projectIds,
+      ...departmentIds,
+    ],
+  };
+}
+
 async function applyBusinessApprovalResult(
   connection: PoolConnection,
   businessType: string,
@@ -394,17 +419,17 @@ export class MySqlActionExecutor {
           return refreshReminders(connection);
         }
         case "report.dashboard": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            access = `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE'))`;
+          const projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(p.estimated_revenue-p.estimated_cost),0) expectedProfit,COALESCE(SUM((SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id)),0) contractOperatingProfit,COALESCE(SUM((SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(x.amount),0) FROM fin_payment_detail x WHERE x.project_id=p.id AND x.status='ACTIVE')),0) cashContribution,COUNT(*) projectCount FROM prj_project p WHERE p.is_deleted=0 AND ${access}`,
-            [all ? 1 : 0, user.employeeId, user.employeeId],
+            `SELECT COALESCE(SUM(p.estimated_revenue-p.estimated_cost),0) expectedProfit,COALESCE(SUM((SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id)),0) contractOperatingProfit,COALESCE(SUM((SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(x.amount),0) FROM fin_payment_detail x WHERE x.project_id=p.id AND x.status='ACTIVE')),0) cashContribution,COUNT(*) projectCount FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
+            projectScope.params,
           );
-          return { ...rows[0], disclaimer: "内部项目经营口径，不属于会计利润" };
+          return { ...rows[0], disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6" };
         }
         case "report.analytics": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            employee = user.employeeId;
+            employee = user.employeeId,
+            projectScope = buildProjectDataScope(user);
           const [leadStatus] = await connection.execute<RowDataPacket[]>(
               `SELECT status,COUNT(*) count,COALESCE(SUM(estimated_amount),0) amount FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=?) GROUP BY status ORDER BY status`,
               [all ? 1 : 0, employee],
@@ -414,16 +439,16 @@ export class MySqlActionExecutor {
               [all ? 1 : 0, employee, employee, employee],
             ),
             [projectStatus] = await connection.execute<RowDataPacket[]>(
-              `SELECT p.status,COUNT(DISTINCT p.id) count,COALESCE(AVG((SELECT MAX(x.overall_progress) FROM prj_progress x WHERE x.project_id=p.id)),0) averageProgress FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE' WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR m.employee_id=?) GROUP BY p.status ORDER BY p.status`,
-              [all ? 1 : 0, employee, employee],
+              `SELECT p.status,COUNT(DISTINCT p.id) count,COALESCE(AVG((SELECT MAX(x.overall_progress) FROM prj_progress x WHERE x.project_id=p.id)),0) averageProgress FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} GROUP BY p.status ORDER BY p.status`,
+              projectScope.params,
             ),
             [collection] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE')),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE'))`,
-              [all ? 1 : 0, employee, employee],
+              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE')),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND ${projectScope.sql}`,
+              projectScope.params,
             ),
             [profits] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY p.id DESC LIMIT 100`,
-              [all ? 1 : 0, employee, employee],
+              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
+              projectScope.params,
             );
           return {
             leadStatus,
@@ -431,45 +456,24 @@ export class MySqlActionExecutor {
             projectStatus,
             collection: collection[0] ?? {},
             profits,
-            disclaimer: "内部项目经营口径，不属于会计利润",
+            disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
           };
         }
         case "report.receivables": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
-            all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            employee = user.employeeId;
+            projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE')) ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
-            [all ? 1 : 0, employee, employee, pageSize, (page - 1) * pageSize],
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
+            [...projectScope.params, pageSize, (page - 1) * pageSize],
           );
           return { items: rows, page, pageSize };
         }
         case "report.project.export": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            projectIds = user.dataScopes.flatMap((scope) =>
-              scope.type === "PROJECT" ? scope.projectIds : [],
-            ),
-            departmentIds = user.dataScopes.flatMap((scope) =>
-              scope.type === "DEPARTMENT" ? scope.departmentIds : [],
-            ),
-            projectScope = projectIds.length
-              ? `p.id IN (${projectIds.map(() => "?").join(",")})`
-              : "0=1",
-            departmentScope = departmentIds.length
-              ? `pm.department_id IN (${departmentIds.map(() => "?").join(",")})`
-              : "0=1",
-            access = `(?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope})`,
-            accessParams = [
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
-              ...projectIds,
-              ...departmentIds,
-            ];
+          const projectScope = buildProjectDataScope(user);
           const [countRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${access}`,
-            accessParams,
+            `SELECT COUNT(*) count FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
+            projectScope.params,
           );
           const estimatedRows = Number(countRows[0]?.count ?? 0);
           if (chooseExportMode(estimatedRows) === "BACKGROUND") {
@@ -497,17 +501,17 @@ export class MySqlActionExecutor {
               taskCode: code,
               status: "PENDING",
               estimatedRows,
-              message: `导出数据约 ${estimatedRows} 条，已转入后台任务 ${code}`,
+              message: `\u5bfc\u51fa\u6570\u636e\u7ea6 ${estimatedRows} \u6761\uff0c\u5df2\u8f6c\u5165\u540e\u53f0\u4efb\u52a1 ${code}`,
             };
           }
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${access} ORDER BY p.id DESC LIMIT 1000`,
-            accessParams,
+            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 1000`,
+            projectScope.params,
           );
           return {
             mode: "SYNCHRONOUS",
             rows,
-            disclaimer: "内部项目经营口径，不属于会计利润",
+            disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
           };
         }
         case "report.exportTasks": {
