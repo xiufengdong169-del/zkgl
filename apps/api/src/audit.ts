@@ -64,6 +64,15 @@ const resourceIdKeys = [
   "instanceId",
   "taskId",
   "messageId",
+  "roleId",
+  "userId",
+  "employeeId",
+  "departmentId",
+  "assignmentId",
+  "ruleId",
+  "typeId",
+  "itemId",
+  "nodeId",
 ] as const;
 
 function recordId(value: unknown): string | null {
