@@ -46,6 +46,10 @@ function dependencies(
 }
 
 describe("private files", () => {
+  it("allows CSV report attachments", () => {
+    expect(extractSafeExtension("project-export.csv")).toBe("csv");
+  });
+
   it("拒绝脚本和可执行文件", () => {
     for (const name of ["a.exe", "a.ps1", "a.js", "a.sh"])
       expect(() => extractSafeExtension(name)).toThrow();

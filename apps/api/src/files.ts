@@ -12,6 +12,7 @@ const allowedExtensions = new Set([
   "docx",
   "xls",
   "xlsx",
+  "csv",
   "png",
   "jpg",
   "jpeg",

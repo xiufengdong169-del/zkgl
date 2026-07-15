@@ -213,7 +213,7 @@ async function download(fileId: string, versionId: string | null = null) {
       ><label class="wide"
         >选择文件<input
           type="file"
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.zip"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.zip"
           @change="
             selected = ($event.target as HTMLInputElement).files?.[0] ?? null
           " /></label
@@ -253,7 +253,7 @@ async function download(fileId: string, versionId: string | null = null) {
         <label class="wide"
           >上传新版本<input
             type="file"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.zip"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.gif,.webp,.zip"
             @change="
               replacement =
                 ($event.target as HTMLInputElement).files?.[0] ?? null
