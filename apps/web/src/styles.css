@@ -47,6 +47,14 @@ button:disabled { opacity: .65; cursor: wait; }
 .module-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; color: #245f9f; background: #e6f0fa; font-weight: 800; }
 .data-panel { margin-top:18px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; overflow-x:auto; }
 .data-panel h2 { margin-top:0; font-size:18px; }.data-panel table { width:100%; border-collapse:collapse; }.data-panel th,.data-panel td { padding:11px; border-bottom:1px solid #edf1f5; text-align:left; white-space:nowrap; }.data-panel th { color:#59667a; font-size:13px; }
+.data-list { display:grid; gap:12px; margin-top:22px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; }
+.data-list h2 { margin:0; font-size:18px; }
+.data-list p { margin:4px 0 0; color:#748095; line-height:1.55; }
+.data-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:15px 0; border-top:1px solid #edf1f5; }
+.data-row:first-of-type { border-top:0; }
+.data-row.compact { padding:12px 0; }
+.section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.dashboard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:22px; }
 .pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
@@ -79,5 +87,5 @@ button:disabled { opacity: .65; cursor: wait; }
 .delivery-timeline span { display: grid; min-width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: #245f9f; font-weight: 800; }
 .delivery-timeline h2 { margin: 0 0 4px; font-size: 16px; }.delivery-timeline p { margin: 0; color: #748095; }
 @media (max-width: 1050px) { .bid-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(10, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .app-frame { grid-template-columns: 1fr; } .sidebar { padding: 16px; } .sidebar nav { grid-template-columns: repeat(10, minmax(90px, 1fr)); overflow-x: auto; } .module-grid, .project-summary, .workflow-steps, .bid-grid, .contract-panels, .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-card { padding: 30px 24px; } .shell header, .page-header { align-items: flex-start; flex-direction: column; } .metric-strip,.entity-form { grid-template-columns:1fr; }.entity-form .wide{grid-column:auto} }

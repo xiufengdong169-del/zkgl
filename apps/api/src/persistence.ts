@@ -1514,7 +1514,7 @@ export class MySqlActionExecutor {
             projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT DISTINCT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
-                    CAST(p.project_manager_id AS CHAR) projectManagerId
+                    CAST(p.project_manager_id AS CHAR) projectManagerId,pm.name managerName
                FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id
               WHERE p.is_deleted=0 AND ${projectScope.sql}
                 AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR p.project_code LIKE ? ESCAPE '\\\\')

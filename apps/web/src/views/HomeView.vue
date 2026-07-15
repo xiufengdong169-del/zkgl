@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { callApi } from "../api";
 
 interface Message {
@@ -25,6 +26,23 @@ interface ExportTask {
   sizeBytes: number | null;
 }
 
+interface ApprovalItem {
+  id: string;
+  instanceCode: string;
+  title: string;
+  businessType: string;
+  occurredAt: string;
+}
+
+interface ProjectItem {
+  id: string;
+  code: string;
+  projectName: string;
+  status: string;
+  projectManagerId: string;
+  managerName?: string;
+}
+
 const summary = ref({
   expectedProfit: "0.00",
   contractOperatingProfit: "0.00",
@@ -34,17 +52,32 @@ const summary = ref({
 });
 const messages = ref<Message[]>([]);
 const exportTasks = ref<ExportTask[]>([]);
+const pendingApprovals = ref<ApprovalItem[]>([]);
+const myProjects = ref<ProjectItem[]>([]);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const exporting = ref(false);
 
 async function loadDashboardAndMessages() {
-  const [report, messageResult] = await Promise.allSettled([
+  const [report, messageResult, approvalResult, projectResult] = await Promise.allSettled([
     callApi<typeof summary.value>("report.dashboard", {}),
     callApi<{ items: Message[] }>("message.list", { page: 1, pageSize: 20 }),
+    callApi<{ items: ApprovalItem[] }>("approval.inbox.list", {
+      mode: "PENDING",
+      page: 1,
+      pageSize: 20,
+    }),
+    callApi<{ items: ProjectItem[] }>("project.list", {
+      page: 1,
+      pageSize: 20,
+    }),
   ]);
   if (report.status === "fulfilled") summary.value = report.value;
   if (messageResult.status === "fulfilled") messages.value = messageResult.value.items;
+  if (approvalResult.status === "fulfilled")
+    pendingApprovals.value = approvalResult.value.items.slice(0, 6);
+  if (projectResult.status === "fulfilled")
+    myProjects.value = projectResult.value.items.slice(0, 6);
   if (report.status === "rejected" && messageResult.status === "rejected") {
     error.value = "\u5de5\u4f5c\u53f0\u52a0\u8f7d\u5931\u8d25";
   }
@@ -178,6 +211,44 @@ async function markRead(message: Message) {
     </section>
 
     <p class="accounting-disclaimer">{{ summary.disclaimer }}</p>
+
+    <section class="dashboard-grid">
+      <article class="data-list">
+        <div class="section-title">
+          <h2>我的待办</h2>
+          <RouterLink class="secondary-button" :to="{ name: 'approvals' }">
+            查看全部
+          </RouterLink>
+        </div>
+        <div v-if="pendingApprovals.length">
+          <div v-for="item in pendingApprovals" :key="item.id" class="data-row compact">
+            <div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.instanceCode }} · {{ item.businessType }} · {{ item.occurredAt }}</p>
+            </div>
+          </div>
+        </div>
+        <p v-else>暂无待审批事项</p>
+      </article>
+
+      <article class="data-list">
+        <div class="section-title">
+          <h2>我的项目</h2>
+          <RouterLink class="secondary-button" :to="{ name: 'projects' }">
+            查看全部
+          </RouterLink>
+        </div>
+        <div v-if="myProjects.length">
+          <div v-for="project in myProjects" :key="project.id" class="data-row compact">
+            <div>
+              <strong>{{ project.code }} · {{ project.projectName }}</strong>
+              <p>{{ project.status }} · 负责人 {{ project.managerName || project.projectManagerId }}</p>
+            </div>
+          </div>
+        </div>
+        <p v-else>暂无可查看项目</p>
+      </article>
+    </section>
 
     <section class="data-list" v-if="exportTasks.length">
       <h2>&#23548;&#20986;&#20219;&#21153;</h2>
