@@ -521,6 +521,50 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       roleIds: z.array(z.string().min(1)).max(20),
     }),
   },
+  "admin.role.permission.set": {
+    permission: "system.admin",
+    input: z.object({
+      roleId: z.string().min(1),
+      permissionIds: z.array(z.string().min(1)).max(300),
+    }),
+  },
+  "admin.role.dataScope.set": {
+    permission: "system.admin",
+    input: z.object({
+      roleId: z.string().min(1),
+      scopes: z
+        .array(
+          z.object({
+            scopeType: z.enum([
+              "ALL",
+              "SELF",
+              "OWNER",
+              "CREATOR",
+              "PARTICIPANT",
+              "DEPARTMENT",
+              "PROJECT",
+            ]),
+            scopeValue: z.string().trim().max(255).default(""),
+          }),
+        )
+        .max(100),
+    }),
+  },
+  "admin.role.sensitiveField.set": {
+    permission: "system.admin",
+    input: z.object({
+      roleId: z.string().min(1),
+      grants: z
+        .array(
+          z.object({
+            fieldCode: z.string().trim().min(1).max(128),
+            accessLevel: z.enum(["FULL", "MASKED"]),
+            explicitDeny: z.boolean().default(false),
+          }),
+        )
+        .max(50),
+    }),
+  },
   "admin.user.create": {
     permission: "system.admin",
     input: z.object({

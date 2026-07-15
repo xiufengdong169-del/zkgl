@@ -18,7 +18,42 @@ interface Employee {
 }
 interface Role {
   id: string;
+  code: string;
   name: string;
+  status: string;
+}
+interface Permission {
+  id: string;
+  code: string;
+  name: string;
+  permissionType: string;
+}
+interface RolePermission {
+  roleId: string;
+  permissionId: string;
+}
+type DataScopeType =
+  | "ALL"
+  | "SELF"
+  | "OWNER"
+  | "CREATOR"
+  | "PARTICIPANT"
+  | "DEPARTMENT"
+  | "PROJECT";
+interface RoleDataScope {
+  id: string;
+  roleId: string;
+  scopeType: DataScopeType;
+  scopeValue: string;
+  status: string;
+}
+interface SensitiveGrant {
+  id: string;
+  roleId: string;
+  fieldCode: string;
+  accessLevel: "FULL" | "MASKED";
+  explicitDeny: number | boolean;
+  status: string;
 }
 interface User {
   id: string;
@@ -109,6 +144,10 @@ interface AuditLog {
 const departments = ref<Department[]>([]);
 const employees = ref<Employee[]>([]);
 const roles = ref<Role[]>([]);
+const permissions = ref<Permission[]>([]);
+const rolePermissions = ref<RolePermission[]>([]);
+const roleDataScopes = ref<RoleDataScope[]>([]);
+const sensitiveGrants = ref<SensitiveGrant[]>([]);
 const users = ref<User[]>([]);
 const numberRules = ref<NumberRule[]>([]);
 const approvalTemplates = ref<ApprovalTemplate[]>([]);
@@ -166,6 +205,10 @@ async function load() {
       departments: Department[];
       employees: Employee[];
       roles: Role[];
+      permissions: Permission[];
+      rolePermissions: RolePermission[];
+      roleDataScopes: RoleDataScope[];
+      sensitiveGrants: SensitiveGrant[];
       users: User[];
       numberRules: NumberRule[];
       approvalTemplates: ApprovalTemplate[];
@@ -178,6 +221,10 @@ async function load() {
     departments.value = data.departments;
     employees.value = data.employees;
     roles.value = data.roles;
+    permissions.value = data.permissions;
+    rolePermissions.value = data.rolePermissions;
+    roleDataScopes.value = data.roleDataScopes;
+    sensitiveGrants.value = data.sensitiveGrants;
     users.value = data.users;
     numberRules.value = data.numberRules;
     approvalTemplates.value = data.approvalTemplates;
@@ -415,6 +462,136 @@ async function saveApprovalNode(node: ApprovalNode) {
   }
 }
 
+const dataScopeTypes: DataScopeType[] = [
+  "ALL",
+  "SELF",
+  "OWNER",
+  "CREATOR",
+  "PARTICIPANT",
+  "DEPARTMENT",
+  "PROJECT",
+];
+
+function rolePermissionIds(roleId: string) {
+  return rolePermissions.value
+    .filter((item) => item.roleId === roleId)
+    .map((item) => item.permissionId);
+}
+
+function formatRoleDataScopes(roleId: string) {
+  return roleDataScopes.value
+    .filter((item) => item.roleId === roleId && item.status === "ENABLED")
+    .map((item) => `${item.scopeType}:${item.scopeValue || ""}`)
+    .join("\n");
+}
+
+function formatSensitiveGrants(roleId: string) {
+  return sensitiveGrants.value
+    .filter((item) => item.roleId === roleId && item.status === "ENABLED")
+    .map(
+      (item) =>
+        `${item.fieldCode}:${item.accessLevel}:${
+          item.explicitDeny ? "true" : "false"
+        }`,
+    )
+    .join("\n");
+}
+
+function parseRoleDataScopes(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [rawType = "", ...rest] = line.split(":");
+      const scopeType = rawType.trim().toUpperCase() as DataScopeType;
+      if (!dataScopeTypes.includes(scopeType))
+        throw new Error(
+          "数据范围格式应为 ALL:、DEPARTMENT:部门ID 或 PROJECT:项目ID",
+        );
+      return {
+        scopeType,
+        scopeValue: rest.join(":").trim(),
+      };
+    });
+}
+
+function parseSensitiveGrants(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [fieldCode, access = "MASKED", deny = "false"] = line.split(":");
+      const accessLevel = access.trim().toUpperCase();
+      if (!fieldCode?.trim() || !["FULL", "MASKED"].includes(accessLevel))
+        throw new Error("敏感字段格式应为 字段编码:FULL|MASKED:true|false");
+      return {
+        fieldCode: fieldCode.trim(),
+        accessLevel: accessLevel as "FULL" | "MASKED",
+        explicitDeny: ["1", "true", "yes", "deny"].includes(
+          deny.trim().toLowerCase(),
+        ),
+      };
+    });
+}
+
+async function setRolePermissions(role: Role, event: Event) {
+  const permissionIds = Array.from(
+    (event.target as HTMLSelectElement).selectedOptions,
+  ).map((option) => option.value);
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.permission.set", {
+      roleId: role.id,
+      permissionIds,
+    });
+    await load();
+    notice.value = `${role.name} 权限已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "角色权限保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveRoleDataScopes(role: Role, event: Event) {
+  saving.value = true;
+  error.value = null;
+  try {
+    const form = new FormData(event.target as HTMLFormElement);
+    await callApi("admin.role.dataScope.set", {
+      roleId: role.id,
+      scopes: parseRoleDataScopes(String(form.get("scopes") || "")),
+    });
+    await load();
+    notice.value = `${role.name} 数据范围已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "数据范围保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveSensitiveGrants(role: Role, event: Event) {
+  saving.value = true;
+  error.value = null;
+  try {
+    const form = new FormData(event.target as HTMLFormElement);
+    await callApi("admin.role.sensitiveField.set", {
+      roleId: role.id,
+      grants: parseSensitiveGrants(String(form.get("grants") || "")),
+    });
+    await load();
+    notice.value = `${role.name} 敏感字段授权已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "敏感字段授权保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function switchTab(tab: typeof activeTab.value) {
   activeTab.value = tab;
   if (tab === "audit") await loadAudit();
@@ -615,6 +792,57 @@ onMounted(load);
           <button type="button" @click="toggleUserStatus(item)">
             {{ item.status === "ENABLED" ? "停用" : "启用" }}
           </button>
+        </article>
+      </section>
+      <section class="data-list">
+        <h2>角色权限与数据范围</h2>
+        <p class="muted">
+          数据范围每行一条：ALL:、SELF:、DEPARTMENT:部门ID、PROJECT:项目ID。敏感字段每行一条：字段编码:FULL|MASKED:true|false。
+        </p>
+        <article v-for="role in roles" :key="role.id" class="data-row">
+          <div>
+            <strong>{{ role.name }} · {{ role.code }}</strong>
+            <p>{{ role.status }}</p>
+          </div>
+          <label>
+            权限
+            <select
+              multiple
+              :value="rolePermissionIds(role.id)"
+              :disabled="saving"
+              @change="setRolePermissions(role, $event)"
+            >
+              <option
+                v-for="permission in permissions"
+                :key="permission.id"
+                :value="permission.id"
+              >
+                {{ permission.name }} · {{ permission.code }}
+              </option>
+            </select>
+          </label>
+          <form @submit.prevent="saveRoleDataScopes(role, $event)">
+            <label>
+              数据范围
+              <textarea
+                name="scopes"
+                rows="4"
+                :value="formatRoleDataScopes(role.id)"
+              ></textarea>
+            </label>
+            <button :disabled="saving">保存数据范围</button>
+          </form>
+          <form @submit.prevent="saveSensitiveGrants(role, $event)">
+            <label>
+              敏感字段
+              <textarea
+                name="grants"
+                rows="4"
+                :value="formatSensitiveGrants(role.id)"
+              ></textarea>
+            </label>
+            <button :disabled="saving">保存敏感字段</button>
+          </form>
         </article>
       </section>
     </template>

@@ -551,6 +551,18 @@ export class MySqlActionExecutor {
             [roles] = await connection.execute<RowDataPacket[]>(
               `SELECT id,code,name,status FROM iam_role WHERE is_deleted=0 ORDER BY id`,
             ),
+            [permissions] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,code,name,permission_type permissionType FROM iam_permission ORDER BY permission_type,code`,
+            ),
+            [rolePermissions] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(role_id AS CHAR) roleId,CAST(permission_id AS CHAR) permissionId FROM iam_role_permission ORDER BY role_id,permission_id`,
+            ),
+            [roleDataScopes] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,CAST(role_id AS CHAR) roleId,scope_type scopeType,scope_value scopeValue,status FROM iam_role_data_scope ORDER BY role_id,scope_type,scope_value`,
+            ),
+            [sensitiveGrants] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,CAST(role_id AS CHAR) roleId,field_code fieldCode,access_level accessLevel,explicit_deny explicitDeny,status FROM iam_sensitive_field_grant ORDER BY role_id,field_code`,
+            ),
             [users] = await connection.execute<RowDataPacket[]>(
               `SELECT u.id,u.username,u.cloudbase_uid cloudbaseUid,u.status,u.last_synced_at lastSyncedAt,e.name employeeName,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(r.id ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 200`,
             );
@@ -579,6 +591,10 @@ export class MySqlActionExecutor {
             departments,
             employees,
             roles,
+            permissions,
+            rolePermissions,
+            roleDataScopes,
+            sensitiveGrants,
             users,
             numberRules,
             approvalTemplates,
@@ -683,6 +699,106 @@ export class MySqlActionExecutor {
               [input.userId, roleId],
             );
           return { userId: input.userId, roleCount: input.roleIds.length };
+        }
+        case "admin.role.permission.set": {
+          const roleId = input.roleId as string,
+            permissionIds = [...new Set(input.permissionIds as string[])];
+          const [roles] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [roleId],
+          );
+          const role = roles[0];
+          if (!role)
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (permissionIds.length) {
+            const placeholders = permissionIds.map(() => "?").join(",");
+            const [valid] = await connection.execute<RowDataPacket[]>(
+              `SELECT id,code FROM iam_permission WHERE id IN (${placeholders})`,
+              permissionIds,
+            );
+            if (valid.length !== permissionIds.length)
+              throw new AppError("PERMISSION_INVALID", "所选权限不存在", 409);
+            if (
+              role.code === "ADMIN" &&
+              !valid.some((permission) => permission.code === "system.admin")
+            )
+              throw new AppError(
+                "ADMIN_PERMISSION_REQUIRED",
+                "管理员角色必须保留系统管理权限",
+                409,
+              );
+          } else if (role.code === "ADMIN")
+            throw new AppError(
+              "ADMIN_PERMISSION_REQUIRED",
+              "管理员角色必须保留系统管理权限",
+              409,
+            );
+          await connection.execute(`DELETE FROM iam_role_permission WHERE role_id=?`, [
+            roleId,
+          ]);
+          for (const permissionId of permissionIds)
+            await connection.execute(
+              `INSERT INTO iam_role_permission(role_id,permission_id) VALUES(?,?)`,
+              [roleId, permissionId],
+            );
+          return { roleId, permissionCount: permissionIds.length };
+        }
+        case "admin.role.dataScope.set": {
+          const roleId = input.roleId as string,
+            scopes = (input.scopes as Array<{ scopeType: string; scopeValue: string }>).map(
+              (scope) => ({
+                scopeType: scope.scopeType,
+                scopeValue: scope.scopeValue ?? "",
+              }),
+            );
+          const [roles] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [roleId],
+          );
+          if (!roles[0])
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          await connection.execute(`DELETE FROM iam_role_data_scope WHERE role_id=?`, [
+            roleId,
+          ]);
+          const uniqueScopes = new Map(
+            scopes.map((scope) => [`${scope.scopeType}:${scope.scopeValue}`, scope]),
+          );
+          for (const scope of uniqueScopes.values())
+            await connection.execute(
+              `INSERT INTO iam_role_data_scope(role_id,scope_type,scope_value,status) VALUES(?,?,?,'ENABLED')`,
+              [roleId, scope.scopeType, scope.scopeValue],
+            );
+          return { roleId, scopeCount: uniqueScopes.size };
+        }
+        case "admin.role.sensitiveField.set": {
+          const roleId = input.roleId as string,
+            grants = [
+              ...new Map(
+                (
+                  input.grants as Array<{
+                    fieldCode: string;
+                    accessLevel: "FULL" | "MASKED";
+                    explicitDeny: boolean;
+                  }>
+                ).map((grant) => [grant.fieldCode, grant]),
+              ).values(),
+            ];
+          const [roles] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [roleId],
+          );
+          if (!roles[0])
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          await connection.execute(
+            `DELETE FROM iam_sensitive_field_grant WHERE role_id=?`,
+            [roleId],
+          );
+          for (const grant of grants)
+            await connection.execute(
+              `INSERT INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny,status) VALUES(?,?,?,?, 'ENABLED')`,
+              [roleId, grant.fieldCode, grant.accessLevel, grant.explicitDeny ? 1 : 0],
+            );
+          return { roleId, grantCount: grants.length };
         }
         case "admin.user.create": {
           const [employees] = await connection.execute<RowDataPacket[]>(
