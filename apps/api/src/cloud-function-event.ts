@@ -28,9 +28,14 @@ export function normalizeFunctionEvent(
   context: CloudContext = {},
 ): FunctionEvent {
   const body = parseBody(rawEvent.body);
-  const event: FunctionEvent = { ...rawEvent, ...body };
+  const { auth: _untrustedBodyAuth, ...bodyWithoutAuth } = body;
+  const event: FunctionEvent = { ...rawEvent, ...bodyWithoutAuth };
   const requestId = event.requestId ?? context.requestId;
-  const auth = event.auth?.uid ? event.auth : context.auth;
+  const auth = context.auth?.uid
+    ? context.auth
+    : rawEvent.auth?.uid
+      ? rawEvent.auth
+      : undefined;
   return {
     ...event,
     ...(requestId ? { requestId } : {}),

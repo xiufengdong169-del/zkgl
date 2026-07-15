@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeFunctionEvent } from "./cloud-function-event.js";
 
 describe("CloudBase function event normalization", () => {
-  it("优先使用 HTTP JSON body 中的动作、载荷、请求号和认证身份", () => {
+  it("优先使用 HTTP JSON body 中的动作、载荷和请求号，但认证身份必须来自 CloudBase context", () => {
     expect(
       normalizeFunctionEvent(
         {
@@ -23,7 +23,7 @@ describe("CloudBase function event normalization", () => {
       action: "project.detail",
       payload: { projectId: "p-1" },
       requestId: "body-request",
-      auth: { uid: "body-uid" },
+      auth: { uid: "context-uid" },
     });
   });
 
@@ -62,5 +62,32 @@ describe("CloudBase function event normalization", () => {
       requestId: "raw-request",
       auth: { uid: "context-uid" },
     });
+  });
+
+  it("拒绝请求体伪造认证身份，并在无 context 身份时回退 raw event 身份", () => {
+    expect(
+      normalizeFunctionEvent({
+        body: {
+          action: "project.detail",
+          payload: { projectId: "p-1" },
+          auth: { uid: "spoofed-body-uid" },
+        },
+        auth: { uid: "trusted-raw-uid" },
+      }),
+    ).toMatchObject({
+      action: "project.detail",
+      payload: { projectId: "p-1" },
+      auth: { uid: "trusted-raw-uid" },
+    });
+
+    expect(
+      normalizeFunctionEvent({
+        body: {
+          action: "project.detail",
+          payload: { projectId: "p-1" },
+          auth: { uid: "spoofed-body-uid" },
+        },
+      }),
+    ).not.toHaveProperty("auth");
   });
 });
