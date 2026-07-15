@@ -53,6 +53,21 @@ const generatedFunctionPackages = [
   "functions/zkgl-reminder/",
   "functions/zkgl-export-worker/",
 ];
+const onsitePerformanceAcceptanceFragments = [
+  "AC-14",
+  "生产级 CloudBase",
+  "基准数据量",
+  "3000 个项目",
+  "10000 份合同",
+  "50000 条",
+  "30 用户",
+  "P95",
+  "≤3 秒",
+  "≤5 秒",
+  "重复审批",
+  "越权",
+  "审计日志",
+];
 
 describe("deployment documentation", () => {
   it("documents exact CloudBase timer trigger names used by scheduled functions", () => {
@@ -107,6 +122,15 @@ describe("deployment documentation", () => {
         deploymentDoc,
         `deployment docs missing generated package ${directory}`,
       ).toContain(directory.replace(/\/$/, ""));
+    }
+  });
+
+  it("documents executable onsite performance acceptance criteria for AC-14", () => {
+    for (const fragment of onsitePerformanceAcceptanceFragments) {
+      expect(
+        operationsAcceptanceDoc,
+        `operations acceptance docs missing ${fragment}`,
+      ).toContain(fragment);
     }
   });
 });
