@@ -76,6 +76,37 @@ describe("partner settlement and close", () => {
       depositEventInput.parse({ ...parsed, eventType: "CONFIRM_LOSS" }),
     ).toThrow();
   });
+  it("AC-14 普通结项必须通过验收归档且不存在遗留事项", () => {
+    const cleanCheck = {
+      acceptancePassed: true,
+      archivePassed: true,
+      outstandingReceivable: false,
+      unreturnedDeposit: false,
+      openIssues: false,
+    };
+    expect(() => validateProjectClose(cleanCheck, "NORMAL", [])).not.toThrow();
+    expect(() =>
+      validateProjectClose(
+        { ...cleanCheck, acceptancePassed: false },
+        "NORMAL",
+        [],
+      ),
+    ).toThrow("验收或文件归档检查未通过");
+    expect(() =>
+      validateProjectClose(
+        { ...cleanCheck, archivePassed: false },
+        "NORMAL",
+        [],
+      ),
+    ).toThrow("验收或文件归档检查未通过");
+    expect(() =>
+      validateProjectClose(
+        { ...cleanCheck, outstandingReceivable: true },
+        "NORMAL",
+        [],
+      ),
+    ).toThrow("存在遗留事项");
+  });
   it("AC-15 可发起完整的带遗留事项结项，但仅公司负责人可最终特批", () => {
     const check = {
       acceptancePassed: true,
