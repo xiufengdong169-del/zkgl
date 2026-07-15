@@ -1500,7 +1500,7 @@ export class MySqlActionExecutor {
         case "project.detail": {
           const projectScope = buildProjectDataScope(user),
             [projects] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
+              `SELECT CAST(p.id AS CHAR) id,CAST(p.application_id AS CHAR) applicationId,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
               [input.projectId, ...projectScope.params],
             );
           const project = projects[0];
@@ -1553,6 +1553,30 @@ export class MySqlActionExecutor {
                 input.projectId,
                 input.projectId,
               ],
+            ),
+            [approvalRecords] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(i.id AS CHAR) id,i.instance_code instanceCode,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.title,i.status,i.submitted_at submittedAt,i.completed_at completedAt,u.username applicantName
+                 FROM wf_instance i LEFT JOIN iam_user u ON u.id=i.applicant_id
+                WHERE (i.business_type='PROJECT_APPLICATION' AND i.business_id=?)
+                   OR (i.business_type='PROJECT_START' AND i.business_id IN (SELECT id FROM prj_start WHERE project_id=?))
+                   OR (i.business_type='PROJECT_CHANGE' AND i.business_id IN (SELECT id FROM prj_change WHERE project_id=?))
+                   OR (i.business_type='PROJECT_ACCEPTANCE' AND i.business_id IN (SELECT id FROM prj_acceptance WHERE project_id=?))
+                   OR (i.business_type='PROJECT_CLOSE' AND i.business_id IN (SELECT id FROM prj_close_application WHERE project_id=?))
+                ORDER BY i.submitted_at DESC,i.id DESC LIMIT 100`,
+              [
+                project.applicationId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+                input.projectId,
+              ],
+            ),
+            [auditLogs] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(a.id AS CHAR) id,a.request_id requestId,a.action,a.resource_type resourceType,a.resource_id resourceId,a.outcome,a.occurred_at occurredAt,u.username
+                 FROM sys_audit_log a LEFT JOIN iam_user u ON u.id=a.actor_user_id
+                WHERE a.resource_id=? AND (a.action LIKE 'project.%' OR a.action LIKE 'file.%' OR a.action LIKE 'approval.%')
+                ORDER BY a.occurred_at DESC LIMIT 100`,
+              [input.projectId],
             );
           const canReadFinancial = user.permissionCodes.includes(
             "report.financial.read",
@@ -1570,6 +1594,8 @@ export class MySqlActionExecutor {
             stages,
             risks,
             timeline,
+            approvalRecords,
+            auditLogs,
             money: canReadFinancial ? money[0] : {},
             financialVisible: canReadFinancial,
           };

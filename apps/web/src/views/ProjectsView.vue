@@ -61,6 +61,26 @@ interface ProjectDetail {
     eventAt: string;
     status: string;
   }>;
+  approvalRecords: Array<{
+    id: string;
+    instanceCode: string;
+    businessType: string;
+    title: string;
+    status: string;
+    submittedAt: string;
+    completedAt: string | null;
+    applicantName: string | null;
+  }>;
+  auditLogs: Array<{
+    id: string;
+    requestId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    outcome: string;
+    occurredAt: string;
+    username: string | null;
+  }>;
   money: Record<string, string>;
   financialVisible: boolean;
 }
@@ -394,6 +414,14 @@ const workflow = [
         {{ detail.project.code }} · {{ detail.project.customerName }} ·
         {{ detail.project.managerName }} · {{ detail.project.status }}
       </p>
+      <p>
+        <RouterLink
+          class="secondary-button"
+          :to="{ name: 'files', query: { projectId: detail.project.id } }"
+        >
+          查看项目文件
+        </RouterLink>
+      </p>
       <section v-if="detail.financialVisible" class="contract-panels">
         <article>
           <p>预计收入</p>
@@ -456,6 +484,37 @@ const workflow = [
           <time>{{ new Date(event.eventAt).toLocaleString() }}</time>
         </article>
         <p v-if="!detail.timeline.length">暂无时间轴事件</p>
+      </section>
+      <section class="data-list">
+        <h3>审批记录</h3>
+        <article
+          v-for="record in detail.approvalRecords"
+          :key="record.id"
+          class="data-row"
+        >
+          <div>
+            <strong>{{ record.title }}</strong>
+            <p>
+              {{ record.instanceCode }} · {{ record.businessType }} ·
+              {{ record.status }}
+            </p>
+            <small>申请人：{{ record.applicantName || "未知" }}</small>
+          </div>
+          <time>{{ new Date(record.submittedAt).toLocaleString() }}</time>
+        </article>
+        <p v-if="!detail.approvalRecords.length">暂无审批记录</p>
+      </section>
+      <section class="data-list">
+        <h3>操作日志</h3>
+        <article v-for="log in detail.auditLogs" :key="log.id" class="data-row">
+          <div>
+            <strong>{{ log.action }} · {{ log.outcome }}</strong>
+            <p>{{ log.resourceType }} {{ log.resourceId || "" }}</p>
+            <small>操作人：{{ log.username || "匿名" }} · {{ log.requestId }}</small>
+          </div>
+          <time>{{ new Date(log.occurredAt).toLocaleString() }}</time>
+        </article>
+        <p v-if="!detail.auditLogs.length">暂无操作日志</p>
       </section>
     </section>
     <section class="data-panel">

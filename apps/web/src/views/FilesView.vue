@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
 import { callApi } from "../api";
 import { cloudbaseApp } from "../cloudbase";
 
@@ -34,6 +35,7 @@ const versions = ref<FileVersion[]>([]);
 const classification = ref<"INTERNAL" | "SENSITIVE">("INTERNAL");
 const loading = ref(false);
 const error = ref<string | null>(null);
+const route = useRoute();
 
 onMounted(async () => {
   try {
@@ -43,6 +45,11 @@ onMounted(async () => {
         pageSize: 50,
       })
     ).items;
+    const routeProjectId = route.query.projectId;
+    if (typeof routeProjectId === "string") {
+      projectId.value = routeProjectId;
+      await load();
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }

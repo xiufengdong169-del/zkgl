@@ -29,7 +29,17 @@ function projectConnection() {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes("FROM prj_project p") && sql.includes("p.id=?"))
-        return [[{ id: "p9", code: "ZK-1", projectName: "项目A" }], []];
+        return [
+          [
+            {
+              id: "p9",
+              applicationId: "app9",
+              code: "ZK-1",
+              projectName: "项目A",
+            },
+          ],
+          [],
+        ];
       return [[], []];
     },
   };
@@ -82,5 +92,11 @@ describe("project read data scopes", () => {
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual(["p9", 0, "e1", "e1", "p9", "d2", "e1"]);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM wf_instance i")),
+    ).toBe(true);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM sys_audit_log a")),
+    ).toBe(true);
   });
 });
