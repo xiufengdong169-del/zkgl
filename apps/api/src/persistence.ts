@@ -1433,18 +1433,16 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
-            all = user.dataScopes.some((scope) => scope.type === "ALL");
+            projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT DISTINCT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
                     CAST(p.project_manager_id AS CHAR) projectManagerId
-               FROM prj_project p LEFT JOIN prj_project_member m ON m.project_id=p.id AND m.status='ACTIVE'
-              WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR m.employee_id=?)
+               FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id
+              WHERE p.is_deleted=0 AND ${projectScope.sql}
                 AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR p.project_code LIKE ? ESCAPE '\\\\')
                ORDER BY p.id DESC LIMIT ? OFFSET ?`,
             [
-              all ? 1 : 0,
-              user.employeeId,
-              user.employeeId,
+              ...projectScope.params,
               keyword,
               pattern,
               pattern,
@@ -1455,10 +1453,10 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "project.detail": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const projectScope = buildProjectDataScope(user),
             [projects] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE'))`,
-              [input.projectId, all ? 1 : 0, user.employeeId, user.employeeId],
+              `SELECT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
+              [input.projectId, ...projectScope.params],
             );
           const project = projects[0];
           if (!project)
