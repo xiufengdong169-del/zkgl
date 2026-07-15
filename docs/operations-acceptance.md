@@ -95,24 +95,26 @@
 
 ## 必跑验证命令
 
-每次交付前执行：
+每次交付前执行总验证命令：
+
+```powershell
+npm run verify
+```
+
+该命令会顺序执行：
 
 ```powershell
 npm run typecheck
 npm run test
 npm run build
+node scripts/verify-web-dist-security.mjs
 npm run build:function
+node scripts/verify-cloudbase-function-packages.mjs
 ```
 
-当前阶段还应检查动作定义与持久层实现一致：
+以下检查已纳入自动化测试和 `npm run verify`：
 
-```powershell
-$a = Get-Content -Raw -Path apps/api/src/actions.ts
-$p = Get-Content -Raw -Path apps/api/src/persistence.ts
-$defs = [regex]::Matches($a, '\"([^\"]+)\"\\s*:') | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -like '*.*' } | Sort-Object -Unique
-$impl = [regex]::Matches($p, 'case \"([^\"]+)\"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
-$defs | Where-Object { $impl -notcontains $_ }
-$impl | Where-Object { $defs -notcontains $_ }
-```
-
-两个输出均为空时，表示动作定义和实现没有缺口。
+- 动作定义与持久层实现一致。
+- 可提交审批业务均配置审批模板和审批结果回写。
+- 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
+- 三套 CloudBase 函数包入口和依赖清单正确。
