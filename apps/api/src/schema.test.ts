@@ -7,10 +7,21 @@ const schema = readFileSync(
   "utf8",
 );
 const actions = readFileSync(new URL("./actions.ts", import.meta.url), "utf8");
+const persistence = readFileSync(
+  new URL("./persistence.ts", import.meta.url),
+  "utf8",
+);
 const statements = schema
   .split(";")
   .map((item) => item.trim())
   .filter(Boolean);
+
+const extractObjectKeys = (source: string, pattern: RegExp) => {
+  const block = pattern.exec(source)?.[1] ?? "";
+  return [...block.matchAll(/^\s*([A-Z_]+):/gm)]
+    .map((match) => match[1]!)
+    .sort();
+};
 
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
@@ -73,6 +84,32 @@ describe("empty database initialization schema", () => {
       expect(schema, `missing permission seed ${permission}`).toContain(
         `('${permission}'`,
       );
+  });
+
+  it("所有可提交审批业务均配置模板和审批结果回写", () => {
+    const submitBusinessTypes = extractObjectKeys(
+      persistence,
+      /case "approval\.instance\.submit":[\s\S]*?const businessMap:[\s\S]*?= \{([\s\S]*?)\};\s*const config/,
+    );
+    const resultBusinessTypes = extractObjectKeys(
+      persistence,
+      /async function applyBusinessApprovalResult[\s\S]*?const map:[\s\S]*?= \{([\s\S]*?)\};\s*const config/,
+    );
+    const templateBusinessTypes = [
+      ...new Set(
+        [...schema.matchAll(/\('([^']+)', '[^']+', '([^']+)'/g)].map(
+          (match) => match[2]!,
+        ),
+      ),
+    ].sort();
+
+    expect(submitBusinessTypes.length).toBeGreaterThan(10);
+    expect(resultBusinessTypes).toEqual(submitBusinessTypes);
+    for (const businessType of submitBusinessTypes)
+      expect(
+        templateBusinessTypes,
+        `missing approval template for ${businessType}`,
+      ).toContain(businessType);
   });
 
   it("保证金缴纳和没收损失均配置审批模板与状态字段", () => {
