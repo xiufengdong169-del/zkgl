@@ -1711,17 +1711,17 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
-            all = user.dataScopes.some((scope) => scope.type === "ALL");
+            projectAccess = buildProjectReferenceScope(user, "c.project_id");
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,v.name partyBName,
                     CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
                     c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED'),0) paymentAppliedAmount
-               FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND (?=1 OR c.owner_id=?)
+               FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,
             [
-              all ? 1 : 0,
               user.employeeId,
+              ...projectAccess.params,
               keyword,
               pattern,
               pattern,
@@ -1732,10 +1732,10 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "contract.detail": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const projectAccess = buildProjectReferenceScope(user, "c.project_id"),
             [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(id AS CHAR) id,contract_code code,contract_name contractName,contract_type contractType,tax_inclusive_amount taxInclusiveAmount,tax_exclusive_amount taxExclusiveAmount,tax_rate taxRate,tax_amount taxAmount,expires_on expiresOn,contract_version contractVersion,status FROM con_contract WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
-              [input.contractId, all ? 1 : 0, user.employeeId],
+              `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.tax_rate taxRate,c.tax_amount taxAmount,c.expires_on expiresOn,c.contract_version contractVersion,c.status FROM con_contract c WHERE c.id=? AND c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
+              [input.contractId, user.employeeId, ...projectAccess.params],
             );
           if (!contracts[0])
             throw new AppError(
@@ -1754,15 +1754,15 @@ export class MySqlActionExecutor {
           return { contract: contracts[0], changes, milestones };
         }
         case "contract.summary": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const projectAccess = buildProjectReferenceScope(user, "c.project_id"),
             expiryDays = await loadNumberParameter(
               connection,
               "reminder.contract_expiry_days",
               30,
             );
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract WHERE is_deleted=0 AND (?=1 OR owner_id=?)`,
-            [all ? 1 : 0, user.employeeId],
+            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
+            [user.employeeId, ...projectAccess.params],
           );
           return (
             rows[0] ?? {

@@ -58,7 +58,7 @@ describe("contract summary parameters", () => {
       call.sql.includes("expiringCount FROM con_contract"),
     )!;
     expect(summaryQuery.sql).toContain("INTERVAL 45 DAY");
-    expect(summaryQuery.params).toEqual([0, "e1"]);
+    expect(summaryQuery.params).toEqual(["e1", 0, "e1", "e1", "e1"]);
   });
 
   it("falls back to 30 days when the parameter is missing", async () => {
