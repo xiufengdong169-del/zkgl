@@ -139,4 +139,47 @@ describe("API handler security boundary", () => {
       }),
     );
   });
+
+  it("未携带认证身份时拒绝业务动作并记录 DENIED 审计", async () => {
+    const write = vi.fn();
+    const findUserByCloudbaseUid = vi.fn();
+    const execute = vi.fn();
+
+    const result = await handle(
+      {
+        action: "project.detail",
+        payload: { projectId: "10" },
+        requestId: "req-unauthorized",
+      },
+      {
+        audit: { write },
+        findUserByCloudbaseUid,
+        execute,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "身份认证失败",
+      },
+      requestId: "req-unauthorized",
+    });
+    expect(findUserByCloudbaseUid).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "project.detail",
+        actorUserId: null,
+        resourceType: "project.detail",
+        resourceId: "10",
+        outcome: "DENIED",
+        details: expect.objectContaining({
+          code: "UNAUTHORIZED",
+          inputKeys: ["projectId"],
+        }),
+      }),
+    );
+  });
 });
