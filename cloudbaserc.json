@@ -28,6 +28,22 @@
           "config": "0 0 8 * * * *"
         }
       ]
+    },
+    {
+      "name": "zkgl-export-worker",
+      "dir": "./zkgl-export-worker",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 300,
+      "memorySize": 512,
+      "installDependency": true,
+      "triggers": [
+        {
+          "name": "zkglExportWorker",
+          "type": "timer",
+          "config": "0 */5 * * * * *"
+        }
+      ]
     }
   ]
 }
