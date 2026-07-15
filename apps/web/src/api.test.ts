@@ -38,7 +38,7 @@ describe("callApi", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { callApi } = await loadApi();
+    const { callApi } = await loadApi(" https://api.example.com/zkgl ");
     await expect(
       callApi("project.detail", { projectId: "p-1" }),
     ).resolves.toEqual({ id: "p-1" });
@@ -72,6 +72,18 @@ describe("callApi", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("API 地址为空白时立即失败且不读取登录令牌", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await loadApi("   ");
+    await expect(callApi("project.detail", { projectId: "p-1" })).rejects.toThrow(
+      "缺少 VITE_API_BASE_URL",
+    );
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("后端返回业务错误时抛出错误消息", async () => {
     cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
     vi.stubGlobal(
@@ -89,6 +101,25 @@ describe("callApi", () => {
     const { callApi } = await loadApi();
     await expect(callApi("project.detail", { projectId: "p-2" })).rejects.toThrow(
       "无权执行此操作",
+    );
+  });
+
+  it("HTTP 错误响应不是 JSON 时返回稳定的状态错误", async () => {
+    cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("bad gateway html");
+        },
+      }),
+    );
+
+    const { callApi } = await loadApi();
+    await expect(callApi("project.detail", { projectId: "p-2" })).rejects.toThrow(
+      "请求失败：502",
     );
   });
 });

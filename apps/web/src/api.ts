@@ -1,7 +1,7 @@
 import type { ApiResult } from '@zkgl/shared'
 import { cloudbaseAuth } from './cloudbase'
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL
+const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
 export async function callApi<T>(action: string, payload?: unknown): Promise<T> {
   if (!baseUrl) throw new Error('缺少 VITE_API_BASE_URL')
@@ -12,7 +12,12 @@ export async function callApi<T>(action: string, payload?: unknown): Promise<T> 
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, payload, requestId: crypto.randomUUID() })
   })
-  const result = await response.json() as ApiResult<T>
+  let result: ApiResult<T>
+  try {
+    result = await response.json() as ApiResult<T>
+  } catch {
+    throw new Error(`请求失败：${response.status}`)
+  }
   if (!response.ok || !result.ok) throw new Error(result.ok ? `请求失败：${response.status}` : result.error.message)
   return result.data
 }
