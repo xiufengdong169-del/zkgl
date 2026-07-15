@@ -23,6 +23,19 @@ export interface ProcessExportDependencies {
   uploadFile(cloudPath: string, fileContent: Buffer): Promise<string>;
 }
 
+function parseRetentionDays(value: unknown, fallback = 7) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3650) return fallback;
+  return parsed;
+}
+
+async function loadExportRetentionDays(connection: Pick<PoolConnection, "execute">) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT param_value paramValue FROM sys_parameter WHERE param_key='export.retention_days' AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
+  );
+  return parseRetentionDays(rows[0]?.paramValue);
+}
+
 function parseJsonObject(value: string | object): Record<string, unknown> {
   if (typeof value === "string") return JSON.parse(value) as Record<string, unknown>;
   return value as Record<string, unknown>;
@@ -91,20 +104,33 @@ export async function processPendingProjectExportTasks(
       );
       const projectIds = scopedIds(scopes, "PROJECT", "projectIds");
       const departmentIds = scopedIds(scopes, "DEPARTMENT", "departmentIds");
+      const temporaryProjectIds = Array.isArray(snapshot.temporaryProjectIds)
+        ? snapshot.temporaryProjectIds.map(String).filter(Boolean)
+        : [];
       const projectScope = projectIds.length
         ? `p.id IN (${projectIds.map(() => "?").join(",")})`
         : "0=1";
       const departmentScope = departmentIds.length
         ? `pm.department_id IN (${departmentIds.map(() => "?").join(",")})`
         : "0=1";
+      const temporaryProjectScope = temporaryProjectIds.length
+        ? `p.id IN (${temporaryProjectIds.map(() => "?").join(",")})`
+        : "0=1";
       const [rows] = await connection.execute<ProjectExportRow[]>(
         `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount
            FROM prj_project p
            JOIN crm_counterparty c ON c.id=p.customer_id
            JOIN org_employee pm ON pm.id=p.project_manager_id
-          WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope})
+          WHERE p.is_deleted=0 AND (?=1 OR p.project_manager_id=? OR EXISTS(SELECT 1 FROM prj_project_member m WHERE m.project_id=p.id AND m.employee_id=? AND m.status='ACTIVE') OR ${projectScope} OR ${departmentScope} OR ${temporaryProjectScope})
           ORDER BY p.id DESC`,
-        [all ? 1 : 0, employeeId, employeeId, ...projectIds, ...departmentIds],
+        [
+          all ? 1 : 0,
+          employeeId,
+          employeeId,
+          ...projectIds,
+          ...departmentIds,
+          ...temporaryProjectIds,
+        ],
       );
       const buffer = buildProjectExportCsv(rows, "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6");
       const cloudPath = `exports/${task.taskCode}.csv`;
@@ -127,8 +153,9 @@ export async function processPendingProjectExportTasks(
           task.requesterId,
         ],
       );
+      const retentionDays = await loadExportRetentionDays(connection);
       await connection.execute(
-        `UPDATE sys_export_task SET status='COMPLETED',file_id=?,completed_at=NOW(3),expires_at=DATE_ADD(NOW(3),INTERVAL 7 DAY) WHERE id=?`,
+        `UPDATE sys_export_task SET status='COMPLETED',file_id=?,completed_at=NOW(3),expires_at=DATE_ADD(NOW(3),INTERVAL ${retentionDays} DAY) WHERE id=?`,
         [file.insertId, task.id],
       );
       completed += 1;

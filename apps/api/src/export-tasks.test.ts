@@ -30,6 +30,8 @@ function fakeConnection() {
       calls.push(sql);
       paramCalls.push({ sql, params });
       if (sql.includes("COUNT(*) count FROM prj_project")) return [[{ count: 1000 }], []];
+      if (sql.includes("FROM iam_project_grant"))
+        return [[{ projectId: "p-temp" }], []];
       if (sql.includes("FROM sys_number_rule"))
         return [[{ id: 1, prefix: "DC", serial_length: 4, next_serial: 7, current_year: new Date().getFullYear(), version: 0 }], []];
       if (sql.startsWith("INSERT INTO sys_export_task")) return [{ insertId: 42 }, []];
@@ -72,6 +74,13 @@ describe("export task persistence", () => {
       estimatedRows: 1000,
     });
     expect(connection.calls.some((sql) => sql.startsWith("INSERT INTO sys_export_task"))).toBe(true);
+    const insertCall = connection.paramCalls.find((call) =>
+      call.sql.startsWith("INSERT INTO sys_export_task"),
+    )!;
+    expect(JSON.parse(String(insertCall.params[4]))).toMatchObject({
+      employeeId: "e1",
+      temporaryProjectIds: ["p-temp"],
+    });
     expect(connection.calls.some((sql) => sql.includes("project_code projectCode"))).toBe(false);
     expect(connection.calls).toContain("COMMIT");
   });
@@ -107,8 +116,10 @@ function exportWorkerConnection() {
     calls,
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
+      if (sql.includes("FROM sys_parameter"))
+        return [[{ paramValue: "21" }], []];
       if (sql.includes("FROM sys_export_task"))
-        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }] }) }], []];
+        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }], temporaryProjectIds: ["p-temp"] }) }], []];
       if (sql.includes("FROM prj_project p"))
         return [[{ projectCode: "=ZK-001", projectName: "项目A", customerName: "客户A", status: "IN_PROGRESS", estimatedRevenue: "100.00", estimatedCost: "20.00", confirmedIncome: "80.00", receivedAmount: "60.00" }], []];
       if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 88 }, []];
@@ -136,9 +147,15 @@ describe("export task worker", () => {
     const projectQuery = connection.calls.find((call) => call.sql.includes("FROM prj_project p"));
     expect(projectQuery!.sql).toContain("p.id IN (?)");
     expect(projectQuery!.sql).toContain("pm.department_id IN (?)");
-    expect(projectQuery!.params).toEqual([0, "e1", "e1", "p9", "d2"]);
+    expect(projectQuery!.params).toEqual([0, "e1", "e1", "p9", "d2", "p-temp"]);
     expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_object"))).toBe(true);
     expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_version"))).toBe(true);
-    expect(connection.calls.some((call) => call.sql.includes("status='COMPLETED'"))).toBe(true);
+    expect(
+      connection.calls.some(
+        (call) =>
+          call.sql.includes("status='COMPLETED'") &&
+          call.sql.includes("INTERVAL 21 DAY"),
+      ),
+    ).toBe(true);
   });
 });

@@ -499,6 +499,10 @@ export class MySqlActionExecutor {
           );
           const estimatedRows = Number(countRows[0]?.count ?? 0);
           if (chooseExportMode(estimatedRows) === "BACKGROUND") {
+            const [temporaryGrants] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(project_id AS CHAR) projectId FROM iam_project_grant WHERE employee_id=? AND status='ENABLED' AND starts_on<=CURDATE() AND (ends_on IS NULL OR ends_on>=CURDATE())`,
+              [user.employeeId],
+            );
             const code = await allocateNumber(connection, "EXPORT_TASK");
             const [task] = await connection.execute<ResultSetHeader>(
               `INSERT INTO sys_export_task(task_code,requester_id,export_type,filter_snapshot,permission_snapshot,estimated_rows,status) VALUES(?,?,?,?,?,?,'PENDING')`,
@@ -512,6 +516,9 @@ export class MySqlActionExecutor {
                   dataScopes: user.dataScopes,
                   permissionCodes: user.permissionCodes.filter((code) =>
                     ["project.export", "project.read"].includes(code),
+                  ),
+                  temporaryProjectIds: temporaryGrants.map((row) =>
+                    String(row.projectId),
                   ),
                 }),
                 estimatedRows,
