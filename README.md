@@ -28,6 +28,7 @@ npm run typecheck
 npm run test
 npm run build
 npm run build:function
+node scripts/verify-cloudbase-function-packages.mjs
 ```
 
 ## 数据库初始化原则

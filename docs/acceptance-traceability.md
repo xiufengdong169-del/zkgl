@@ -39,6 +39,7 @@ npm run typecheck
 npm run test
 npm run build
 npm run build:function
+node scripts/verify-cloudbase-function-packages.mjs
 ```
 
 最近一次完整验证结果：
@@ -48,6 +49,7 @@ npm run build:function
 - `npm run test`：API 38 个测试文件 / 136 条测试通过；Web 1 个测试文件 / 3 条测试通过。
 - `npm run build`：通过。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
+- `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口和依赖清单校验通过。
 
 ## 接口定义一致性检查
 
