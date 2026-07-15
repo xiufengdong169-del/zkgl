@@ -2576,14 +2576,18 @@ export class MySqlActionExecutor {
           };
         }
         case "finance.expenseApplications": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const reimbursementAccess = buildProjectReferenceScope(
+              user,
+              "h.project_id",
+            ),
+            purchaseAccess = buildProjectReferenceScope(user, "c.project_id"),
             [reimbursements] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (?=1 OR h.claimant_id=?) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
-              [all ? 1 : 0, user.employeeId],
+              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              [user.employeeId, ...reimbursementAccess.params],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED') hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (?=1 OR p.applicant_id=?) ORDER BY p.id DESC LIMIT 100`,
-              [all ? 1 : 0, user.employeeId],
+              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED') hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
+              [user.employeeId, ...purchaseAccess.params],
             );
           return { reimbursements, purchases };
         }
