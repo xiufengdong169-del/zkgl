@@ -1637,18 +1637,18 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
-            all = user.dataScopes.some((scope) => scope.type === "ALL");
+            projectAccess = buildProjectReferenceScope(user, "b.project_id");
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(b.id AS CHAR) id,CAST(b.project_id AS CHAR) projectId,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
                FROM bid_application b JOIN prj_project p ON p.id=b.project_id
-              WHERE b.is_deleted=0 AND (?=1 OR b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=?)
+              WHERE b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})
                 AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR b.bid_code LIKE ? ESCAPE '\\\\')
                ORDER BY b.id DESC LIMIT ? OFFSET ?`,
             [
-              all ? 1 : 0,
               user.employeeId,
               user.employeeId,
               user.employeeId,
+              ...projectAccess.params,
               keyword,
               pattern,
               pattern,
@@ -1665,15 +1665,15 @@ export class MySqlActionExecutor {
           return { items: rows };
         }
         case "bid.detail": {
-          const all = user.dataScopes.some((scope) => scope.type === "ALL"),
+          const projectAccess = buildProjectReferenceScope(user, "b.project_id"),
             [bids] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id WHERE b.id=? AND b.is_deleted=0 AND (?=1 OR b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=?)`,
+              `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id WHERE b.id=? AND b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})`,
               [
                 input.bidId,
-                all ? 1 : 0,
                 user.employeeId,
                 user.employeeId,
                 user.employeeId,
+                ...projectAccess.params,
               ],
             );
           if (!bids[0])
