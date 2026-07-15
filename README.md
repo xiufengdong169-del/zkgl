@@ -18,6 +18,12 @@
 4. 提交前至少执行：
 
 ```powershell
+npm run verify
+```
+
+该命令会顺序执行：
+
+```powershell
 npm run typecheck
 npm run test
 npm run build
