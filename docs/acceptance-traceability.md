@@ -1,0 +1,51 @@
+# V2.2 验收追踪表
+
+本文档用于把《需求评审修订基线 V2.2》的关键验收项映射到当前实现与自动化测试，便于最终验收时快速复核。
+
+最后复核日期：2026-07-16。
+
+## 自动化验收覆盖
+
+| 验收项 | 验收重点 | 主要自动化覆盖 |
+| --- | --- | --- |
+| AC-01 | 累计开票不能超过合同金额 | `apps/api/src/finance.test.ts` |
+| AC-02 | 收款与发票支持多对多核销 | `apps/api/src/finance.test.ts` |
+| AC-03 | 核销不能超过收款或发票余额 | `apps/api/src/finance.test.ts` |
+| AC-04 | 合作方结算按实际收款比例扣除历史结算 | `apps/api/src/settlements.test.ts` |
+| AC-05 | 付款不能重复增加已确认成本 | `apps/api/src/finance.test.ts` |
+| AC-06 | 保证金支付退回不计入项目成本 | `apps/api/src/settlements.test.ts` |
+| AC-07 | 保证金没收审批通过后才计入成本 | `apps/api/src/settlements.test.ts` |
+| AC-08 | 报销总额只能由明细汇总生成 | `apps/api/src/finance.test.ts` |
+| AC-09 | 立项驳回后按同一申请重提，通过后只生成一个正式项目编号 | `apps/api/src/project-applications.test.ts` |
+| AC-10 | 无正式合同不能正常启动项目；提前启动走单独规则 | `apps/api/src/delivery.test.ts` |
+| AC-11 | 历史结算快照不受后续方案修改影响 | `apps/api/src/settlements.test.ts` |
+| AC-12 | 无关项目详情、导出和附件地址均按数据范围拒绝并审计 | `apps/api/src/handler.test.ts` |
+| AC-13 | 暂定金额经金额变更审批后转为已确认 | `apps/api/src/contracts.test.ts` |
+| AC-14 | 普通结项必须通过验收归档且不存在遗留事项 | `apps/api/src/settlements.test.ts` |
+| AC-15 | 带遗留事项结项必须完整登记事项且最终特批人为公司负责人 | `apps/api/src/settlements.test.ts` |
+
+## 交付前必跑命令
+
+```powershell
+npm run typecheck
+npm run test
+npm run build
+npm run build:function
+```
+
+最近一次完整验证结果：
+
+- `npm run typecheck`：通过。
+- `npm run test`：API 36 个测试文件 / 133 条测试通过；Web 1 个测试文件 / 2 条测试通过。
+- `npm run build`：通过。
+- `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
+
+## 接口定义一致性检查
+
+动作定义位于 `apps/api/src/actions.ts`，持久化实现位于 `apps/api/src/persistence.ts`。交付前应确认：
+
+- 动作定义数量等于持久化 `case` 实现数量。
+- 不存在已定义但未实现的动作。
+- 不存在持久化层额外暴露、但未在动作定义中授权校验的动作。
+
+当前基线已执行该类检查；如后续新增动作，应同步补充动作定义、持久化实现、权限种子和测试。
