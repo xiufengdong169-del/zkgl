@@ -1,4 +1,5 @@
 import type { ApiResult, SessionUser } from "@zkgl/shared";
+import { ZodError } from "zod";
 
 import type { AuditWriter } from "./audit.js";
 import {
@@ -40,6 +41,24 @@ export const auditOutcomeForError = (action: string, error: AppError) =>
     ? "DENIED"
     : "FAILED";
 
+const appErrorFromUnknown = (error: unknown) => {
+  if (error instanceof AppError) return error;
+  if (error instanceof ZodError) {
+    const message = error.issues
+      .map((issue) => {
+        const path = issue.path.length ? issue.path.join(".") : "payload";
+        return `${path}: ${issue.message}`;
+      })
+      .join("；");
+    return new AppError(
+      "VALIDATION_ERROR",
+      message ? `请求参数不合法：${message}` : "请求参数不合法",
+      400,
+    );
+  }
+  return new AppError("INTERNAL_ERROR", "系统内部错误", 500);
+};
+
 export async function handle(
   event: FunctionEvent,
   dependencies: Dependencies,
@@ -78,10 +97,7 @@ export async function handle(
     requirePermission(user, action);
     throw new AppError("NOT_IMPLEMENTED", `操作尚未实现：${action}`, 501);
   } catch (error) {
-    const appError =
-      error instanceof AppError
-        ? error
-        : new AppError("INTERNAL_ERROR", "系统内部错误", 500);
+    const appError = appErrorFromUnknown(error);
     await recordAudit(dependencies.audit, {
       requestId: id,
       actorUserId: user?.id ?? null,

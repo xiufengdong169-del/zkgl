@@ -99,4 +99,44 @@ describe("API handler security boundary", () => {
     for (const call of write.mock.calls)
       expect(call[0]).toEqual(expect.objectContaining({ outcome: "DENIED" }));
   });
+
+  it("参数校验失败时返回 VALIDATION_ERROR 且不执行持久化动作", async () => {
+    const write = vi.fn();
+    const execute = vi.fn();
+
+    const result = await handle(
+      {
+        action: "project.detail",
+        payload: {},
+        auth: { uid: "cb-1" },
+        requestId: "req-validation",
+      },
+      {
+        audit: { write },
+        findUserByCloudbaseUid: async () => user,
+        execute,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+      },
+      requestId: "req-validation",
+    });
+    expect(result.ok ? "" : result.error.message).toContain("请求参数不合法");
+    expect(execute).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "project.detail",
+        actorUserId: user.id,
+        outcome: "FAILED",
+        details: expect.objectContaining({
+          code: "VALIDATION_ERROR",
+          inputKeys: [],
+        }),
+      }),
+    );
+  });
 });
