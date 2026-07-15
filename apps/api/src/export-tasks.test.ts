@@ -30,12 +30,29 @@ function fakeConnection() {
       if (sql.includes("FROM sys_number_rule"))
         return [[{ id: 1, prefix: "DC", serial_length: 4, next_serial: 7, current_year: new Date().getFullYear(), version: 0 }], []];
       if (sql.startsWith("INSERT INTO sys_export_task")) return [{ insertId: 42 }, []];
+      if (sql.includes("FROM sys_export_task t"))
+        return [[{ id: "7", taskCode: "DC-2026-0007", exportType: "PROJECT_OPERATING", estimatedRows: 1000, status: "COMPLETED", fileId: "88", logicalName: "DC-2026-0007.csv" }], []];
       return [{ affectedRows: 1 }, []];
     },
   };
 }
 
 describe("export task persistence", () => {
+  it("lists the current user background export tasks with the generated file id", async () => {
+    const connection = fakeConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    const result = await executor.execute("report.exportTasks", { page: 1, pageSize: 20 }, user) as { items: Array<Record<string, unknown>> };
+
+    expect(result.items[0]).toMatchObject({
+      taskCode: "DC-2026-0007",
+      status: "COMPLETED",
+      fileId: "88",
+    });
+  });
+
   it("creates a background export task instead of rejecting 1000-row project exports", async () => {
     const connection = fakeConnection();
     const executor = new MySqlActionExecutor({

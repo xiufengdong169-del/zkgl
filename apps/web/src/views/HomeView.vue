@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+
 interface Message {
   id: string;
   title: string;
@@ -8,31 +9,69 @@ interface Message {
   createdAt: string;
   readAt: string | null;
 }
+
+interface ExportTask {
+  id: string;
+  taskCode: string;
+  exportType: string;
+  estimatedRows: number;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | string;
+  failureReason: string | null;
+  fileId: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  expiresAt: string | null;
+  logicalName: string | null;
+  sizeBytes: number | null;
+}
+
 const summary = ref({
-    expectedProfit: "0.00",
-    contractOperatingProfit: "0.00",
-    cashContribution: "0.00",
-    projectCount: 0,
-    disclaimer: "内部项目经营口径，不属于会计利润",
-  }),
-  messages = ref<Message[]>([]),
-  error = ref<string | null>(null),
-  notice = ref<string | null>(null),
-  exporting = ref(false);
-onMounted(async () => {
-  const [report, notice] = await Promise.allSettled([
+  expectedProfit: "0.00",
+  contractOperatingProfit: "0.00",
+  cashContribution: "0.00",
+  projectCount: 0,
+  disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
+});
+const messages = ref<Message[]>([]);
+const exportTasks = ref<ExportTask[]>([]);
+const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
+const exporting = ref(false);
+
+async function loadDashboardAndMessages() {
+  const [report, messageResult] = await Promise.allSettled([
     callApi<typeof summary.value>("report.dashboard", {}),
     callApi<{ items: Message[] }>("message.list", { page: 1, pageSize: 20 }),
   ]);
   if (report.status === "fulfilled") summary.value = report.value;
-  if (notice.status === "fulfilled") messages.value = notice.value.items;
-  if (report.status === "rejected" && notice.status === "rejected")
-    error.value = "工作台加载失败";
+  if (messageResult.status === "fulfilled") messages.value = messageResult.value.items;
+  if (report.status === "rejected" && messageResult.status === "rejected") {
+    error.value = "\u5de5\u4f5c\u53f0\u52a0\u8f7d\u5931\u8d25";
+  }
+}
+
+async function loadExportTasks() {
+  try {
+    exportTasks.value = (
+      await callApi<{ items: ExportTask[] }>("report.exportTasks", {
+        page: 1,
+        pageSize: 20,
+      })
+    ).items;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u4efb\u52a1\u52a0\u8f7d\u5931\u8d25";
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadDashboardAndMessages(), loadExportTasks()]);
 });
+
 const safe = (value: unknown) => {
   const text = String(value ?? "");
   return /^[=+\-@]/.test(text) ? `'${text}` : text;
 };
+
 async function exportProjects() {
   exporting.value = true;
   error.value = null;
@@ -53,94 +92,124 @@ async function exportProjects() {
     >("report.project.export", {});
     if (data.mode === "BACKGROUND") {
       notice.value = data.message;
+      await loadExportTasks();
       return;
     }
     const headers: Array<[string, string]> = [
-      ["projectCode", "项目编号"],
-      ["projectName", "项目名称"],
-      ["customerName", "客户"],
-      ["status", "状态"],
-      ["estimatedRevenue", "预计收入"],
-      ["estimatedCost", "预计成本"],
-      ["confirmedIncome", "已确认合同收入"],
-      ["receivedAmount", "已收款"],
+      ["projectCode", "\u9879\u76ee\u7f16\u53f7"],
+      ["projectName", "\u9879\u76ee\u540d\u79f0"],
+      ["customerName", "\u5ba2\u6237"],
+      ["status", "\u72b6\u6001"],
+      ["estimatedRevenue", "\u9884\u8ba1\u6536\u5165"],
+      ["estimatedCost", "\u9884\u8ba1\u6210\u672c"],
+      ["confirmedIncome", "\u5df2\u786e\u8ba4\u5408\u540c\u6536\u5165"],
+      ["receivedAmount", "\u5df2\u6536\u6b3e"],
     ];
-    const quote = (v: unknown) => `"${safe(v).replaceAll('"', '""')}"`,
-      csv = [
-        "\uFEFF" + headers.map((x) => quote(x[1])).join(","),
-        ...data.rows.map((row) =>
-          headers.map((x) => quote(row[x[0]])).join(","),
-        ),
-        quote(data.disclaimer),
-      ].join("\r\n"),
-      url = URL.createObjectURL(
-        new Blob([csv], { type: "text/csv;charset=utf-8" }),
-      ),
-      a = document.createElement("a");
+    const quote = (v: unknown) => `"${safe(v).replaceAll('"', '""')}"`;
+    const csv = [
+      "\uFEFF" + headers.map((x) => quote(x[1])).join(","),
+      ...data.rows.map((row) => headers.map((x) => quote(row[x[0]])).join(",")),
+      quote(data.disclaimer),
+    ].join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `项目经营数据-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `\u9879\u76ee\u7ecf\u8425\u6570\u636e-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "导出失败";
+    error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u5931\u8d25";
   } finally {
     exporting.value = false;
   }
 }
+
+async function downloadExportTask(task: ExportTask) {
+  if (!task.fileId) return;
+  error.value = null;
+  try {
+    const result = await callApi<{ url: string }>("file.download", { fileId: task.fileId });
+    window.open(result.url, "_blank", "noopener,noreferrer");
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u6587\u4ef6\u4e0b\u8f7d\u5931\u8d25";
+  }
+}
+
 async function markRead(message: Message) {
   try {
     await callApi("message.read", { messageId: message.id });
     message.readAt = new Date().toISOString();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "消息操作失败";
+    error.value = e instanceof Error ? e.message : "\u6d88\u606f\u64cd\u4f5c\u5931\u8d25";
   }
 }
 </script>
+
 <template>
   <main class="shell">
     <header>
       <div>
         <p class="eyebrow">WORKSPACE</p>
-        <h1>项目全过程管理</h1>
+        <h1>&#39033;&#30446;&#20840;&#36807;&#31243;&#31649;&#29702;</h1>
       </div>
-      <button
-        class="primary-action"
-        :disabled="exporting"
-        @click="exportProjects"
-      >
-        {{ exporting ? "导出中…" : "导出项目数据" }}
+      <button class="primary-action" :disabled="exporting" @click="exportProjects">
+        {{ exporting ? "\u5bfc\u51fa\u4e2d\u2026" : "\u5bfc\u51fa\u9879\u76ee\u6570\u636e" }}
       </button>
     </header>
+
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="notice" class="accounting-disclaimer">{{ notice }}</p>
-    <p v-if="notice" class="accounting-disclaimer">{{ notice }}</p>
+
     <section class="hero">
-      <h2>经营工作台</h2>
-      <p>当前数据范围内共 {{ summary.projectCount }} 个项目。</p>
+      <h2>&#32463;&#33829;&#24037;&#20316;&#21488;</h2>
+      <p>&#24403;&#21069;&#25968;&#25454;&#33539;&#22260;&#20869;&#20849; {{ summary.projectCount }} &#20010;&#39033;&#30446;&#12290;</p>
     </section>
+
     <section class="metric-strip">
       <article>
-        <span>预计利润</span><strong>¥ {{ summary.expectedProfit }}</strong>
+        <span>&#39044;&#35745;&#21033;&#28070;</span><strong>&yen; {{ summary.expectedProfit }}</strong>
       </article>
       <article>
-        <span>合同经营利润</span
-        ><strong>¥ {{ summary.contractOperatingProfit }}</strong>
+        <span>&#21512;&#21516;&#32463;&#33829;&#21033;&#28070;</span><strong>&yen; {{ summary.contractOperatingProfit }}</strong>
       </article>
       <article>
-        <span>现金贡献</span><strong>¥ {{ summary.cashContribution }}</strong>
+        <span>&#29616;&#37329;&#36129;&#29486;</span><strong>&yen; {{ summary.cashContribution }}</strong>
       </article>
     </section>
+
     <p class="accounting-disclaimer">{{ summary.disclaimer }}</p>
+
+    <section class="data-list" v-if="exportTasks.length">
+      <h2>&#23548;&#20986;&#20219;&#21153;</h2>
+      <article v-for="task in exportTasks" :key="task.id" class="data-row">
+        <div>
+          <strong>{{ task.taskCode }} &middot; {{ task.status }}</strong>
+          <p>
+            {{ task.estimatedRows }} &#34892; &middot; {{ task.completedAt || task.createdAt }}
+            <span v-if="task.expiresAt"> &middot; &#36807;&#26399;&#26102;&#38388; {{ task.expiresAt }}</span>
+          </p>
+          <p v-if="task.failureReason" class="error">{{ task.failureReason }}</p>
+        </div>
+        <button
+          class="secondary-button"
+          :disabled="task.status !== 'COMPLETED' || !task.fileId"
+          @click="downloadExportTask(task)"
+        >
+          &#19979;&#36733;&#25991;&#20214;
+        </button>
+      </article>
+    </section>
+
     <section class="data-list">
-      <h2>消息与临期异常</h2>
+      <h2>&#28040;&#24687;&#19982;&#20020;&#26399;&#24322;&#24120;</h2>
       <article v-for="m in messages" :key="m.id" class="data-row">
         <div>
-          <strong>{{ m.readAt ? "已读" : "未读" }} · {{ m.title }}</strong>
+          <strong>{{ m.readAt ? "\u5df2\u8bfb" : "\u672a\u8bfb" }} &middot; {{ m.title }}</strong>
           <p>{{ m.content }}</p>
         </div>
-        <button v-if="!m.readAt" @click="markRead(m)">标记已读</button>
+        <button v-if="!m.readAt" @click="markRead(m)">&#26631;&#35760;&#24050;&#35835;</button>
       </article>
-      <p v-if="!messages.length">暂无提醒</p>
+      <p v-if="!messages.length">&#26242;&#26080;&#25552;&#37266;</p>
     </section>
   </main>
 </template>

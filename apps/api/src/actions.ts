@@ -635,6 +635,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "project.export",
     input: z.object({}).default({}),
   },
+  "report.exportTasks": { permission: "project.export", input: listInput },
   "message.list": { permission: "message.read", input: listInput },
   "message.read": {
     permission: "message.read",
