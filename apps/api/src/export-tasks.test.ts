@@ -128,6 +128,19 @@ function exportWorkerConnection() {
   };
 }
 
+function exportWorkerConnectionWithSnapshot(permissionSnapshot: unknown) {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM sys_export_task"))
+        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot }], []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("export task worker", () => {
   it("uploads CSV output and links the finished task to a private file", async () => {
     const connection = exportWorkerConnection();
@@ -157,5 +170,30 @@ describe("export task worker", () => {
           call.sql.includes("INTERVAL 21 DAY"),
       ),
     ).toBe(true);
+  });
+
+  it("权限快照损坏时标记任务失败且不上传导出文件", async () => {
+    const connection = exportWorkerConnectionWithSnapshot("{bad-json");
+    const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async (cloudPath, content) => {
+        uploads.push({ cloudPath, content });
+        return "cloud://exports/DC-2026-0007.csv";
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 0, failed: 1 });
+    expect(uploads).toEqual([]);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM prj_project p")),
+    ).toBe(false);
+    const failedUpdate = connection.calls.find((call) =>
+      call.sql.includes("status='FAILED'"),
+    );
+    expect(failedUpdate?.params).toEqual([
+      expect.stringContaining("Expected property name"),
+      7,
+    ]);
   });
 });
