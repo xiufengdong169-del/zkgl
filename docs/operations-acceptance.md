@@ -140,4 +140,4 @@ node scripts/verify-cloudbase-function-packages.mjs
 - 可提交审批业务均配置审批模板和审批结果回写。
 - 源码和交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
-- 三套 CloudBase 函数包入口、依赖清单和 `cloudbaserc.json` 部署配置正确。
+- 三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置正确。

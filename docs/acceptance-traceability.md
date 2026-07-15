@@ -53,7 +53,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
-- `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口、依赖清单和 `cloudbaserc.json` 部署配置校验通过。
+- `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置校验通过。
 
 ## 接口定义一致性检查
 

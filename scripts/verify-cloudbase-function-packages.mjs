@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -47,6 +47,17 @@ const packages = [
 const fail = (message) => {
   throw new Error(`CloudBase function package verification failed: ${message}`);
 };
+
+async function listJavaScriptFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const child = resolve(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await listJavaScriptFiles(child)));
+    else if (entry.isFile() && entry.name.endsWith(".js")) files.push(child);
+  }
+  return files;
+}
 
 if (cloudbaseConfig.functionRoot !== "./functions")
   fail("cloudbaserc.json functionRoot must be ./functions");
@@ -99,6 +110,13 @@ for (const pkg of packages) {
   for (const dependency of ["@cloudbase/node-sdk", "mysql2", "zod"]) {
     if (!manifest.dependencies?.[dependency])
       fail(`${pkg.target}/package.json missing dependency ${dependency}`);
+  }
+
+  for (const file of await listJavaScriptFiles(resolve(target, "dist"))) {
+    const source = await readFile(file, "utf8");
+    if (source.includes("@zkgl/")) {
+      fail(`${pkg.target} contains unresolved workspace package import`);
+    }
   }
 
   if (pkg.trigger) {
