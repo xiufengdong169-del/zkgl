@@ -21,7 +21,7 @@
     "build:function": "npm run build -w @zkgl/api && node scripts/prepare-cloudbase-function.mjs",
     "test": "npm run test -ws --if-present",
     "typecheck": "npm run typecheck -ws --if-present",
-    "verify": "npm run typecheck && npm run test && npm run build && npm run build:function && node scripts/verify-cloudbase-function-packages.mjs"
+    "verify": "npm run typecheck && npm run test && npm run build && node scripts/verify-web-dist-security.mjs && npm run build:function && node scripts/verify-cloudbase-function-packages.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

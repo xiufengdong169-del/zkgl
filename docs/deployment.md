@@ -61,4 +61,4 @@ tcb fn deploy zkgl-export-worker --yes
 4. CloudBase 身份账号停用后，无法建立新会话。
 5. `zkgl-reminder` 能生成合同、投标、保证金、先开工、结项未清事项和风险提醒。
 6. `zkgl-export-worker` 能处理后台导出任务并生成私有文件。
-7. 前端构建变量不包含数据库密码、SecretKey 或服务端 API Key。
+7. `node scripts/verify-web-dist-security.mjs` 通过，前端构建产物不包含数据库变量、SecretKey、API Secret 或私钥标记。
