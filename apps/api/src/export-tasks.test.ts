@@ -18,14 +18,17 @@ const user: SessionUser = {
 
 function fakeConnection() {
   const calls: string[] = [];
+  const paramCalls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
+    paramCalls,
     beginTransaction: async () => calls.push("BEGIN"),
     commit: async () => calls.push("COMMIT"),
     rollback: async () => calls.push("ROLLBACK"),
     release: () => calls.push("RELEASE"),
-    execute: async (sql: string) => {
+    execute: async (sql: string, params: unknown[] = []) => {
       calls.push(sql);
+      paramCalls.push({ sql, params });
       if (sql.includes("COUNT(*) count FROM prj_project")) return [[{ count: 1000 }], []];
       if (sql.includes("FROM sys_number_rule"))
         return [[{ id: 1, prefix: "DC", serial_length: 4, next_serial: 7, current_year: new Date().getFullYear(), version: 0 }], []];
@@ -71,6 +74,30 @@ describe("export task persistence", () => {
     expect(connection.calls.some((sql) => sql.startsWith("INSERT INTO sys_export_task"))).toBe(true);
     expect(connection.calls.some((sql) => sql.includes("project_code projectCode"))).toBe(false);
     expect(connection.calls).toContain("COMMIT");
+  });
+
+  it("uses explicit project and department scopes when estimating export size", async () => {
+    const connection = fakeConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+    const scopedUser: SessionUser = {
+      ...user,
+      dataScopes: [
+        { type: "PROJECT", projectIds: ["p9"] },
+        { type: "DEPARTMENT", departmentIds: ["d2"] },
+      ],
+    };
+
+    await executor.execute("report.project.export", {}, scopedUser);
+
+    const countCall = connection.paramCalls.find((call) =>
+      call.sql.includes("COUNT(*) count FROM prj_project"),
+    );
+    expect(countCall!.sql).toContain("JOIN org_employee pm");
+    expect(countCall!.sql).toContain("p.id IN (?)");
+    expect(countCall!.sql).toContain("pm.department_id IN (?)");
+    expect(countCall!.params).toEqual([0, "e1", "e1", "p9", "d2"]);
   });
 });
 
