@@ -468,14 +468,15 @@ export class MySqlActionExecutor {
         case "report.analytics": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             employee = user.employeeId,
-            projectScope = buildProjectDataScope(user);
+            projectScope = buildProjectDataScope(user),
+            bidProjectScope = buildProjectReferenceScope(user, "b.project_id");
           const [leadStatus] = await connection.execute<RowDataPacket[]>(
               `SELECT status,COUNT(*) count,COALESCE(SUM(estimated_amount),0) amount FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=?) GROUP BY status ORDER BY status`,
               [all ? 1 : 0, employee],
             ),
             [bidStatus] = await connection.execute<RowDataPacket[]>(
-              `SELECT status,COUNT(*) count FROM bid_application WHERE is_deleted=0 AND (?=1 OR business_owner_id=? OR technical_owner_id=? OR pricing_owner_id=?) GROUP BY status ORDER BY status`,
-              [all ? 1 : 0, employee, employee, employee],
+              `SELECT b.status,COUNT(*) count FROM bid_application b WHERE b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${bidProjectScope.sql}) GROUP BY b.status ORDER BY b.status`,
+              [employee, employee, employee, ...bidProjectScope.params],
             ),
             [projectStatus] = await connection.execute<RowDataPacket[]>(
               `SELECT p.status,COUNT(DISTINCT p.id) count,COALESCE(AVG((SELECT MAX(x.overall_progress) FROM prj_progress x WHERE x.project_id=p.id)),0) averageProgress FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} GROUP BY p.status ORDER BY p.status`,

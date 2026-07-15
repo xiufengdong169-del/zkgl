@@ -59,8 +59,28 @@ describe("report project data scopes", () => {
 
     await executor.execute("report.analytics", {}, scopedUser);
 
+    const bidQuery = connection.calls.find((call) =>
+      call.sql.includes("FROM bid_application b"),
+    )!;
+    expect(bidQuery.sql).toContain("b.business_owner_id=?");
+    expect(bidQuery.sql).toContain("p.id IN (?)");
+    expect(bidQuery.sql).toContain("pm.department_id IN (?)");
+    expect(bidQuery.sql).toContain("iam_project_grant");
+    expect(bidQuery.params).toEqual([
+      "e1",
+      "e1",
+      "e1",
+      0,
+      "e1",
+      "e1",
+      "p9",
+      "d2",
+      "e1",
+    ]);
+
     const projectQueries = connection.calls.filter((call) =>
-      call.sql.includes("JOIN org_employee pm"),
+      call.sql.includes("JOIN org_employee pm") &&
+      !call.sql.includes("FROM bid_application b"),
     );
     expect(projectQueries).toHaveLength(3);
     for (const query of projectQueries) {
