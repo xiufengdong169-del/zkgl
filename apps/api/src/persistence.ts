@@ -428,6 +428,7 @@ export class MySqlActionExecutor {
     action: string,
     value: unknown,
     user: SessionUser,
+    requestId: string = crypto.randomUUID(),
   ): Promise<unknown> {
     const input = value as Record<string, any>;
     return withTransaction(this.pool, async (connection) => {
@@ -1339,7 +1340,7 @@ export class MySqlActionExecutor {
           ) {
             await connection.execute(
               `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,denial_code,request_id) VALUES(?,?,?,'DOWNLOAD','DENIED','SENSITIVE_FILE_DENIED',?)`,
-              [file.id, file.versionId, user.id, crypto.randomUUID()],
+              [file.id, file.versionId, user.id, requestId],
             );
             throw new AppError("SENSITIVE_FILE_DENIED", "无权下载该文件", 403);
           }
@@ -1349,7 +1350,7 @@ export class MySqlActionExecutor {
           );
           await connection.execute(
             `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,request_id) VALUES(?,?,?,'DOWNLOAD','SUCCESS',?)`,
-            [file.id, file.versionId, user.id, crypto.randomUUID()],
+            [file.id, file.versionId, user.id, requestId],
           );
           return { url, expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS };
         }

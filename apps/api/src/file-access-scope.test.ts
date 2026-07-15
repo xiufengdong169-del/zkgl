@@ -71,6 +71,26 @@ describe("file access scopes", () => {
     ]);
   });
 
+  it("uses the API request id when writing successful file download logs", async () => {
+    const connection = fileConnection();
+    const executor = new MySqlActionExecutor(
+      { getConnection: async () => connection } as never,
+      async () => "https://temporary.example/export.csv",
+    );
+
+    await executor.execute(
+      "file.download",
+      { fileId: "f99" },
+      allScopeUser,
+      "api-request-1",
+    );
+
+    const log = connection.calls.find((call) =>
+      call.sql.includes("INSERT INTO file_access_log"),
+    );
+    expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-1"]);
+  });
+
   it("uses project and department scopes when preparing project file uploads", async () => {
     const connection = fileConnection();
     const executor = new MySqlActionExecutor({

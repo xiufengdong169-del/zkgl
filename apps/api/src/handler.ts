@@ -23,7 +23,12 @@ export interface FunctionEvent {
 export interface Dependencies {
   audit: AuditWriter;
   findUserByCloudbaseUid(uid: string): Promise<SessionUser | null>;
-  execute(action: string, input: unknown, user: SessionUser): Promise<unknown>;
+  execute(
+    action: string,
+    input: unknown,
+    user: SessionUser,
+    requestId: string,
+  ): Promise<unknown>;
 }
 
 const requestId = (event: FunctionEvent) =>
@@ -75,7 +80,7 @@ export async function handle(
       return { ok: true, data: user, requestId: id };
     const input = authorizeAndParseAction(user, action, event.payload);
     if (input !== undefined) {
-      const data = await dependencies.execute(action, input, user);
+      const data = await dependencies.execute(action, input, user, id);
       await recordAudit(dependencies.audit, {
         requestId: id,
         actorUserId: user.id,
