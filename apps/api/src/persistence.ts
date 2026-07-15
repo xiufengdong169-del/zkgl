@@ -3870,10 +3870,22 @@ export class MySqlActionExecutor {
             throw new AppError("DEPOSIT_NOT_FOUND", "保证金不存在", 404);
           await requireProjectWriteAccess(connection, deposit.projectId, user);
           const [seen] = await connection.execute<RowDataPacket[]>(
-            `SELECT id FROM fin_deposit_event WHERE idempotency_key=?`,
+            `SELECT CAST(id AS CHAR) id,CAST(deposit_id AS CHAR) depositId,event_type eventType,amount FROM fin_deposit_event WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
-          if (seen[0]) return { idempotent: true };
+          if (seen[0]) {
+            if (
+              seen[0].depositId !== input.depositId ||
+              seen[0].eventType !== input.eventType ||
+              Math.abs(Number(seen[0].amount) - Number(input.amount)) > 0.005
+            )
+              throw new AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "幂等键已用于其他保证金事件",
+                409,
+              );
+            return { idempotent: true, id: String(seen[0].id) };
+          }
           let occupied = Number(deposit.occupied),
             loss = Number(deposit.loss),
             status = deposit.status as string;
