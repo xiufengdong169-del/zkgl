@@ -11,6 +11,14 @@ const persistence = readFileSync(
   new URL("./persistence.ts", import.meta.url),
   "utf8",
 );
+const webRoutes = readFileSync(
+  new URL("../../web/src/routes.ts", import.meta.url),
+  "utf8",
+);
+const webNavigation = readFileSync(
+  new URL("../../web/src/navigation.ts", import.meta.url),
+  "utf8",
+);
 const statements = schema
   .split(";")
   .map((item) => item.trim())
@@ -22,6 +30,15 @@ const extractObjectKeys = (source: string, pattern: RegExp) => {
     .map((match) => match[1]!)
     .sort();
 };
+
+const extractPermissionCodes = (source: string) =>
+  [
+    ...new Set(
+      [...source.matchAll(/permission:\s*"([^"]+)"/g)].map(
+        (match) => match[1]!,
+      ),
+    ),
+  ].sort();
 
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
@@ -72,16 +89,22 @@ describe("empty database initialization schema", () => {
   });
 
   it("所有接口权限码均存在初始化权限种子", () => {
-    const actionPermissions = [
-      ...new Set(
-        [...actions.matchAll(/permission:\s*"([^"]+)"/g)].map(
-          (match) => match[1]!,
-        ),
-      ),
-    ].sort();
+    const actionPermissions = extractPermissionCodes(actions);
     expect(actionPermissions.length).toBeGreaterThan(40);
     for (const permission of actionPermissions)
       expect(schema, `missing permission seed ${permission}`).toContain(
+        `('${permission}'`,
+      );
+  });
+
+  it("所有前端路由和导航权限码均存在初始化权限种子", () => {
+    const routePermissions = extractPermissionCodes(webRoutes);
+    const navigationPermissions = extractPermissionCodes(webNavigation);
+
+    expect(routePermissions.length).toBeGreaterThan(10);
+    expect(navigationPermissions).toEqual(routePermissions);
+    for (const permission of routePermissions)
+      expect(schema, `missing frontend permission seed ${permission}`).toContain(
         `('${permission}'`,
       );
   });

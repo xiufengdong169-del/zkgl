@@ -47,7 +47,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 39 个测试文件 / 139 条测试通过；Web 1 个测试文件 / 3 条测试通过。
+- `npm run test`：API 39 个测试文件 / 140 条测试通过；Web 1 个测试文件 / 3 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
