@@ -1,24 +1,45 @@
 # 众肯科技项目全过程管理系统
 
-当前开发基线为《需求说明书 V2.2（CloudBase 部署版）》。V2.1 和《众肯管理系统需求模块》仅用于历史追溯。
-
-本项目为完整的新建系统：所有程序、数据库结构、接口和前端页面均从零开发，不包含旧系统改造、旧程序复用、旧接口兼容或历史数据迁移。
+当前开发与验收基线为《需求评审修订基线 V2.2》。本项目是完整新建系统：前端、云函数 API、数据库初始化脚本、权限体系、审批流、报表、文件与定时任务均从零开发，不包含历史系统改造、旧程序复用、旧接口兼容或历史数据迁移。
 
 ## 工程结构
 
 - `apps/web`：Vue 3 + TypeScript 前端。
-- `apps/api`：Node.js + TypeScript 云函数 API 基础模块。
-- `packages/shared`：前后端共享的权限、用户和 API 类型。
-- `database/init`：全新环境的一次性 MySQL 初始化脚本。
-- `docs`：开发、部署和架构约定。
+- `apps/api`：Node.js + TypeScript CloudBase 云函数 API、定时提醒与导出 worker。
+- `packages/shared`：前后端共享的用户、权限与类型定义。
+- `database/init/schema.sql`：空库一次性初始化脚本。
+- `docs`：架构、部署、操作与验收说明。
 
-## 本地启动
+## 本地开发
 
-1. 复制 `.env.example` 为 `.env.local`，只填写浏览器可公开的 CloudBase 配置。
-2. 执行 `npm install`。
-3. 执行 `npm run dev` 启动前端。
-4. 执行 `npm run build && npm test` 完成基础验证。
+1. 执行 `npm install` 安装依赖。
+2. 复制 `.env.example` 为 `.env.local`，只填写浏览器可公开的 CloudBase 配置与 API 地址。
+3. 执行 `npm run dev` 启动前端开发服务。
+4. 提交前至少执行：
 
-本项目没有历史数据库和存量数据迁移。数据库从空库执行 `database/init/schema.sql` 初始化；后续结构调整在设计确认后直接维护初始化基线，正式投产后的变更机制另行评审。
+```powershell
+npm run typecheck
+npm run test
+npm run build
+npm run build:function
+```
 
-任何数据库密码、SecretKey、API Key 均不得写入源码、文档示例或前端构建变量。
+## 数据库初始化原则
+
+本项目不存在数据库迁移。开发、测试和首次上线环境均从空 MySQL 数据库执行 `database/init/schema.sql` 完成初始化。正式投产后的结构变更机制另行评审，不在当前新开发阶段引入迁移表或迁移执行器。
+
+## 安全原则
+
+- 浏览器只允许使用 CloudBase 环境 ID、地域、Publishable Key 和已部署的 API 访问地址。
+- MySQL 密码、SecretKey、服务端 API Key 等敏感值只能放在本地 `.env` 或 CloudBase 环境变量中，禁止写入源码、文档示例或前端构建变量。
+- 所有业务请求必须经过 CloudBase 身份、内部账号状态、功能权限、数据范围和敏感字段授权校验。
+
+## GitHub 版本管理
+
+本地目录 `C:\Users\27787\Desktop\zkgl` 已关联 GitHub 仓库：
+
+```text
+https://github.com/xiufengdong169-del/zkgl
+```
+
+每个可验证改动应在通过测试与构建后提交并推送到 `main`。
