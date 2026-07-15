@@ -586,6 +586,9 @@ export class MySqlActionExecutor {
             ),
             [dictionaryItems] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(i.id AS CHAR) id,CAST(i.type_id AS CHAR) typeId,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder,i.status,i.version FROM sys_dictionary_item i ORDER BY i.type_id,i.sort_order,i.id`,
+            ),
+            [parameters] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(id AS CHAR) id,param_key parameterKey,name,param_value parameterValue,value_type valueType,description,status,version FROM sys_parameter WHERE is_deleted=0 ORDER BY param_key`,
             );
           return {
             departments,
@@ -603,6 +606,7 @@ export class MySqlActionExecutor {
             positionAssignments,
             dictionaryTypes,
             dictionaryItems,
+            parameters,
           };
         }
         case "admin.department.create": {
@@ -895,6 +899,52 @@ export class MySqlActionExecutor {
               409,
             );
           return { id: input.ruleId, version: input.version + 1 };
+        }
+        case "admin.parameter.update": {
+          const [rows] = await connection.execute<RowDataPacket[]>(
+            `SELECT value_type valueType FROM sys_parameter WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.parameterId],
+          );
+          const parameter = rows[0];
+          if (!parameter)
+            throw new AppError("PARAMETER_NOT_FOUND", "系统参数不存在", 404);
+          const value = input.parameterValue as string;
+          if (
+            parameter.valueType === "NUMBER" &&
+            (!value || !Number.isFinite(Number(value)))
+          )
+            throw new AppError("PARAMETER_VALUE_INVALID", "数字参数值非法", 409);
+          if (
+            parameter.valueType === "BOOLEAN" &&
+            !["true", "false", "1", "0"].includes(value.toLowerCase())
+          )
+            throw new AppError("PARAMETER_VALUE_INVALID", "布尔参数值非法", 409);
+          if (parameter.valueType === "JSON") {
+            try {
+              JSON.parse(value);
+            } catch {
+              throw new AppError("PARAMETER_VALUE_INVALID", "JSON 参数值非法", 409);
+            }
+          }
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE sys_parameter SET name=?,param_value=?,description=?,status=?,updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0`,
+            [
+              input.name,
+              value,
+              input.description ?? null,
+              input.status,
+              user.id,
+              input.parameterId,
+              input.version,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "PARAMETER_CONFLICT",
+              "系统参数已被修改，请刷新后重试",
+              409,
+            );
+          return { id: input.parameterId, version: input.version + 1 };
         }
         case "admin.audit.list": {
           const page = input.page as number,

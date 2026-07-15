@@ -70,6 +70,7 @@ const resourceIdKeys = [
   "departmentId",
   "assignmentId",
   "ruleId",
+  "parameterId",
   "typeId",
   "itemId",
   "nodeId",

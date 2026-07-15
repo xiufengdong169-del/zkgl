@@ -45,6 +45,13 @@ describe("empty database initialization schema", () => {
     expect(schema).not.toMatch(/password|password_hash|password_salt/i);
   });
 
+  it("系统参数纳入初始化基线并使用版本控制", () => {
+    expect(schema).toContain("CREATE TABLE IF NOT EXISTS sys_parameter");
+    expect(schema).toContain("param_key VARCHAR(128) NOT NULL UNIQUE");
+    expect(schema).toContain("version INT UNSIGNED NOT NULL DEFAULT 0");
+    expect(schema).toContain("('export.retention_days'");
+  });
+
   it("保证金缴纳和没收损失均配置审批模板与状态字段", () => {
     expect(schema).toContain("('DEPOSIT_PAYMENT', '保证金缴纳', 'DEPOSIT'");
     expect(schema).toContain(

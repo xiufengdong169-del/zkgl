@@ -75,6 +75,16 @@ interface NumberRule {
   status: "ENABLED" | "DISABLED";
   version: number;
 }
+interface SystemParameter {
+  id: string;
+  parameterKey: string;
+  name: string;
+  parameterValue: string;
+  valueType: "STRING" | "NUMBER" | "BOOLEAN" | "JSON";
+  description: string | null;
+  status: "ENABLED" | "DISABLED";
+  version: number;
+}
 interface ApprovalTemplate {
   id: string;
   templateCode: string;
@@ -150,6 +160,7 @@ const roleDataScopes = ref<RoleDataScope[]>([]);
 const sensitiveGrants = ref<SensitiveGrant[]>([]);
 const users = ref<User[]>([]);
 const numberRules = ref<NumberRule[]>([]);
+const parameters = ref<SystemParameter[]>([]);
 const approvalTemplates = ref<ApprovalTemplate[]>([]);
 const approvalNodes = ref<ApprovalNode[]>([]);
 const positions = ref<Position[]>([]);
@@ -161,7 +172,12 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const saving = ref(false);
 const activeTab = ref<
-  "organization" | "numbers" | "dictionary" | "approvals" | "audit"
+  | "organization"
+  | "numbers"
+  | "parameters"
+  | "dictionary"
+  | "approvals"
+  | "audit"
 >("organization");
 const auditKeyword = ref("");
 const auditOutcome = ref("");
@@ -211,6 +227,7 @@ async function load() {
       sensitiveGrants: SensitiveGrant[];
       users: User[];
       numberRules: NumberRule[];
+      parameters: SystemParameter[];
       approvalTemplates: ApprovalTemplate[];
       approvalNodes: ApprovalNode[];
       positions: Position[];
@@ -227,6 +244,7 @@ async function load() {
     sensitiveGrants.value = data.sensitiveGrants;
     users.value = data.users;
     numberRules.value = data.numberRules;
+    parameters.value = data.parameters;
     approvalTemplates.value = data.approvalTemplates;
     approvalNodes.value = data.approvalNodes;
     positions.value = data.positions;
@@ -384,6 +402,26 @@ async function saveNumberRule(rule: NumberRule) {
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "编号规则保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function saveParameter(parameter: SystemParameter) {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.parameter.update", {
+      parameterId: parameter.id,
+      name: parameter.name,
+      parameterValue: parameter.parameterValue,
+      description: parameter.description || null,
+      status: parameter.status,
+      version: parameter.version,
+    });
+    await load();
+    notice.value = `${parameter.parameterKey} 已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "系统参数保存失败";
   } finally {
     saving.value = false;
   }
@@ -631,6 +669,7 @@ onMounted(load);
     <nav class="workflow-steps">
       <button @click="switchTab('organization')">组织与权限</button
       ><button @click="switchTab('numbers')">编号规则</button>
+      <button @click="switchTab('parameters')">系统参数</button>
       <button @click="switchTab('dictionary')">数据字典</button>
       <button @click="switchTab('approvals')">审批配置</button
       ><button @click="switchTab('audit')">审计日志</button>
@@ -889,6 +928,63 @@ onMounted(load);
           </tr>
         </tbody>
       </table>
+    </section>
+
+    <section v-else-if="activeTab === 'parameters'" class="data-panel">
+      <h2>系统参数</h2>
+      <p>维护公司名称、提醒提前量、导出保留期等运行参数；参数键与类型由初始化基线控制。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>参数键</th>
+            <th>名称</th>
+            <th>类型</th>
+            <th>参数值</th>
+            <th>说明</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="parameter in parameters" :key="parameter.id">
+            <td>{{ parameter.parameterKey }}</td>
+            <td><input v-model="parameter.name" /></td>
+            <td>{{ parameter.valueType }}</td>
+            <td>
+              <textarea
+                v-if="parameter.valueType === 'JSON'"
+                v-model="parameter.parameterValue"
+                rows="3"
+              ></textarea>
+              <select
+                v-else-if="parameter.valueType === 'BOOLEAN'"
+                v-model="parameter.parameterValue"
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+              <input
+                v-else
+                v-model="parameter.parameterValue"
+                :type="parameter.valueType === 'NUMBER' ? 'number' : 'text'"
+              />
+            </td>
+            <td><input v-model="parameter.description" /></td>
+            <td>
+              <select v-model="parameter.status">
+                <option value="ENABLED">启用</option>
+                <option value="DISABLED">停用</option>
+              </select>
+            </td>
+            <td>
+              <button :disabled="saving" @click="saveParameter(parameter)">
+                保存
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="!parameters.length">暂无系统参数</p>
     </section>
 
     <section v-else-if="activeTab === 'dictionary'" class="data-panel">

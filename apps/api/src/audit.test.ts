@@ -12,6 +12,7 @@ describe('audit sanitization', () => {
   it('记录系统管理动作的资源 ID', () => {
     expect(deriveAuditResourceId({ roleId: 'r-admin' })).toBe('r-admin')
     expect(deriveAuditResourceId({ nodeId: 'wf-node-1' })).toBe('wf-node-1')
+    expect(deriveAuditResourceId({ parameterId: 'param-1' })).toBe('param-1')
   })
 
   it('优先使用执行结果里的新建资源 ID', () => {

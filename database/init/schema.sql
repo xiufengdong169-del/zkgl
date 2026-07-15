@@ -345,6 +345,24 @@ CREATE TABLE IF NOT EXISTS sys_dictionary_item (
   INDEX idx_dictionary_item_sort (type_id, status, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS sys_parameter (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  param_key VARCHAR(128) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  param_value VARCHAR(1000) NOT NULL,
+  value_type VARCHAR(32) NOT NULL DEFAULT 'STRING',
+  description VARCHAR(500) NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
+  created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT chk_sys_parameter_type CHECK (value_type IN ('STRING','NUMBER','BOOLEAN','JSON')),
+  INDEX idx_sys_parameter_status (status, is_deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 INSERT INTO sys_number_rule (rule_code, prefix, current_year, updated_by)
 VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', YEAR(CURRENT_DATE), 0)
   , ('COUNTERPARTY', 'DW', YEAR(CURRENT_DATE), 0)
@@ -363,6 +381,15 @@ VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', Y
   , ('DEPOSIT', 'BZJ', YEAR(CURRENT_DATE), 0)
   , ('PROJECT_CLOSE', 'JX', YEAR(CURRENT_DATE), 0)
 ON DUPLICATE KEY UPDATE rule_code = VALUES(rule_code);
+
+INSERT INTO sys_parameter(param_key,name,param_value,value_type,description,created_by,updated_by)
+VALUES
+('company.name','公司名称','众肯科技','STRING','用于页面、导出和通知中的公司名称展示',0,0),
+('reminder.contract_expiry_days','合同到期提醒天数','30','NUMBER','合同到期前多少天生成提醒',0,0),
+('reminder.bid_deadline_days','投标截止提醒天数','7','NUMBER','投标截止前多少天生成提醒',0,0),
+('export.retention_days','导出文件保留天数','7','NUMBER','后台导出文件默认保留天数',0,0),
+('approval.amount_unit','审批金额单位','CNY','STRING','审批与金额展示默认币种单位',0,0)
+ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description);
 
 CREATE TABLE IF NOT EXISTS prj_project_application (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

@@ -596,6 +596,17 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       version: z.number().int().nonnegative(),
     }),
   },
+  "admin.parameter.update": {
+    permission: "system.admin",
+    input: z.object({
+      parameterId: z.string().min(1),
+      name: z.string().trim().min(2).max(128),
+      parameterValue: z.string().trim().max(1000),
+      description: z.string().trim().max(500).nullable().optional(),
+      status: z.enum(["ENABLED", "DISABLED"]),
+      version: z.number().int().nonnegative(),
+    }),
+  },
   "admin.audit.list": {
     permission: "system.admin",
     input: z
