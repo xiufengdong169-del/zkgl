@@ -3409,12 +3409,17 @@ export class MySqlActionExecutor {
         }
         case "bid.task.transition": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status,assignee_id assigneeId,checker_id checkerId FROM bid_task WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT t.status,t.assignee_id assigneeId,t.checker_id checkerId,b.project_id projectId
+               FROM bid_task t
+               JOIN bid_application b ON b.id=t.bid_id
+              WHERE t.id=? AND t.is_deleted=0 AND b.is_deleted=0
+              FOR UPDATE`,
             [input.taskId],
           );
           const task = rows[0];
           if (!task)
             throw new AppError("BID_TASK_NOT_FOUND", "投标任务不存在", 404);
+          await requireProjectWriteAccess(connection, task.projectId, user);
           if (
             !user.dataScopes.some((scope) => scope.type === "ALL") &&
             ![String(task.assigneeId), String(task.checkerId)].includes(
@@ -3463,11 +3468,16 @@ export class MySqlActionExecutor {
         }
         case "bid.check.result": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,responsible_id responsibleId,rectifier_id rectifierId FROM bid_check WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            `SELECT c.id,c.responsible_id responsibleId,c.rectifier_id rectifierId,b.project_id projectId
+               FROM bid_check c
+               JOIN bid_application b ON b.id=c.bid_id
+              WHERE c.id=? AND c.is_deleted=0 AND b.is_deleted=0
+              FOR UPDATE`,
             [input.checkId],
           );
           if (!rows[0])
             throw new AppError("BID_CHECK_NOT_FOUND", "投标检查项不存在", 404);
+          await requireProjectWriteAccess(connection, rows[0].projectId, user);
           if (
             !user.dataScopes.some((scope) => scope.type === "ALL") &&
             ![
