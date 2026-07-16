@@ -36,6 +36,38 @@ function adminConnection() {
   };
 }
 
+function accountStatusConnection(input: {
+  targetUserId: string;
+  isAdmin: number;
+  enabledAdminCount: number;
+}) {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("EXISTS(SELECT 1 FROM iam_user_role"))
+        return [
+          [
+            {
+              id: input.targetUserId,
+              status: "ENABLED",
+              isAdmin: input.isAdmin,
+            },
+          ],
+          [],
+        ];
+      if (sql.includes("COUNT(DISTINCT u.id) count"))
+        return [[{ count: input.enabledAdminCount }], []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("admin role authorization maintenance", () => {
   it("keeps the ADMIN role from losing system.admin", async () => {
     const connection = adminConnection();
@@ -102,5 +134,53 @@ describe("admin role authorization maintenance", () => {
       call.sql.includes("INSERT INTO iam_sensitive_field_grant"),
     );
     expect(insert!.params).toEqual(["r-project", "profit", "MASKED", 1]);
+  });
+
+  it("rejects disabling the current logged-in account at the persistence boundary", async () => {
+    const connection = accountStatusConnection({
+      targetUserId: "u-admin",
+      isAdmin: 1,
+      enabledAdminCount: 2,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "admin.user.status",
+        { userId: "u-admin", status: "DISABLED" },
+        admin,
+      ),
+    ).rejects.toMatchObject({ code: "SELF_DISABLE_FORBIDDEN" });
+
+    expect(
+      connection.calls.some((call) => call.sql.startsWith("UPDATE iam_user")),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("rejects disabling the last enabled admin at the persistence boundary", async () => {
+    const connection = accountStatusConnection({
+      targetUserId: "u-other-admin",
+      isAdmin: 1,
+      enabledAdminCount: 1,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "admin.user.status",
+        { userId: "u-other-admin", status: "DISABLED" },
+        admin,
+      ),
+    ).rejects.toMatchObject({ code: "LAST_ADMIN_REQUIRED" });
+
+    expect(
+      connection.calls.some((call) => call.sql.startsWith("UPDATE iam_user")),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 });
