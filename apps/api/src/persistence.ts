@@ -3032,6 +3032,17 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "crm.contact.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [counterparties] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.counterpartyId, all ? 1 : 0, user.employeeId],
+          );
+          if (!counterparties[0])
+            throw new AppError(
+              "COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO crm_contact(counterparty_id,name,gender,department_name,position_name,mobile,phone,email,wechat,is_key_contact,relationship_level,decision_role,owner_id,remark,created_by,updated_by)
              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -3057,6 +3068,17 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "crm.visit.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [counterparties] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!counterparties[0])
+            throw new AppError(
+              "COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
           if (input.contactId) {
             const [contacts] = await connection.execute<RowDataPacket[]>(
               `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE'`,
