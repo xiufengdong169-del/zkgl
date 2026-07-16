@@ -43,6 +43,7 @@ describe("approval persistence idempotency", () => {
     const { calls, executor } = executorWithExistingHistory({
       taskId: "task-1",
       action: "APPROVE",
+      operatorId: "u-1",
     });
 
     await expect(
@@ -59,6 +60,7 @@ describe("approval persistence idempotency", () => {
     const { calls, executor } = executorWithExistingHistory({
       taskId: "other-task",
       action: "APPROVE",
+      operatorId: "u-1",
     });
 
     await expect(
@@ -82,6 +84,7 @@ describe("approval persistence idempotency", () => {
     const { executor } = executorWithExistingHistory({
       instanceId: "other-instance",
       action: "WITHDRAW",
+      operatorId: "u-1",
     });
 
     await expect(
@@ -91,5 +94,45 @@ describe("approval persistence idempotency", () => {
         user,
       ),
     ).rejects.toThrow("幂等键已用于其他审批动作");
+  });
+
+  it("rejects approval action idempotency replay by another operator", async () => {
+    const { calls, executor } = executorWithExistingHistory({
+      taskId: "task-1",
+      action: "APPROVE",
+      operatorId: "other-user",
+    });
+
+    await expect(
+      executor.execute(
+        "approval.task.action",
+        { taskId: "task-1", action: "APPROVE", actionKey: "key-1" },
+        user,
+      ),
+    ).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+      status: 409,
+    });
+    expect(calls).toContain("ROLLBACK");
+  });
+
+  it("rejects approval withdraw idempotency replay by another operator", async () => {
+    const { calls, executor } = executorWithExistingHistory({
+      instanceId: "instance-1",
+      action: "WITHDRAW",
+      operatorId: "other-user",
+    });
+
+    await expect(
+      executor.execute(
+        "approval.instance.withdraw",
+        { instanceId: "instance-1", actionKey: "key-withdraw" },
+        user,
+      ),
+    ).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+      status: 409,
+    });
+    expect(calls).toContain("ROLLBACK");
   });
 });

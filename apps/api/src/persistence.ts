@@ -1945,11 +1945,12 @@ export class MySqlActionExecutor {
             user,
           );
           const [submitted] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(h.instance_id AS CHAR) instanceId,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status FROM wf_action_history h JOIN wf_instance i ON i.id=h.instance_id WHERE h.action_key=? FOR UPDATE`,
+            `SELECT CAST(h.instance_id AS CHAR) instanceId,CAST(h.operator_id AS CHAR) operatorId,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status FROM wf_action_history h JOIN wf_instance i ON i.id=h.instance_id WHERE h.action_key=? FOR UPDATE`,
             [input.actionKey],
           );
           if (submitted[0]) {
             if (
+              submitted[0].operatorId !== user.id ||
               submitted[0].businessType !== input.businessType ||
               submitted[0].businessId !== input.businessId
             )
@@ -2148,11 +2149,12 @@ export class MySqlActionExecutor {
         }
         case "approval.task.action": {
           const [existing] = await connection.execute<RowDataPacket[]>(
-            "SELECT CAST(task_id AS CHAR) taskId,action FROM wf_action_history WHERE action_key=? LIMIT 1",
+            "SELECT CAST(task_id AS CHAR) taskId,action,CAST(operator_id AS CHAR) operatorId FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
           if (existing[0]) {
             if (
+              existing[0].operatorId !== user.id ||
               existing[0].taskId !== input.taskId ||
               existing[0].action !== input.action
             )
@@ -2270,11 +2272,12 @@ export class MySqlActionExecutor {
         }
         case "approval.instance.withdraw": {
           const [existing] = await connection.execute<RowDataPacket[]>(
-            "SELECT CAST(instance_id AS CHAR) instanceId,action FROM wf_action_history WHERE action_key=? LIMIT 1",
+            "SELECT CAST(instance_id AS CHAR) instanceId,action,CAST(operator_id AS CHAR) operatorId FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
           if (existing[0]) {
             if (
+              existing[0].operatorId !== user.id ||
               existing[0].instanceId !== input.instanceId ||
               existing[0].action !== "WITHDRAW"
             )
