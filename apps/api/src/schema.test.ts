@@ -354,6 +354,15 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("合作方结算基数排除逻辑删除合同并统一历史成本状态口径", () => {
+    expect(persistence).toContain(
+      "FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')",
+    );
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",

@@ -4306,7 +4306,7 @@ export class MySqlActionExecutor {
           let basisAmount = 0;
           if (plan.basis === "CONTRACT_REVENUE_EX_TAX") {
             const [r] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
+              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
               [plan.projectId],
             );
             basisAmount = Number(r[0]?.amount ?? 0);
@@ -4318,11 +4318,11 @@ export class MySqlActionExecutor {
             basisAmount = Number(r[0]?.amount ?? 0);
           } else if (plan.basis === "PROJECT_GROSS_PROFIT") {
             const [incomeRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
+              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
               [plan.projectId],
             );
             const [costRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status='APPROVED'),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=?),0)) amount`,
+              `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=?),0)) amount`,
               [plan.projectId, plan.projectId, plan.projectId],
             );
             basisAmount = Math.max(
