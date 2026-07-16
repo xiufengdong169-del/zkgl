@@ -141,6 +141,56 @@ export async function requireProjectWriteAccess(
     );
 }
 
+async function resolveApprovalBusinessProjectId(
+  connection: PoolConnection,
+  businessType: string,
+  businessId: string | number,
+): Promise<string | null> {
+  const directProjectTables: Record<string, string> = {
+    BID_APPLICATION: "bid_application",
+    CONTRACT: "con_contract",
+    INVOICE_APPLICATION: "fin_invoice_application",
+    EXPENSE_REIMBURSEMENT: "fin_reimbursement",
+    PROJECT_PAYMENT: "fin_payment_application",
+    PARTNER_SETTLEMENT: "partner_settlement",
+    DEPOSIT: "fin_deposit",
+    PROJECT_START: "prj_start",
+    PROJECT_CHANGE: "prj_change",
+    PROJECT_ACCEPTANCE: "prj_acceptance",
+    PROJECT_CLOSE: "prj_close_application",
+  };
+  const directTable = directProjectTables[businessType];
+  if (directTable) {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT CAST(project_id AS CHAR) projectId FROM ${directTable} WHERE id=?`,
+      [businessId],
+    );
+    return rows[0]?.projectId == null ? null : String(rows[0].projectId);
+  }
+  if (businessType === "CONTRACT_CHANGE") {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT CAST(c.project_id AS CHAR) projectId FROM con_contract_change x JOIN con_contract c ON c.id=x.contract_id WHERE x.id=?`,
+      [businessId],
+    );
+    return rows[0]?.projectId == null ? null : String(rows[0].projectId);
+  }
+  if (businessType === "DEPOSIT_LOSS") {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT CAST(d.project_id AS CHAR) projectId FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=?`,
+      [businessId],
+    );
+    return rows[0]?.projectId == null ? null : String(rows[0].projectId);
+  }
+  if (businessType === "DAILY_PURCHASE") {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT CAST(c.project_id AS CHAR) projectId FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id WHERE p.id=?`,
+      [businessId],
+    );
+    return rows[0]?.projectId == null ? null : String(rows[0].projectId);
+  }
+  return null;
+}
+
 function buildProjectDataScope(user: SessionUser) {
   const projectIds = user.dataScopes.flatMap((scope) =>
     scope.type === "PROJECT" ? scope.projectIds : [],
@@ -1885,6 +1935,15 @@ export class MySqlActionExecutor {
               "仅创建人可提交审批",
               403,
             );
+          await requireProjectWriteAccess(
+            connection,
+            await resolveApprovalBusinessProjectId(
+              connection,
+              input.businessType,
+              input.businessId,
+            ),
+            user,
+          );
           const [submitted] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(h.instance_id AS CHAR) instanceId,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status FROM wf_action_history h JOIN wf_instance i ON i.id=h.instance_id WHERE h.action_key=? FOR UPDATE`,
             [input.actionKey],
