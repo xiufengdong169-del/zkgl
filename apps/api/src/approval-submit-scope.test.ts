@@ -19,6 +19,7 @@ function approvalSubmitConnection(options: {
   businessType: "PROJECT_PAYMENT" | "CONTRACT_CHANGE";
   projectId: string;
   canWriteProject: boolean;
+  operation?: "SUBMIT" | "WITHDRAW";
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
@@ -29,11 +30,29 @@ function approvalSubmitConnection(options: {
     release: () => calls.push({ sql: "RELEASE", params: [] }),
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
+      if (sql.includes("FROM wf_action_history")) return [[], []];
       if (
         options.businessType === "PROJECT_PAYMENT" &&
         sql.includes("FROM fin_payment_application WHERE id=? FOR UPDATE")
       )
         return [[{ id: "pay-1", createdBy: "u1", businessStatus: "DRAFT" }], []];
+      if (
+        options.operation === "WITHDRAW" &&
+        sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")
+      )
+        return [
+          [
+            {
+              id: "instance-1",
+              applicantId: "u1",
+              status: "PENDING",
+              businessType: options.businessType,
+              businessId:
+                options.businessType === "PROJECT_PAYMENT" ? "pay-1" : "change-1",
+            },
+          ],
+          [],
+        ];
       if (
         options.businessType === "PROJECT_PAYMENT" &&
         sql.includes("CAST(project_id AS CHAR) projectId FROM fin_payment_application")
@@ -108,5 +127,51 @@ describe("approval submission project scope", () => {
 
   it("requires current project write access before submitting contract change approval", async () => {
     await expectSubmitDeniedForOutOfScopeProject("CONTRACT_CHANGE");
+  });
+
+  it("requires current project write access before withdrawing project payment approval", async () => {
+    const connection = approvalSubmitConnection({
+      businessType: "PROJECT_PAYMENT",
+      projectId: "forbidden-project",
+      canWriteProject: false,
+      operation: "WITHDRAW",
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.withdraw",
+        {
+          instanceId: "instance-1",
+          actionKey: "withdraw-project-payment-001",
+          comment: "撤回",
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).rejects.toMatchObject({ code: "PROJECT_WRITE_FORBIDDEN" });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO wf_action_history"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE wf_task SET status='CANCELLED'"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE wf_instance SET status='WITHDRAWN'"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE fin_payment_application SET"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 });

@@ -2300,6 +2300,15 @@ export class MySqlActionExecutor {
               "仅申请人可撤回审批中的实例",
               403,
             );
+          await requireProjectWriteAccess(
+            connection,
+            await resolveApprovalBusinessProjectId(
+              connection,
+              instance.businessType,
+              instance.businessId,
+            ),
+            user,
+          );
           await connection.execute(
             `INSERT INTO wf_action_history(action_key,instance_id,action,operator_id,comment) VALUES(?,?,?,?,?)`,
             [
