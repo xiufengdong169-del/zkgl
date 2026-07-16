@@ -3290,6 +3290,35 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "project.application.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [customers] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!customers[0])
+            throw new AppError(
+              "PROJECT_APPLICATION_CUSTOMER_NOT_FOUND",
+              "Customer not found or access denied",
+              404,
+            );
+          if (input.sourceLeadId) {
+            const [sourceLeads] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM mkt_lead WHERE id=? AND customer_id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+              [
+                input.sourceLeadId,
+                input.customerId,
+                all ? 1 : 0,
+                user.employeeId,
+                user.id,
+              ],
+            );
+            if (!sourceLeads[0])
+              throw new AppError(
+                "PROJECT_APPLICATION_SOURCE_LEAD_NOT_FOUND",
+                "Source lead not found or access denied",
+                404,
+              );
+          }
           const code = await allocateNumber(connection, "PROJECT_APPLICATION");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_project_application(application_code,project_name,customer_id,source_lead_id,project_type,background,service_scope,estimated_revenue,estimated_cost,estimated_start_on,estimated_end_on,proposed_manager_id,bidding_method,risk_description,necessity,applicant_id,created_by,updated_by)
@@ -3354,6 +3383,35 @@ export class MySqlActionExecutor {
               "立项申请已被修改，请刷新后重试",
               409,
             );
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [customers] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [data.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!customers[0])
+            throw new AppError(
+              "PROJECT_APPLICATION_CUSTOMER_NOT_FOUND",
+              "Customer not found or access denied",
+              404,
+            );
+          if (data.sourceLeadId) {
+            const [sourceLeads] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM mkt_lead WHERE id=? AND customer_id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+              [
+                data.sourceLeadId,
+                data.customerId,
+                all ? 1 : 0,
+                user.employeeId,
+                user.id,
+              ],
+            );
+            if (!sourceLeads[0])
+              throw new AppError(
+                "PROJECT_APPLICATION_SOURCE_LEAD_NOT_FOUND",
+                "Source lead not found or access denied",
+                404,
+              );
+          }
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=?`,
             [
