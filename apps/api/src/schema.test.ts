@@ -70,19 +70,11 @@ const extractTableColumns = (source: string) => {
   )) {
     const table = match[1]!.toLowerCase();
     const columns = new Set(
-      [...match[2]!.matchAll(/^\s*([a-z0-9_]+)\s+/gim)]
-        .map((column) => column[1]!.toLowerCase())
-        .filter(
-          (column) =>
-            ![
-              "constraint",
-              "foreign",
-              "primary",
-              "unique",
-              "index",
-              "key",
-            ].includes(column),
+      [
+        ...match[2]!.matchAll(
+          /(?:^|,)\s*([a-z0-9_]+)\s+(?:BIGINT|VARCHAR|CHAR|TEXT|DECIMAL|NUMERIC|FLOAT|DOUBLE|REAL|DATE|DATETIME|TINYINT|INT|SMALLINT|JSON)\b/gim,
         ),
+      ].map((column) => column[1]!.toLowerCase()),
     );
     tables.set(table, columns);
   }
@@ -127,6 +119,21 @@ const extractInsertColumnRefs = (source: string) =>
         .filter(({ column }) => Boolean(column));
     },
   );
+
+const extractSingleTableUpdateColumnRefs = (source: string) =>
+  [...source.matchAll(/`([^`]*\bUPDATE\b[^`]*)`/gi)].flatMap((match) => {
+    const update = /^\s*UPDATE\s+([a-z0-9_]+)\s+SET\s+([\s\S]*?)(?:\s+WHERE\b|$)/i.exec(
+      match[1]!,
+    );
+    if (!update) return [];
+    const table = update[1]!.toLowerCase();
+    return [...update[2]!.matchAll(/(?:^|,)\s*([a-z0-9_]+)\s*=/gi)].map(
+      (column) => ({
+        table,
+        column: column[1]!.toLowerCase(),
+      }),
+    );
+  });
 
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
@@ -328,6 +335,20 @@ describe("empty database initialization schema", () => {
       expect(
         columnsByTable.get(table),
         `missing insert column ${table}.${column}`,
+      )?.toContain(column);
+    }
+  });
+
+  it("single-table update column lists match the empty schema tables", () => {
+    const columnsByTable = extractTableColumns(schema);
+    const updateRefs = extractSingleTableUpdateColumnRefs(persistence);
+
+    expect(updateRefs.length).toBeGreaterThan(80);
+    for (const { table, column } of updateRefs) {
+      expect(columnsByTable.get(table), `missing table ${table}`).toBeDefined();
+      expect(
+        columnsByTable.get(table),
+        `missing update column ${table}.${column}`,
       )?.toContain(column);
     }
   });
