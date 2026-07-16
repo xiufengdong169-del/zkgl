@@ -182,4 +182,51 @@ describe("API handler security boundary", () => {
       }),
     );
   });
+
+  it("拒绝已认证但内部账号已停用的旧会话并记录 DENIED 审计", async () => {
+    const write = vi.fn();
+    const findUserByCloudbaseUid = vi.fn(async () => ({
+      ...user,
+      enabled: false,
+    }));
+    const execute = vi.fn();
+
+    const result = await handle(
+      {
+        action: "project.detail",
+        payload: { projectId: "10" },
+        auth: { uid: "cb-1" },
+        requestId: "req-disabled",
+      },
+      {
+        audit: { write },
+        findUserByCloudbaseUid,
+        execute,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "FORBIDDEN",
+      },
+      requestId: "req-disabled",
+    });
+    expect(findUserByCloudbaseUid).toHaveBeenCalledWith("cb-1");
+    expect(execute).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "project.detail",
+        actorUserId: user.id,
+        resourceType: "project.detail",
+        resourceId: "10",
+        outcome: "DENIED",
+        requestId: "req-disabled",
+        details: expect.objectContaining({
+          code: "FORBIDDEN",
+          inputKeys: ["projectId"],
+        }),
+      }),
+    );
+  });
 });
