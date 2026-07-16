@@ -3728,6 +3728,30 @@ export class MySqlActionExecutor {
         }
         case "contract.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const partyIds = Array.from(new Set([input.partyAId, input.partyBId]));
+          const [parties] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${partyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
+            [...partyIds, all ? 1 : 0, user.employeeId],
+          );
+          if (parties.length !== partyIds.length)
+            throw new AppError(
+              "CONTRACT_COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
+          if (input.parentContractId) {
+            const [parents] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
+              [input.parentContractId, input.projectId],
+            );
+            if (!parents[0])
+              throw new AppError(
+                "CONTRACT_PARENT_NOT_FOUND",
+                "Parent contract not found in the same project",
+                404,
+              );
+          }
           const code = await allocateNumber(connection, "CONTRACT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO con_contract(contract_code,contract_name,contract_type,project_id,party_a_id,party_b_id,signing_entity_id,tax_inclusive_amount,tax_exclusive_amount,tax_rate,tax_amount,amount_status,signed_on,effective_on,expires_on,service_content,payment_terms,invoice_terms,owner_id,parent_contract_id,created_by,updated_by)

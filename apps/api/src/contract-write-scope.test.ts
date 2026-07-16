@@ -74,6 +74,70 @@ function contractWriteConnection() {
   };
 }
 
+const contractInput = {
+  contractName: "智慧园区建设合同",
+  contractType: "INCOME",
+  projectId: "p1",
+  partyAId: "customer-1",
+  partyBId: "company-1",
+  signingEntityId: "company-1",
+  taxInclusiveAmount: 106,
+  taxExclusiveAmount: 100,
+  taxRate: 0.06,
+  taxAmount: 6,
+  amountStatus: "CONFIRMED",
+  signedOn: "2026-07-17",
+  effectiveOn: "2026-07-17",
+  expiresOn: "2026-12-31",
+  serviceContent: "项目全过程管理系统建设",
+  paymentTerms: "按里程碑付款",
+  invoiceTerms: "按付款节点开票",
+  parentContractId: "parent-1",
+};
+
+function contractCreateConnection(options: {
+  projectWritable: boolean;
+  accessiblePartyIds: string[];
+  parentExists: boolean;
+}) {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM prj_project p") && sql.includes("iam_project_grant"))
+        return [options.projectWritable ? [{ id: "p1" }] : [], []];
+      if (sql.includes("FROM crm_counterparty WHERE id IN")) {
+        return [options.accessiblePartyIds.map((id) => ({ id })), []];
+      }
+      if (sql.includes("FROM con_contract WHERE id=? AND project_id=?")) {
+        return [options.parentExists ? [{ id: "parent-1" }] : [], []];
+      }
+      if (sql.includes("FROM sys_number_rule"))
+        return [
+          [
+            {
+              id: 1,
+              prefix: "CON",
+              serial_length: 4,
+              next_serial: 1,
+              current_year: new Date().getFullYear(),
+              version: 0,
+            },
+          ],
+          [],
+        ];
+      if (sql.startsWith("INSERT INTO con_contract"))
+        return [{ affectedRows: 1, insertId: 77 }, []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 async function run(action: string, input: Record<string, unknown>) {
   const connection = contractWriteConnection();
   const executor = new MySqlActionExecutor({
@@ -94,6 +158,92 @@ function expectProjectWriteCheck(calls: Array<{ sql: string; params: unknown[] }
 }
 
 describe("contract write scopes", () => {
+  it("requires access to both contract parties before creating contracts", async () => {
+    const connection = contractCreateConnection({
+      projectWritable: true,
+      accessiblePartyIds: ["customer-1"],
+      parentExists: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("contract.create", contractInput, user),
+    ).rejects.toMatchObject({
+      code: "CONTRACT_COUNTERPARTY_NOT_FOUND",
+      status: 404,
+    });
+
+    const counterpartyCheck = connection.calls.find((call) =>
+      call.sql.includes("FROM crm_counterparty WHERE id IN"),
+    )!;
+    expect(counterpartyCheck.params).toEqual([
+      "customer-1",
+      "company-1",
+      0,
+      "e1",
+    ]);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO con_contract"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("requires parent contracts to belong to the same project", async () => {
+    const connection = contractCreateConnection({
+      projectWritable: true,
+      accessiblePartyIds: ["customer-1", "company-1"],
+      parentExists: false,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("contract.create", contractInput, user),
+    ).rejects.toMatchObject({
+      code: "CONTRACT_PARENT_NOT_FOUND",
+      status: 404,
+    });
+
+    const parentCheck = connection.calls.find((call) =>
+      call.sql.includes("FROM con_contract WHERE id=? AND project_id=?"),
+    )!;
+    expect(parentCheck.params).toEqual(["parent-1", "p1"]);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO con_contract"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("creates contracts only after project, party and parent scopes pass", async () => {
+    const connection = contractCreateConnection({
+      projectWritable: true,
+      accessiblePartyIds: ["customer-1", "company-1"],
+      parentExists: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("contract.create", contractInput, user),
+    ).resolves.toEqual({ id: "77", code: "CON-2026-0001" });
+
+    expectProjectWriteCheck(connection.calls);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO con_contract"),
+      ),
+    ).toBe(true);
+    expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
   it("requires project write access before activating a contract", async () => {
     const calls = await run("contract.activate", {
       contractId: "c1",
