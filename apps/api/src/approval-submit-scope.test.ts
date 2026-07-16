@@ -3,6 +3,117 @@ import { describe, expect, it } from "vitest";
 
 import { MySqlActionExecutor } from "./persistence.js";
 
+type ProjectScopedApprovalBusinessType =
+  | "BID_APPLICATION"
+  | "CONTRACT"
+  | "CONTRACT_CHANGE"
+  | "INVOICE_APPLICATION"
+  | "EXPENSE_REIMBURSEMENT"
+  | "PROJECT_PAYMENT"
+  | "PARTNER_SETTLEMENT"
+  | "DEPOSIT"
+  | "DEPOSIT_LOSS"
+  | "DAILY_PURCHASE"
+  | "PROJECT_START"
+  | "PROJECT_CHANGE"
+  | "PROJECT_ACCEPTANCE"
+  | "PROJECT_CLOSE";
+
+const approvalBusinessCases: Array<{
+  businessType: ProjectScopedApprovalBusinessType;
+  businessId: string;
+  table: string;
+  projectResolutionSqlFragment: string;
+}> = [
+  {
+    businessType: "BID_APPLICATION",
+    businessId: "bid-1",
+    table: "bid_application",
+    projectResolutionSqlFragment: "FROM bid_application WHERE id=?",
+  },
+  {
+    businessType: "CONTRACT",
+    businessId: "contract-1",
+    table: "con_contract",
+    projectResolutionSqlFragment: "FROM con_contract WHERE id=?",
+  },
+  {
+    businessType: "CONTRACT_CHANGE",
+    businessId: "change-1",
+    table: "con_contract_change",
+    projectResolutionSqlFragment:
+      "FROM con_contract_change x JOIN con_contract c",
+  },
+  {
+    businessType: "INVOICE_APPLICATION",
+    businessId: "invoice-1",
+    table: "fin_invoice_application",
+    projectResolutionSqlFragment: "FROM fin_invoice_application WHERE id=?",
+  },
+  {
+    businessType: "EXPENSE_REIMBURSEMENT",
+    businessId: "reimbursement-1",
+    table: "fin_reimbursement",
+    projectResolutionSqlFragment: "FROM fin_reimbursement WHERE id=?",
+  },
+  {
+    businessType: "PROJECT_PAYMENT",
+    businessId: "pay-1",
+    table: "fin_payment_application",
+    projectResolutionSqlFragment: "FROM fin_payment_application WHERE id=?",
+  },
+  {
+    businessType: "PARTNER_SETTLEMENT",
+    businessId: "settlement-1",
+    table: "partner_settlement",
+    projectResolutionSqlFragment: "FROM partner_settlement WHERE id=?",
+  },
+  {
+    businessType: "DEPOSIT",
+    businessId: "deposit-1",
+    table: "fin_deposit",
+    projectResolutionSqlFragment: "FROM fin_deposit WHERE id=?",
+  },
+  {
+    businessType: "DEPOSIT_LOSS",
+    businessId: "deposit-event-1",
+    table: "fin_deposit_event",
+    projectResolutionSqlFragment:
+      "FROM fin_deposit_event e JOIN fin_deposit d",
+  },
+  {
+    businessType: "DAILY_PURCHASE",
+    businessId: "purchase-1",
+    table: "fin_daily_purchase",
+    projectResolutionSqlFragment:
+      "FROM fin_daily_purchase p LEFT JOIN con_contract c",
+  },
+  {
+    businessType: "PROJECT_START",
+    businessId: "start-1",
+    table: "prj_start",
+    projectResolutionSqlFragment: "FROM prj_start WHERE id=?",
+  },
+  {
+    businessType: "PROJECT_CHANGE",
+    businessId: "project-change-1",
+    table: "prj_change",
+    projectResolutionSqlFragment: "FROM prj_change WHERE id=?",
+  },
+  {
+    businessType: "PROJECT_ACCEPTANCE",
+    businessId: "acceptance-1",
+    table: "prj_acceptance",
+    projectResolutionSqlFragment: "FROM prj_acceptance WHERE id=?",
+  },
+  {
+    businessType: "PROJECT_CLOSE",
+    businessId: "close-1",
+    table: "prj_close_application",
+    projectResolutionSqlFragment: "FROM prj_close_application WHERE id=?",
+  },
+];
+
 const creatorWithoutProjectAccess: SessionUser = {
   id: "u1",
   cloudbaseUid: "cb1",
@@ -16,12 +127,17 @@ const creatorWithoutProjectAccess: SessionUser = {
 };
 
 function approvalSubmitConnection(options: {
-  businessType: "PROJECT_PAYMENT" | "CONTRACT_CHANGE";
-  projectId: string;
+  businessType: ProjectScopedApprovalBusinessType;
+  businessId?: string;
+  projectId: string | null;
   canWriteProject: boolean;
   operation?: "SUBMIT" | "WITHDRAW";
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const businessCase = approvalBusinessCases.find(
+    (item) => item.businessType === options.businessType,
+  );
+  const businessId = options.businessId ?? businessCase?.businessId ?? "biz-1";
   return {
     calls,
     beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
@@ -31,11 +147,8 @@ function approvalSubmitConnection(options: {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes("FROM wf_action_history")) return [[], []];
-      if (
-        options.businessType === "PROJECT_PAYMENT" &&
-        sql.includes("FROM fin_payment_application WHERE id=? FOR UPDATE")
-      )
-        return [[{ id: "pay-1", createdBy: "u1", businessStatus: "DRAFT" }], []];
+      if (businessCase && sql.includes(`FROM ${businessCase.table} WHERE id=? FOR UPDATE`))
+        return [[{ id: businessId, createdBy: "u1", businessStatus: "DRAFT" }], []];
       if (
         options.operation === "WITHDRAW" &&
         sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")
@@ -47,29 +160,12 @@ function approvalSubmitConnection(options: {
               applicantId: "u1",
               status: "PENDING",
               businessType: options.businessType,
-              businessId:
-                options.businessType === "PROJECT_PAYMENT" ? "pay-1" : "change-1",
+              businessId,
             },
           ],
           [],
         ];
-      if (
-        options.businessType === "PROJECT_PAYMENT" &&
-        sql.includes("CAST(project_id AS CHAR) projectId FROM fin_payment_application")
-      )
-        return [[{ projectId: options.projectId }], []];
-      if (
-        options.businessType === "CONTRACT_CHANGE" &&
-        sql.includes("FROM con_contract_change WHERE id=? FOR UPDATE")
-      )
-        return [
-          [{ id: "change-1", createdBy: "u1", businessStatus: "DRAFT" }],
-          [],
-        ];
-      if (
-        options.businessType === "CONTRACT_CHANGE" &&
-        sql.includes("FROM con_contract_change x JOIN con_contract c")
-      )
+      if (businessCase && sql.includes(businessCase.projectResolutionSqlFragment))
         return [[{ projectId: options.projectId }], []];
       if (sql.includes("FROM prj_project p") && sql.includes("iam_project_grant"))
         return [options.canWriteProject ? [{ id: options.projectId }] : [], []];
@@ -79,10 +175,11 @@ function approvalSubmitConnection(options: {
 }
 
 async function expectSubmitDeniedForOutOfScopeProject(
-  businessType: "PROJECT_PAYMENT" | "CONTRACT_CHANGE",
+  businessCase: (typeof approvalBusinessCases)[number],
 ) {
   const connection = approvalSubmitConnection({
-    businessType,
+    businessType: businessCase.businessType,
+    businessId: businessCase.businessId,
     projectId: "forbidden-project",
     canWriteProject: false,
   });
@@ -94,9 +191,9 @@ async function expectSubmitDeniedForOutOfScopeProject(
     executor.execute(
       "approval.instance.submit",
       {
-        actionKey: `submit-${businessType.toLowerCase()}-001`,
-        businessType,
-        businessId: businessType === "PROJECT_PAYMENT" ? "pay-1" : "change-1",
+        actionKey: `submit-${businessCase.businessType.toLowerCase()}-001`,
+        businessType: businessCase.businessType,
+        businessId: businessCase.businessId,
         title: "提交审批",
         amount: 100,
       },
@@ -121,12 +218,44 @@ async function expectSubmitDeniedForOutOfScopeProject(
 }
 
 describe("approval submission project scope", () => {
-  it("requires current project write access before submitting project payment approval", async () => {
-    await expectSubmitDeniedForOutOfScopeProject("PROJECT_PAYMENT");
-  });
+  it.each(approvalBusinessCases)(
+    "requires current project write access before submitting $businessType approval",
+    async (businessCase) => {
+      await expectSubmitDeniedForOutOfScopeProject(businessCase);
+    },
+  );
 
-  it("requires current project write access before submitting contract change approval", async () => {
-    await expectSubmitDeniedForOutOfScopeProject("CONTRACT_CHANGE");
+  it("allows standalone daily purchase approval submission without project scope", async () => {
+    const connection = approvalSubmitConnection({
+      businessType: "DAILY_PURCHASE",
+      businessId: "purchase-standalone",
+      projectId: null,
+      canWriteProject: false,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.submit",
+        {
+          actionKey: "submit-standalone-purchase-001",
+          businessType: "DAILY_PURCHASE",
+          businessId: "purchase-standalone",
+          title: "提交审批",
+          amount: 100,
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).rejects.not.toMatchObject({ code: "PROJECT_WRITE_FORBIDDEN" });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.includes("FROM prj_project p") &&
+        call.sql.includes("iam_project_grant"),
+      ),
+    ).toBe(false);
   });
 
   it("requires current project write access before withdrawing project payment approval", async () => {
