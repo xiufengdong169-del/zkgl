@@ -16,7 +16,10 @@ const user: SessionUser = {
   dataScopes: [{ type: "ALL" }],
 };
 
-function executorWithExistingPaymentDetail(row: Record<string, unknown>) {
+function executorWithExistingPaymentDetail(
+  row: Record<string, unknown>,
+  options: { projectAccess?: boolean } = {},
+) {
   const calls: string[] = [];
   const connection = {
     calls,
@@ -27,6 +30,8 @@ function executorWithExistingPaymentDetail(row: Record<string, unknown>) {
     execute: async (sql: string) => {
       calls.push(sql);
       if (sql.includes("FROM fin_payment_detail")) return [[row], []];
+      if (sql.includes("FROM prj_project p"))
+        return [options.projectAccess === false ? [] : [{ id: "p-1" }], []];
       throw new Error(`unexpected SQL: ${sql}`);
     },
   };
@@ -53,6 +58,7 @@ describe("payment detail persistence idempotency", () => {
     const { calls, executor } = executorWithExistingPaymentDetail({
       id: "detail-1",
       paymentId: "pay-1",
+      projectId: "p-1",
       amount: "100.00",
       receivingAccount: "6222",
       bankReference: "BANK-001",
@@ -69,6 +75,7 @@ describe("payment detail persistence idempotency", () => {
     const { calls, executor } = executorWithExistingPaymentDetail({
       id: "detail-1",
       paymentId: "other-pay",
+      projectId: "p-1",
       amount: "100.00",
       receivingAccount: "6222",
       bankReference: "BANK-001",
@@ -88,6 +95,7 @@ describe("payment detail persistence idempotency", () => {
     const { calls, executor } = executorWithExistingPaymentDetail({
       id: "detail-1",
       paymentId: "pay-1",
+      projectId: "p-1",
       amount: "100.00",
       receivingAccount: "6222",
       bankReference: "BANK-001",
@@ -99,6 +107,29 @@ describe("payment detail persistence idempotency", () => {
     ).rejects.toMatchObject({
       code: "IDEMPOTENCY_KEY_REUSED",
       status: 409,
+    });
+    expect(calls).toContain("ROLLBACK");
+  });
+
+  it("rejects idempotent payment replay when project write access has expired", async () => {
+    const { calls, executor } = executorWithExistingPaymentDetail(
+      {
+        id: "detail-1",
+        paymentId: "pay-1",
+        projectId: "p-1",
+        amount: "100.00",
+        receivingAccount: "6222",
+        bankReference: "BANK-001",
+        recorderId: "e-1",
+      },
+      { projectAccess: false },
+    );
+
+    await expect(
+      executor.execute("payment.detail.create", paymentDetailInput, user),
+    ).rejects.toMatchObject({
+      code: "PROJECT_WRITE_FORBIDDEN",
+      status: 403,
     });
     expect(calls).toContain("ROLLBACK");
   });

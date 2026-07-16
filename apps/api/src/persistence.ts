@@ -2732,7 +2732,7 @@ export class MySqlActionExecutor {
         }
         case "payment.detail.create": {
           const [seen] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,amount,receiving_account receivingAccount,bank_reference bankReference,CAST(recorder_id AS CHAR) recorderId FROM fin_payment_detail WHERE idempotency_key=?`,
+            `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,CAST(project_id AS CHAR) projectId,amount,receiving_account receivingAccount,bank_reference bankReference,CAST(recorder_id AS CHAR) recorderId FROM fin_payment_detail WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
           if (seen[0]) {
@@ -2748,6 +2748,7 @@ export class MySqlActionExecutor {
                 "幂等键已用于其他付款明细",
                 409,
               );
+            await requireProjectWriteAccess(connection, seen[0].projectId, user);
             return { idempotent: true, id: String(seen[0].id) };
           }
           const [payments] = await connection.execute<RowDataPacket[]>(
