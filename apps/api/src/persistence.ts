@@ -3403,7 +3403,7 @@ export class MySqlActionExecutor {
               input.biddingMethod ?? null,
               input.riskDescription ?? null,
               input.necessity,
-              user.id,
+              user.employeeId,
               user.id,
               user.id,
             ],

@@ -82,6 +82,26 @@ function projectApplicationConnection(options: {
 }
 
 describe("project application write scopes", () => {
+  it("stores applicant id as employee id while keeping audit columns as user id", async () => {
+    const connection = projectApplicationConnection({
+      customerAccessible: true,
+      sourceLeadAccessible: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("project.application.create", applicationData, user),
+    ).resolves.toMatchObject({ id: "44" });
+
+    const insert = connection.calls.find((call) =>
+      call.sql.startsWith("INSERT INTO prj_project_application"),
+    )!;
+    expect(insert.params.slice(-3)).toEqual(["e1", "u1", "u1"]);
+    expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
   it("requires accessible customer ownership before creating applications", async () => {
     const connection = projectApplicationConnection({
       customerAccessible: false,
