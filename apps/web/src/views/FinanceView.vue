@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 
 interface Option {
@@ -613,11 +614,7 @@ async function completePurchase(item: PurchaseDocument) {
             <td>{{ a.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    a.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(a.status)"
                 class="secondary-button"
                 @click="submitInvoiceApplication(a)"
               >
@@ -650,11 +647,7 @@ async function completePurchase(item: PurchaseDocument) {
             <td>{{ p.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    p.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(p.status)"
                 class="secondary-button"
                 @click="submitPayment(p)"
               >
@@ -689,11 +682,7 @@ async function completePurchase(item: PurchaseDocument) {
             <td>{{ item.paymentStatus }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.approvalStatus,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.approvalStatus)"
                 @click="submitReimbursement(item)"
               >
                 提交审批
@@ -741,11 +730,7 @@ async function completePurchase(item: PurchaseDocument) {
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.status)"
                 @click="submitPurchase(item)"
               >
                 提交审批

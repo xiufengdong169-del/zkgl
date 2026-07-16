@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 interface ProjectRow {
   id: string;
@@ -538,9 +539,7 @@ const workflow = [
             <td>
               <button
                 v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  ) &&
+                  canSubmitApprovalStatus(item.status) &&
                   (item.createdBy === auth.user?.id ||
                     auth.user?.roleCodes.includes('ADMIN'))
                 "
@@ -550,11 +549,7 @@ const workflow = [
                 修改
               </button>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.status)"
                 class="secondary-button"
                 @click="submitApplication(item)"
               >

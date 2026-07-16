@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 
 interface Option {
@@ -670,11 +671,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
             <td>{{ s.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    s.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(s.status)"
                 class="secondary-button"
                 @click="submitSettlement(s)"
               >
@@ -718,11 +715,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.status)"
                 @click="submitDeposit(item)"
               >
                 提交缴纳审批
@@ -770,9 +763,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
               <button
                 v-if="
                   item.eventType === 'FORFEIT' &&
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
+                  canSubmitApprovalStatus(item.status)
                 "
                 @click="submitDepositLoss(item)"
               >
@@ -811,11 +802,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.status)"
                 @click="submitClose(item)"
               >
                 提交审批

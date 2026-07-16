@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 interface BidRow {
   id: string;
@@ -527,11 +528,7 @@ const areas = [
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    item.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(item.status)"
                 class="secondary-button"
                 @click="submitBid(item)"
               >

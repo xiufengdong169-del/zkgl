@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 const modules = [
   ["启动", "正常/提前启动"],
@@ -853,11 +854,7 @@ async function submitChange(item: ChangeRecord) {
             <td>{{ c.status }}</td>
             <td>
               <button
-                v-if="
-                  ['DRAFT', 'RETURNED', 'REJECTED', 'WITHDRAWN'].includes(
-                    c.status,
-                  )
-                "
+                v-if="canSubmitApprovalStatus(c.status)"
                 @click="submitChange(c)"
               >
                 提交审批
