@@ -114,6 +114,20 @@ const extractTablesFilteredByIsDeleted = (source: string) => {
   return [...tables].sort();
 };
 
+const extractInsertColumnRefs = (source: string) =>
+  [...source.matchAll(/INSERT INTO\s+([a-z0-9_]+)\s*\(([^)]*)\)/gi)].flatMap(
+    (match) => {
+      const table = match[1]!.toLowerCase();
+      return match[2]!
+        .split(",")
+        .map((column) => ({
+          table,
+          column: column.trim().replace(/`/g, "").toLowerCase(),
+        }))
+        .filter(({ column }) => Boolean(column));
+    },
+  );
+
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
     const parser = new Parser();
@@ -301,6 +315,20 @@ describe("empty database initialization schema", () => {
         columnsByTable.get(table),
         `missing is_deleted column on ${table}`,
       )?.toContain("is_deleted");
+    }
+  });
+
+  it("insert column lists match the empty schema tables", () => {
+    const columnsByTable = extractTableColumns(schema);
+    const insertRefs = extractInsertColumnRefs(persistence);
+
+    expect(insertRefs.length).toBeGreaterThan(200);
+    for (const { table, column } of insertRefs) {
+      expect(columnsByTable.get(table), `missing table ${table}`).toBeDefined();
+      expect(
+        columnsByTable.get(table),
+        `missing insert column ${table}.${column}`,
+      )?.toContain(column);
     }
   });
 });
