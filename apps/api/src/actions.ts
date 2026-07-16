@@ -348,7 +348,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "bid.application.create",
     input: z.object({
       bidId: z.string().min(1),
-      action: z.enum(["START_PREPARING", "SUBMIT_BID", "OPEN", "ABANDON"]),
+      action: z.enum(["SUBMIT_BID", "OPEN", "ABANDON"]),
     }),
   },
   "bid.result.create": {

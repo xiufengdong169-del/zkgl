@@ -35,6 +35,15 @@ describe("contracts", () => {
     expect(transitionContract("PENDING_SIGNATURE", "START")).toBe("PERFORMING");
   });
 
+  it("合同审批退回、驳回或撤回后可重新提交", () => {
+    expect(transitionContract("APPROVAL_PENDING", "RETURN")).toBe("RETURNED");
+    expect(transitionContract("APPROVAL_PENDING", "REJECT")).toBe("REJECTED");
+    expect(transitionContract("APPROVAL_PENDING", "WITHDRAW")).toBe("WITHDRAWN");
+    for (const status of ["RETURNED", "REJECTED", "WITHDRAWN"] as const) {
+      expect(transitionContract(status, "SUBMIT")).toBe("APPROVAL_PENDING");
+    }
+  });
+
   it("暂定金额不进入合同经营收入", () => {
     const amount = confirmedIncomeAmount([
       {

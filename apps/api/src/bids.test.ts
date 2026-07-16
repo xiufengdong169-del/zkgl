@@ -14,6 +14,14 @@ describe("bidding", () => {
     expect(transitionBid("SUBMITTED", "OPEN")).toBe("OPENED");
     expect(transitionBid("OPENED", "WIN")).toBe("WON");
   });
+  it("审批退回、驳回或撤回后的投标申请可重新提交审批", () => {
+    expect(transitionBid("APPROVAL_PENDING", "RETURN")).toBe("RETURNED");
+    expect(transitionBid("APPROVAL_PENDING", "REJECT")).toBe("REJECTED");
+    expect(transitionBid("APPROVAL_PENDING", "WITHDRAW")).toBe("WITHDRAWN");
+    for (const status of ["RETURNED", "REJECTED", "WITHDRAWN"] as const) {
+      expect(transitionBid(status, "SUBMIT_APPROVAL")).toBe("APPROVAL_PENDING");
+    }
+  });
   it("禁止未提交就登记开标结果", () =>
     expect(() => transitionBid("PREPARING", "WIN")).toThrow());
   it("任务必须提交检查后才能完成", () => {

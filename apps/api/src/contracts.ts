@@ -99,6 +99,7 @@ type ContractAction =
   | "SUBMIT"
   | "RETURN"
   | "REJECT"
+  | "WITHDRAW"
   | "SIGN"
   | "START"
   | "COMPLETE"
@@ -113,6 +114,7 @@ const transitions: Record<
   APPROVAL_PENDING: {
     RETURN: "RETURNED",
     REJECT: "REJECTED",
+    WITHDRAW: "WITHDRAWN",
     SIGN: "PENDING_SIGNATURE",
   },
   PENDING_SIGNATURE: { START: "PERFORMING", VOID: "VOID" },
@@ -123,7 +125,8 @@ const transitions: Record<
   },
   CHANGED: { START: "PERFORMING", TERMINATE: "TERMINATED" },
   RETURNED: { SUBMIT: "APPROVAL_PENDING", VOID: "VOID" },
-  REJECTED: {},
+  REJECTED: { SUBMIT: "APPROVAL_PENDING" },
+  WITHDRAWN: { SUBMIT: "APPROVAL_PENDING" },
   COMPLETED: {},
   TERMINATED: {},
   VOID: {},

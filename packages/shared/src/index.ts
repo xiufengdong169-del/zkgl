@@ -90,11 +90,19 @@ export type ApprovalInstanceStatus =
   "PENDING" | "APPROVED" | "RETURNED" | "REJECTED" | "WITHDRAWN";
 
 export type ApprovalTaskStatus =
-  "WAITING" | "PENDING" | "APPROVED" | "CANCELLED";
+  | "WAITING"
+  | "PENDING"
+  | "APPROVED"
+  | "RETURNED"
+  | "REJECTED"
+  | "CANCELLED";
 
 export type BidStatus =
   | "DRAFT"
   | "APPROVAL_PENDING"
+  | "RETURNED"
+  | "REJECTED"
+  | "WITHDRAWN"
   | "PREPARING"
   | "SUBMITTED"
   | "OPENED"
@@ -120,6 +128,7 @@ export type ContractStatus =
   | "COMPLETED"
   | "RETURNED"
   | "REJECTED"
+  | "WITHDRAWN"
   | "CHANGED"
   | "TERMINATED"
   | "VOID";
