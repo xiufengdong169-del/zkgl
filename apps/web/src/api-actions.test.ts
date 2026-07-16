@@ -77,6 +77,31 @@ function extractAllFrontendActions() {
   ].sort();
 }
 
+function extractFrontendPageSizes(filePath: string) {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    scriptSource(filePath),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const pageSizes: Array<{ filePath: string; value: number }> = [];
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "pageSize" &&
+      ts.isNumericLiteral(node.initializer)
+    )
+      pageSizes.push({ filePath, value: Number(node.initializer.text) });
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return pageSizes;
+}
+
 describe("frontend API action usage", () => {
   it("前端所有 callApi 动作均使用静态字符串，便于授权和实现一致性校验", () => {
     const dynamicCalls = listSourceFiles(webSourceDir).flatMap(
@@ -107,5 +132,13 @@ describe("frontend API action usage", () => {
       .sort();
 
     expect(missingFrontendEntry).toEqual([]);
+  });
+  it("前端分页大小与后端通用分页白名单保持一致", () => {
+    const invalidPageSizes = listSourceFiles(webSourceDir)
+      .flatMap((file) => extractFrontendPageSizes(file))
+      .filter((item) => ![20, 50].includes(item.value))
+      .map((item) => `${item.filePath}:${item.value}`);
+
+    expect(invalidPageSizes).toEqual([]);
   });
 });

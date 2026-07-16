@@ -81,11 +81,11 @@ async function load() {
     const [leads, customerResult] = await Promise.all([
       callApi<{ items: LeadSummary[] }>("lead.list", {
         page: 1,
-        pageSize: 100,
+        pageSize: 50,
       }),
       callApi<{ items: CustomerOption[] }>("crm.counterparty.list", {
         page: 1,
-        pageSize: 100,
+        pageSize: 50,
       }),
     ]);
     items.value = leads.items;
