@@ -469,6 +469,18 @@ async function applyBusinessApprovalResult(
     `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?`,
     [target, actorUserId, businessId],
   );
+  if (businessType === "PROJECT_PAYMENT" && status === "REJECTED") {
+    const [payments] = await connection.execute<RowDataPacket[]>(
+      `SELECT source_type sourceType,source_id sourceId FROM fin_payment_application WHERE id=?`,
+      [businessId],
+    );
+    const payment = payments[0];
+    if (payment?.sourceType === "REIMBURSEMENT")
+      await connection.execute(
+        `UPDATE fin_reimbursement r SET r.payment_status='UNPAID',r.updated_by=?,r.version=r.version+1 WHERE r.id=? AND NOT EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=r.id AND pa.status<>'REJECTED')`,
+        [actorUserId, payment.sourceId],
+      );
+  }
   if (status !== "APPROVED") return;
   if (businessType === "CONTRACT_CHANGE") {
     const [changes] = await connection.execute<RowDataPacket[]>(
@@ -2908,7 +2920,7 @@ export class MySqlActionExecutor {
             ),
             purchaseAccess = buildProjectReferenceScope(user, "c.project_id"),
             [reimbursements] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED') hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
               [user.employeeId, ...reimbursementAccess.params],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
@@ -2929,11 +2941,11 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [depositEvents] = await connection.execute<RowDataPacket[]>(

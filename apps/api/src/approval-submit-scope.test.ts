@@ -248,6 +248,61 @@ function approvalSubmitConnection(options: {
   };
 }
 
+function paymentApprovalRejectConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM wf_action_history")) return [[], []];
+      if (sql.includes("FROM wf_task t JOIN wf_instance i"))
+        return [
+          [
+            {
+              task_id: "task-1",
+              instance_id: "instance-1",
+              node_order: 1,
+              position_code: "FINANCE",
+              assignee_id: "e1",
+              task_status: "PENDING",
+              instance_status: "PENDING",
+              current_node_order: 1,
+              applicant_id: "u1",
+              configuration_snapshot: "{}",
+              business_type: "PROJECT_PAYMENT",
+              business_id: "pay-1",
+            },
+          ],
+          [],
+        ];
+      if (
+        sql.startsWith("INSERT INTO wf_action_history") ||
+        sql.startsWith("UPDATE wf_task SET") ||
+        sql.startsWith("UPDATE wf_instance SET") ||
+        sql.startsWith("UPDATE fin_payment_application SET")
+      )
+        return [{ affectedRows: 1 }, []];
+      if (
+        sql.includes(
+          "FROM fin_payment_application WHERE id=?",
+        ) &&
+        sql.includes("source_type sourceType")
+      )
+        return [
+          [{ sourceType: "REIMBURSEMENT", sourceId: "reimbursement-1" }],
+          [],
+        ];
+      if (sql.startsWith("UPDATE fin_reimbursement r SET"))
+        return [{ affectedRows: 1 }, []];
+      throw new Error(`unexpected SQL: ${sql}`);
+    },
+  };
+}
+
 async function expectSubmitDeniedForOutOfScopeProject(
   businessCase: (typeof approvalBusinessCases)[number],
 ) {
@@ -440,5 +495,35 @@ describe("approval submission project scope", () => {
       ),
     ).toBe(false);
     expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("restores reimbursement payment status after project payment approval is rejected", async () => {
+    const connection = paymentApprovalRejectConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.task.action",
+        {
+          taskId: "task-1",
+          actionKey: "reject-payment-001",
+          action: "REJECT",
+          comment: "信息有误",
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).resolves.toMatchObject({ status: "REJECT" });
+
+    expect(
+      connection.calls.some(
+        (call) =>
+          call.sql.startsWith("UPDATE fin_reimbursement r SET") &&
+          call.sql.includes("payment_status='UNPAID'") &&
+          call.sql.includes("pa.status<>'REJECTED'"),
+      ),
+    ).toBe(true);
+    expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
   });
 });

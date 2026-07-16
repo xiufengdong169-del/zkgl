@@ -340,6 +340,20 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("已驳回的付款申请不再占用业务来源", () => {
+    expect(persistence).toContain("pa.status<>'REJECTED'");
+    expect(persistence).toContain("payment_status='UNPAID'");
+    expect(persistence).toContain(
+      "WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED'",
+    );
+    expect(persistence).toContain(
+      "WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED'",
+    );
+    expect(persistence).toContain(
+      "WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED'",
+    );
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",
