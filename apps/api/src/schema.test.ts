@@ -358,6 +358,9 @@ describe("empty database initialization schema", () => {
     expect(persistence).toContain(
       "FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0",
     );
+    expect(persistence).not.toMatch(
+      /FROM con_contract WHERE project_id=\? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN\('PENDING_SIGNATURE','PERFORMING','COMPLETED'\)(?! AND is_deleted=0)/,
+    );
     expect(persistence).toContain(
       "FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')",
     );

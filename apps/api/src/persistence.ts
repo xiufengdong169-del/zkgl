@@ -4601,7 +4601,7 @@ export class MySqlActionExecutor {
           );
           const acceptancePassed = Number(acceptanceRows[0]?.count ?? 0) > 0;
           const [contractRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
+            `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
             [input.projectId],
           );
           const contractAmount = Number(contractRows[0]?.amount ?? 0);
