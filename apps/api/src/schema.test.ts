@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Parser } from "node-sql-parser";
 import { describe, expect, it } from "vitest";
 
@@ -19,6 +21,7 @@ const webNavigation = readFileSync(
   new URL("../../web/src/navigation.ts", import.meta.url),
   "utf8",
 );
+const webSourceDir = fileURLToPath(new URL("../../web/src", import.meta.url));
 const statements = schema
   .split(";")
   .map((item) => item.trim())
@@ -37,6 +40,26 @@ const extractPermissionCodes = (source: string) =>
       [...source.matchAll(/permission:\s*"([^"]+)"/g)].map(
         (match) => match[1]!,
       ),
+    ),
+  ].sort();
+
+function listWebSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(directory, entry.name);
+    if (entry.isDirectory()) return listWebSourceFiles(fullPath);
+    if (entry.name.endsWith(".test.ts")) return [];
+    return [".ts", ".vue"].includes(extname(entry.name)) ? [fullPath] : [];
+  });
+}
+
+const extractInlinePermissionCodes = (source: string) =>
+  [
+    ...new Set(
+      [
+        ...source.matchAll(
+          /permissionCodes\.includes\(\s*["']([^"']+)["']\s*\)/g,
+        ),
+      ].map((match) => match[1]!),
     ),
   ].sort();
 
@@ -137,7 +160,24 @@ describe("empty database initialization schema", () => {
       );
   });
 
-  it("所有可提交审批业务均配置模板和审批结果回写", () => {
+  it("frontend inline permission codes are seeded", () => {
+    const inlinePermissions = [
+      ...new Set(
+        listWebSourceFiles(webSourceDir).flatMap((file) =>
+          extractInlinePermissionCodes(readFileSync(file, "utf8")),
+        ),
+      ),
+    ].sort();
+
+    expect(inlinePermissions.length).toBeGreaterThan(5);
+    for (const permission of inlinePermissions)
+      expect(
+        schema,
+        `missing inline frontend permission seed ${permission}`,
+      ).toContain(`('${permission}'`);
+  });
+
+  it("approval business types are configured and written back", () => {
     const submitBusinessTypes = extractObjectKeys(
       persistence,
       /case "approval\.instance\.submit":[\s\S]*?const businessMap:[\s\S]*?= \{([\s\S]*?)\};\s*const config/,
