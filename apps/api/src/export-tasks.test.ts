@@ -1,7 +1,10 @@
 import type { SessionUser } from "@zkgl/shared";
 import { describe, expect, it } from "vitest";
 
-import { processPendingProjectExportTasks } from "./export-tasks.js";
+import {
+  buildProjectExportCsv,
+  processPendingProjectExportTasks,
+} from "./export-tasks.js";
 import { MySqlActionExecutor } from "./persistence.js";
 
 const user: SessionUser = {
@@ -107,6 +110,30 @@ describe("export task persistence", () => {
     expect(countCall!.sql).toContain("p.id IN (?)");
     expect(countCall!.sql).toContain("pm.department_id IN (?)");
     expect(countCall!.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
+  });
+});
+
+describe("project export CSV safety", () => {
+  it("prevents formula injection even when formula markers are prefixed by whitespace", () => {
+    const csv = buildProjectExportCsv(
+      [
+        {
+          projectCode: " \t=cmd|' /C calc'!A0",
+          projectName: "\t+SUM(1,2)",
+          customerName: "normal customer",
+          status: "IN_PROGRESS",
+          estimatedRevenue: "100.00",
+          estimatedCost: "20.00",
+          confirmedIncome: "80.00",
+          receivedAmount: "60.00",
+        },
+      ] as never,
+      "内部项目经营口径",
+    ).toString("utf8");
+
+    expect(csv).toContain("\"' \t=cmd|' /C calc'!A0\"");
+    expect(csv).toContain("\"'\t+SUM(1,2)\"");
+    expect(csv).toContain("\"normal customer\"");
   });
 });
 

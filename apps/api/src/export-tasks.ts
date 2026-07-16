@@ -52,7 +52,7 @@ function scopedIds(scopes: unknown[], type: string, field: "projectIds" | "depar
 
 function csvCell(value: unknown): string {
   const text = String(value ?? "");
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  const safe = /^\s*[=+\-@]/.test(text) ? `'${text}` : text;
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
