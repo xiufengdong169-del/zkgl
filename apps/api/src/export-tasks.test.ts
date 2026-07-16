@@ -146,7 +146,7 @@ function exportWorkerConnection() {
       if (sql.includes("FROM sys_parameter"))
         return [[{ paramValue: "21" }], []];
       if (sql.includes("FROM sys_export_task"))
-        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }], temporaryProjectIds: ["p-temp"] }) }], []];
+        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", permissionCodes: ["project.export"], dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }], temporaryProjectIds: ["p-temp"] }) }], []];
       if (sql.includes("FROM prj_project p"))
         return [[{ projectCode: "=ZK-001", projectName: "项目A", customerName: "客户A", status: "IN_PROGRESS", estimatedRevenue: "100.00", estimatedCost: "20.00", confirmedIncome: "80.00", receivedAmount: "60.00" }], []];
       if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 88 }, []];
@@ -220,6 +220,37 @@ describe("export task worker", () => {
     );
     expect(failedUpdate?.params).toEqual([
       expect.stringContaining("Expected property name"),
+      7,
+    ]);
+  });
+
+  it("marks tasks failed when permission snapshots do not include export permission", async () => {
+    const connection = exportWorkerConnectionWithSnapshot(
+      JSON.stringify({
+        employeeId: "e1",
+        permissionCodes: ["project.read"],
+        dataScopes: [{ type: "ALL" }],
+      }),
+    );
+    const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async (cloudPath, content) => {
+        uploads.push({ cloudPath, content });
+        return "cloud://exports/DC-2026-0007.csv";
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 0, failed: 1 });
+    expect(uploads).toEqual([]);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM prj_project p")),
+    ).toBe(false);
+    const failedUpdate = connection.calls.find((call) =>
+      call.sql.includes("status='FAILED'"),
+    );
+    expect(failedUpdate?.params).toEqual([
+      "EXPORT_PERMISSION_SNAPSHOT_INVALID",
       7,
     ]);
   });

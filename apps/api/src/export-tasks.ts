@@ -97,6 +97,11 @@ export async function processPendingProjectExportTasks(
         [task.id],
       );
       const snapshot = parseJsonObject(task.permissionSnapshot);
+      const permissionCodes = Array.isArray(snapshot.permissionCodes)
+        ? snapshot.permissionCodes.map(String)
+        : [];
+      if (!permissionCodes.includes("project.export"))
+        throw new Error("EXPORT_PERMISSION_SNAPSHOT_INVALID");
       const employeeId = String(snapshot.employeeId ?? "");
       const scopes = Array.isArray(snapshot.dataScopes) ? snapshot.dataScopes : [];
       const all = scopes.some(
