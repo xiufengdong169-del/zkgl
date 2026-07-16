@@ -64,6 +64,18 @@ describe("contracts", () => {
         taxExclusiveAmount: 50,
         status: "PERFORMING",
       },
+      {
+        type: "INCOME",
+        amountStatus: "CONFIRMED",
+        taxExclusiveAmount: 300,
+        status: "DRAFT",
+      },
+      {
+        type: "INCOME",
+        amountStatus: "CONFIRMED",
+        taxExclusiveAmount: 400,
+        status: "WITHDRAWN",
+      },
     ]);
     expect(amount).toBe(200);
   });

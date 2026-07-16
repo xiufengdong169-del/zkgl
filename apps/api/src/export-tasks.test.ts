@@ -215,6 +215,9 @@ describe("export task worker", () => {
     const projectQuery = connection.calls.find((call) => call.sql.includes("FROM prj_project p"));
     expect(projectQuery!.sql).toContain("p.id IN (?)");
     expect(projectQuery!.sql).toContain("pm.department_id IN (?)");
+    expect(projectQuery!.sql).toContain(
+      "x.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
+    );
     expect(projectQuery!.params).toEqual([0, "e1", "e1", "p9", "d2", "p-temp"]);
     expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_object"))).toBe(true);
     expect(connection.calls.some((call) => call.sql.startsWith("INSERT INTO file_version"))).toBe(true);

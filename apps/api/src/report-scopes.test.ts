@@ -46,6 +46,12 @@ describe("report project data scopes", () => {
 
     const query = connection.calls.find((call) => call.sql.includes("expectedProfit"))!;
     expect(query.sql).toContain("JOIN org_employee pm");
+    expect(query.sql).toContain(
+      "c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
+    );
+    expect(query.sql).not.toContain(
+      "c.status NOT IN('VOID','REJECTED','TERMINATED')",
+    );
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
@@ -86,6 +92,11 @@ describe("report project data scopes", () => {
     for (const query of projectQueries) {
       expect(query.sql).toContain("p.id IN (?)");
       expect(query.sql).toContain("pm.department_id IN (?)");
+      if (query.sql.includes("con_contract c")) {
+        expect(query.sql).toContain(
+          "c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
+        );
+      }
       expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
     }
   });
@@ -100,6 +111,9 @@ describe("report project data scopes", () => {
 
     const query = connection.calls.find((call) => call.sql.includes("outstandingAmount"))!;
     expect(query.sql).toContain("JOIN org_employee pm");
+    expect(query.sql).toContain(
+      "c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
+    );
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1", 20, 20]);

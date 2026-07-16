@@ -540,11 +540,11 @@ export class MySqlActionExecutor {
               projectScope.params,
             ),
             [collection] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE')),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND ${projectScope.sql}`,
+              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE')),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND ${projectScope.sql}`,
               projectScope.params,
             ),
             [profits] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
+              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
               projectScope.params,
             );
           return {
@@ -561,7 +561,7 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status NOT IN('VOID','REJECTED','TERMINATED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE'),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
             [...projectScope.params, pageSize, (page - 1) * pageSize],
           );
           return { items: rows, page, pageSize };
@@ -614,7 +614,7 @@ export class MySqlActionExecutor {
             };
           }
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 1000`,
+            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 1000`,
             projectScope.params,
           );
           return {
@@ -1858,7 +1858,7 @@ export class MySqlActionExecutor {
               30,
             );
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED','TERMINATED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
+            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
             [user.employeeId, ...projectAccess.params],
           );
           return (
@@ -2611,7 +2611,9 @@ export class MySqlActionExecutor {
           const contract = contracts[0];
           if (
             !contract ||
-            ["VOID", "REJECTED", "TERMINATED"].includes(contract.status)
+            !["PENDING_SIGNATURE", "PERFORMING", "COMPLETED"].includes(
+              contract.status,
+            )
           )
             throw new AppError("INCOME_CONTRACT_INVALID", "收入合同无效", 409);
           if (String(contract.projectId) !== String(input.projectId))
@@ -4142,7 +4144,7 @@ export class MySqlActionExecutor {
           let basisAmount = 0;
           if (plan.basis === "CONTRACT_REVENUE_EX_TAX") {
             const [r] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED')`,
+              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
               [plan.projectId],
             );
             basisAmount = Number(r[0]?.amount ?? 0);
@@ -4154,7 +4156,7 @@ export class MySqlActionExecutor {
             basisAmount = Number(r[0]?.amount ?? 0);
           } else if (plan.basis === "PROJECT_GROSS_PROFIT") {
             const [incomeRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED')`,
+              `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
               [plan.projectId],
             );
             const [costRows] = await connection.execute<RowDataPacket[]>(
@@ -4437,7 +4439,7 @@ export class MySqlActionExecutor {
           );
           const acceptancePassed = Number(acceptanceRows[0]?.count ?? 0) > 0;
           const [contractRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status NOT IN('VOID','REJECTED')`,
+            `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')`,
             [input.projectId],
           );
           const contractAmount = Number(contractRows[0]?.amount ?? 0);

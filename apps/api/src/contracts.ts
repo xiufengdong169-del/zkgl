@@ -153,12 +153,17 @@ export function confirmedIncomeAmount(
     status: ContractStatus;
   }>,
 ): number {
+  const effectiveStatuses: ContractStatus[] = [
+    "PENDING_SIGNATURE",
+    "PERFORMING",
+    "COMPLETED",
+  ];
   return contracts
     .filter(
       (item) =>
         item.type === "INCOME" &&
         item.amountStatus === "CONFIRMED" &&
-        !["VOID", "REJECTED"].includes(item.status),
+        effectiveStatuses.includes(item.status),
     )
     .reduce((sum, item) => sum + item.taxExclusiveAmount, 0);
 }

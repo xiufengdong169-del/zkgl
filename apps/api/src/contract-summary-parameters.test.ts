@@ -58,6 +58,12 @@ describe("contract summary parameters", () => {
       call.sql.includes("expiringCount FROM con_contract"),
     )!;
     expect(summaryQuery.sql).toContain("INTERVAL 45 DAY");
+    expect(summaryQuery.sql).toContain(
+      "status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
+    );
+    expect(summaryQuery.sql).not.toContain(
+      "status NOT IN('VOID','REJECTED','TERMINATED')",
+    );
     expect(summaryQuery.params).toEqual(["e1", 0, "e1", "e1", "e1"]);
   });
 
