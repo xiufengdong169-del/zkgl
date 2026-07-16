@@ -58,6 +58,7 @@ describe("deposit event persistence idempotency", () => {
       depositId: "deposit-1",
       eventType: "RETURN",
       amount: "50.00",
+      operatorId: "u-1",
     });
 
     await expect(
@@ -72,6 +73,7 @@ describe("deposit event persistence idempotency", () => {
       depositId: "deposit-1",
       eventType: "FORFEIT",
       amount: "50.00",
+      operatorId: "u-1",
     });
 
     await expect(
@@ -80,6 +82,24 @@ describe("deposit event persistence idempotency", () => {
     await expect(
       executor.execute("deposit.event.create", depositEventInput, user),
     ).rejects.toThrow("幂等键已用于其他保证金事件");
+    expect(calls).toContain("ROLLBACK");
+  });
+
+  it("rejects deposit event idempotency replay by another operator", async () => {
+    const { calls, executor } = executorWithExistingDepositEvent({
+      id: "event-1",
+      depositId: "deposit-1",
+      eventType: "RETURN",
+      amount: "50.00",
+      operatorId: "other-user",
+    });
+
+    await expect(
+      executor.execute("deposit.event.create", depositEventInput, user),
+    ).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+      status: 409,
+    });
     expect(calls).toContain("ROLLBACK");
   });
 });

@@ -56,6 +56,7 @@ describe("payment detail persistence idempotency", () => {
       amount: "100.00",
       receivingAccount: "6222",
       bankReference: "BANK-001",
+      recorderId: "e-1",
     });
 
     await expect(
@@ -71,6 +72,7 @@ describe("payment detail persistence idempotency", () => {
       amount: "100.00",
       receivingAccount: "6222",
       bankReference: "BANK-001",
+      recorderId: "e-1",
     });
 
     await expect(
@@ -79,6 +81,25 @@ describe("payment detail persistence idempotency", () => {
     await expect(
       executor.execute("payment.detail.create", paymentDetailInput, user),
     ).rejects.toThrow("幂等键已用于其他付款明细");
+    expect(calls).toContain("ROLLBACK");
+  });
+
+  it("rejects payment idempotency replay by another recorder", async () => {
+    const { calls, executor } = executorWithExistingPaymentDetail({
+      id: "detail-1",
+      paymentId: "pay-1",
+      amount: "100.00",
+      receivingAccount: "6222",
+      bankReference: "BANK-001",
+      recorderId: "other-employee",
+    });
+
+    await expect(
+      executor.execute("payment.detail.create", paymentDetailInput, user),
+    ).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+      status: 409,
+    });
     expect(calls).toContain("ROLLBACK");
   });
 });

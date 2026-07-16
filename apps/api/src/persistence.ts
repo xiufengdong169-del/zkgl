@@ -2732,11 +2732,12 @@ export class MySqlActionExecutor {
         }
         case "payment.detail.create": {
           const [seen] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,amount,receiving_account receivingAccount,bank_reference bankReference FROM fin_payment_detail WHERE idempotency_key=?`,
+            `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,amount,receiving_account receivingAccount,bank_reference bankReference,CAST(recorder_id AS CHAR) recorderId FROM fin_payment_detail WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
           if (seen[0]) {
             if (
+              seen[0].recorderId !== user.employeeId ||
               seen[0].paymentId !== input.paymentId ||
               Math.abs(Number(seen[0].amount) - Number(input.amount)) > 0.005 ||
               seen[0].receivingAccount !== input.receivingAccount ||
@@ -3971,11 +3972,12 @@ export class MySqlActionExecutor {
             throw new AppError("DEPOSIT_NOT_FOUND", "保证金不存在", 404);
           await requireProjectWriteAccess(connection, deposit.projectId, user);
           const [seen] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(id AS CHAR) id,CAST(deposit_id AS CHAR) depositId,event_type eventType,amount FROM fin_deposit_event WHERE idempotency_key=?`,
+            `SELECT CAST(id AS CHAR) id,CAST(deposit_id AS CHAR) depositId,event_type eventType,amount,CAST(operator_id AS CHAR) operatorId FROM fin_deposit_event WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
           if (seen[0]) {
             if (
+              seen[0].operatorId !== user.id ||
               seen[0].depositId !== input.depositId ||
               seen[0].eventType !== input.eventType ||
               Math.abs(Number(seen[0].amount) - Number(input.amount)) > 0.005
