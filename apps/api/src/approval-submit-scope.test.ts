@@ -132,6 +132,7 @@ function approvalSubmitConnection(options: {
   projectId: string | null;
   canWriteProject: boolean;
   operation?: "SUBMIT" | "WITHDRAW";
+  invoiceCapacityExceeded?: boolean;
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const businessCase = approvalBusinessCases.find(
@@ -163,6 +164,29 @@ function approvalSubmitConnection(options: {
               businessId,
             },
           ],
+          [],
+        ];
+      if (
+        options.businessType === "INVOICE_APPLICATION" &&
+        sql.includes("contract_id contractId,requested_amount requestedAmount")
+      )
+        return [[{ contractId: "contract-1", requestedAmount: "1200.00" }], []];
+      if (
+        options.businessType === "INVOICE_APPLICATION" &&
+        sql.includes("FROM con_contract WHERE id=?")
+      )
+        return [[{ amount: "1500.00", status: "PERFORMING" }], []];
+      if (
+        options.businessType === "INVOICE_APPLICATION" &&
+        sql.includes("FROM fin_sales_invoice WHERE contract_id=?")
+      )
+        return [[{ used: "100.00" }], []];
+      if (
+        options.businessType === "INVOICE_APPLICATION" &&
+        sql.includes("FROM fin_invoice_application a")
+      )
+        return [
+          [{ amount: options.invoiceCapacityExceeded ? "300.00" : "0.00" }],
           [],
         ];
       if (businessCase && sql.includes(businessCase.projectResolutionSqlFragment))
@@ -256,6 +280,38 @@ describe("approval submission project scope", () => {
         call.sql.includes("iam_project_grant"),
       ),
     ).toBe(false);
+  });
+
+  it("rechecks invoice capacity before submitting invoice application approval", async () => {
+    const connection = approvalSubmitConnection({
+      businessType: "INVOICE_APPLICATION",
+      businessId: "invoice-1",
+      projectId: "allowed-project",
+      canWriteProject: true,
+      invoiceCapacityExceeded: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.submit",
+        {
+          actionKey: "submit-invoice-capacity-001",
+          businessType: "INVOICE_APPLICATION",
+          businessId: "invoice-1",
+          title: "鎻愪氦瀹℃壒",
+          amount: 1200,
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).rejects.toMatchObject({ code: "INVOICE_CAPACITY_EXCEEDED" });
+
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM wf_template")),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 
   it("requires current project write access before withdrawing project payment approval", async () => {

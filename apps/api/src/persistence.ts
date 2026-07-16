@@ -192,6 +192,66 @@ async function resolveApprovalBusinessProjectId(
   return null;
 }
 
+async function readOutstandingInvoiceApplicationAmount(
+  connection: PoolConnection,
+  contractId: string,
+  excludedApplicationId?: string,
+): Promise<number> {
+  const exclusionSql = excludedApplicationId ? " AND a.id<>?" : "";
+  const params = excludedApplicationId
+    ? [contractId, excludedApplicationId]
+    : [contractId];
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(GREATEST(a.requested_amount-COALESCE((SELECT SUM(s.tax_inclusive_amount) FROM fin_sales_invoice s WHERE s.application_id=a.id AND s.is_reversed=0),0),0)),0) amount FROM fin_invoice_application a WHERE a.contract_id=? AND a.is_deleted=0 AND a.status IN('DRAFT','APPROVAL_PENDING','RETURNED','PENDING_INVOICE','PARTIALLY_INVOICED')${exclusionSql}`,
+    params,
+  );
+  return Number(rows[0]?.amount ?? 0);
+}
+
+async function assertInvoiceApplicationCapacityForSubmit(
+  connection: PoolConnection,
+  applicationId: string,
+) {
+  const [applications] = await connection.execute<RowDataPacket[]>(
+    `SELECT contract_id contractId,requested_amount requestedAmount FROM fin_invoice_application WHERE id=? AND is_deleted=0`,
+    [applicationId],
+  );
+  const application = applications[0];
+  if (!application)
+    throw new AppError(
+      "INVOICE_APPLICATION_NOT_FOUND",
+      "寮€绁ㄧ敵璇蜂笉瀛樺湪",
+      404,
+    );
+  const [contracts] = await connection.execute<RowDataPacket[]>(
+    `SELECT tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,
+    [application.contractId],
+  );
+  const contract = contracts[0];
+  if (
+    !contract ||
+    !["PENDING_SIGNATURE", "PERFORMING", "COMPLETED"].includes(contract.status)
+  )
+    throw new AppError("INCOME_CONTRACT_INVALID", "鏀跺叆鍚堝悓鏃犳晥", 409);
+  const [usedRows] = await connection.execute<RowDataPacket[]>(
+    `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,
+    [application.contractId],
+  );
+  const reservedAmount = await readOutstandingInvoiceApplicationAmount(
+    connection,
+    String(application.contractId),
+    applicationId,
+  );
+  const available =
+    Number(contract.amount) - Number(usedRows[0]?.used ?? 0) - reservedAmount;
+  if (Number(application.requestedAmount) > available)
+    throw new AppError(
+      "INVOICE_CAPACITY_EXCEEDED",
+      "鐢宠寮€绁ㄩ噾棰濊秴杩囧悎鍚屽彲寮€绁ㄤ綑棰?",
+      409,
+    );
+}
+
 function buildProjectDataScope(user: SessionUser) {
   const projectIds = user.dataScopes.flatMap((scope) =>
     scope.type === "PROJECT" ? scope.projectIds : [],
@@ -2020,6 +2080,11 @@ export class MySqlActionExecutor {
               "当前业务状态不能提交审批",
               409,
             );
+          if (input.businessType === "INVOICE_APPLICATION")
+            await assertInvoiceApplicationCapacityForSubmit(
+              connection,
+              input.businessId,
+            );
           const [templates] = await connection.execute<RowDataPacket[]>(
             `SELECT id,template_code code,version FROM wf_template WHERE business_type=? AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
             [input.businessType],
@@ -2627,8 +2692,14 @@ export class MySqlActionExecutor {
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0`,
             [input.contractId],
           );
+          const reservedAmount = await readOutstandingInvoiceApplicationAmount(
+            connection,
+            input.contractId,
+          );
           const available =
-            Number(contract.amount) - Number(usedRows[0]?.used ?? 0);
+            Number(contract.amount) -
+            Number(usedRows[0]?.used ?? 0) -
+            reservedAmount;
           if (Number(input.requestedAmount) > available)
             throw new AppError(
               "INVOICE_CAPACITY_EXCEEDED",

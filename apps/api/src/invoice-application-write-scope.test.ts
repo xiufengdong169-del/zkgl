@@ -27,7 +27,11 @@ const invoiceInput = {
   collectionCondition: null,
 };
 
-function invoiceApplicationConnection() {
+function invoiceApplicationConnection(options?: {
+  contractAmount?: string;
+  invoicedAmount?: string;
+  reservedApplicationAmount?: string;
+}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -42,7 +46,7 @@ function invoiceApplicationConnection() {
           [
             {
               projectId: "p9",
-              amount: "5000.00",
+              amount: options?.contractAmount ?? "5000.00",
               status: "PERFORMING",
             },
           ],
@@ -50,8 +54,10 @@ function invoiceApplicationConnection() {
         ];
       if (sql.includes("FROM prj_project p"))
         return [[{ id: "p9" }], []];
+      if (sql.includes("FROM fin_invoice_application a"))
+        return [[{ amount: options?.reservedApplicationAmount ?? "0.00" }], []];
       if (sql.includes("FROM fin_sales_invoice"))
-        return [[{ used: "100.00" }], []];
+        return [[{ used: options?.invoicedAmount ?? "100.00" }], []];
       if (sql.includes("FROM sys_number_rule"))
         return [
           [
@@ -93,5 +99,33 @@ describe("invoice application write scopes", () => {
     )!;
     expect(insert.params.slice(-3)).toEqual(["e1", "u1", "u1"]);
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
+  it("blocks invoice applications that exceed capacity reserved by active applications", async () => {
+    const connection = invoiceApplicationConnection({
+      contractAmount: "1500.00",
+      invoicedAmount: "100.00",
+      reservedApplicationAmount: "300.00",
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("invoice.application.create", invoiceInput, user),
+    ).rejects.toMatchObject({ code: "INVOICE_CAPACITY_EXCEEDED" });
+
+    const reservedQuery = connection.calls.find((call) =>
+      call.sql.includes("FROM fin_invoice_application a"),
+    )!;
+    expect(reservedQuery.sql).toContain(
+      "a.status IN('DRAFT','APPROVAL_PENDING','RETURNED','PENDING_INVOICE','PARTIALLY_INVOICED')",
+    );
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO fin_invoice_application"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 });
