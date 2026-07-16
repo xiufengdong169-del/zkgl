@@ -64,6 +64,42 @@ function deniedDownloadConnection() {
   };
 }
 
+function fileListConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM file_object f JOIN file_version v"))
+        return [[{ id: "f99", classification: "INTERNAL" }], []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
+function sensitiveHistoryConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT f.id,f.classification FROM file_object f"))
+        return [[{ id: "f99", classification: "SENSITIVE" }], []];
+      if (sql.includes("FROM file_version"))
+        return [[{ id: "v1", originalName: "secret.pdf" }], []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("file access scopes", () => {
   it("does not let ALL project scope bypass export-task file ownership", async () => {
     const connection = fileConnection();
@@ -162,6 +198,58 @@ describe("file access scopes", () => {
       "u2",
       "api-request-business-denied",
     ]);
+  });
+
+  it("filters sensitive files out of attachment lists unless the user has sensitive read permission", async () => {
+    const connection = fileListConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await executor.execute(
+      "file.list",
+      { businessType: "PROJECT", businessId: "p9" },
+      scopedUser,
+    );
+
+    const query = connection.calls.find((call) =>
+      call.sql.includes("FROM file_object f JOIN file_version v"),
+    )!;
+    expect(query.sql).toContain("f.classification<>'SENSITIVE' OR ?=1");
+    expect(query.params).toEqual([
+      "PROJECT",
+      "p9",
+      0,
+      "u3",
+      "u3",
+      0,
+      "e3",
+      "e3",
+      "p9",
+      "d2",
+      "e3",
+    ]);
+  });
+
+  it("denies sensitive file version history without sensitive read permission", async () => {
+    const connection = sensitiveHistoryConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("file.version.history", { fileId: "f99" }, scopedUser),
+    ).rejects.toMatchObject({
+      code: "SENSITIVE_FILE_DENIED",
+      status: 403,
+    });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.includes("FROM file_version WHERE file_id=?"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 
   it("requires project write access when preparing project file uploads", async () => {

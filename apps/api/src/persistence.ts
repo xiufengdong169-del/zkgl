@@ -1179,10 +1179,11 @@ export class MySqlActionExecutor {
         case "file.list": {
           const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (${fileAccess.sql}) ORDER BY f.id DESC`,
+              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (f.classification<>'SENSITIVE' OR ?=1) AND (${fileAccess.sql}) ORDER BY f.id DESC`,
               [
                 input.businessType,
                 input.businessId,
+                user.permissionCodes.includes("file.sensitive.read") ? 1 : 0,
                 ...fileAccess.params,
               ],
             );
@@ -1364,7 +1365,7 @@ export class MySqlActionExecutor {
         case "file.version.history": {
           const fileAccess = buildFileAccessScope(user),
             [access] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql})`,
+              `SELECT f.id,f.classification FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql})`,
               [
                 input.fileId,
                 ...fileAccess.params,
@@ -1372,6 +1373,11 @@ export class MySqlActionExecutor {
             );
           if (!access[0])
             throw new AppError("BUSINESS_ACCESS_DENIED", "无权查看该文件", 403);
+          if (
+            access[0].classification === "SENSITIVE" &&
+            !user.permissionCodes.includes("file.sensitive.read")
+          )
+            throw new AppError("SENSITIVE_FILE_DENIED", "No access to sensitive file", 403);
           const [versions] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,version_number versionNumber,original_name originalName,mime_type mimeType,size_bytes sizeBytes,sha256,uploaded_at uploadedAt,status FROM file_version WHERE file_id=? AND status='ACTIVE' ORDER BY version_number DESC`,
             [input.fileId],
