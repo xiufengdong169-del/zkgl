@@ -1184,6 +1184,7 @@ export class MySqlActionExecutor {
         }
         case "file.upload.prepare": {
           const file = validateUpload(input);
+          await requireProjectWriteAccess(connection, file.projectId ?? null, user);
           if (file.projectId) {
             const projectScope = buildProjectDataScope(user),
               [access] = await connection.execute<RowDataPacket[]>(

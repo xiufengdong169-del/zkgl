@@ -26,7 +26,7 @@ const scopedUser: SessionUser = {
   ],
 };
 
-function fileConnection(classification = "INTERNAL") {
+function fileConnection(classification = "INTERNAL", projectAccessible = true) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -38,7 +38,8 @@ function fileConnection(classification = "INTERNAL") {
       calls.push({ sql, params });
       if (sql.includes("storage_key storageKey"))
         return [[{ id: "f99", classification, versionId: "v1", storageKey: "cloud://x" }], []];
-      if (sql.includes("SELECT p.id FROM prj_project")) return [[{ id: "p9" }], []];
+      if (sql.includes("FROM prj_project p"))
+        return [projectAccessible ? [{ id: "p9" }] : [], []];
       if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 99 }, []];
       return [{ affectedRows: 1 }, []];
     },
@@ -163,7 +164,7 @@ describe("file access scopes", () => {
     ]);
   });
 
-  it("uses project and department scopes when preparing project file uploads", async () => {
+  it("requires project write access when preparing project file uploads", async () => {
     const connection = fileConnection();
     const executor = new MySqlActionExecutor({
       getConnection: async () => connection,
@@ -184,11 +185,57 @@ describe("file access scopes", () => {
       scopedUser,
     );
 
-    const query = connection.calls.find((call) => call.sql.includes("SELECT p.id FROM prj_project"))!;
+    const query = connection.calls.find((call) =>
+      call.sql.includes("iam_project_grant"),
+    )!;
     expect(query.sql).toContain("JOIN org_employee pm");
+    expect(query.sql).toContain("iam_project_grant");
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2", "e3"]);
+  });
+
+  it("does not create project files when project write scope checks fail", async () => {
+    const connection = fileConnection("INTERNAL", false);
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "file.upload.prepare",
+        {
+          businessType: "PROJECT",
+          businessId: "p9",
+          projectId: "p9",
+          logicalName: "report.csv",
+          originalName: "report.csv",
+          mimeType: "text/csv",
+          sizeBytes: 100,
+          sha256: "a".repeat(64),
+        },
+        scopedUser,
+      ),
+    ).rejects.toMatchObject({
+      code: "PROJECT_WRITE_FORBIDDEN",
+      status: 403,
+    });
+
+    const projectCheck = connection.calls.find((call) =>
+      call.sql.includes("iam_project_grant"),
+    )!;
+    expect(projectCheck.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2", "e3"]);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO file_object"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO file_version"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 
   it("rejects project file uploads when project id is missing or mismatched", async () => {
