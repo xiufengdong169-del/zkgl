@@ -2175,7 +2175,7 @@ export class MySqlActionExecutor {
             sql = `SELECT CAST(c.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,NULL taskStatus,c.position_code positionCode,c.created_at occurredAt,0 canAct FROM wf_cc_recipient c JOIN wf_instance i ON i.id=c.instance_id WHERE c.recipient_id=? ORDER BY c.created_at DESC LIMIT ? OFFSET ?`;
             params = [user.employeeId, pageSize, offset];
           } else {
-            sql = `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,t.status taskStatus,t.position_code positionCode,t.completed_at occurredAt,0 canAct FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.completed_by=? AND t.status='APPROVED' ORDER BY t.completed_at DESC LIMIT ? OFFSET ?`;
+            sql = `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,t.status taskStatus,t.position_code positionCode,t.completed_at occurredAt,0 canAct FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.completed_by=? AND t.status IN ('APPROVED','RETURNED','REJECTED') ORDER BY t.completed_at DESC LIMIT ? OFFSET ?`;
             params = [user.employeeId, pageSize, offset];
           }
           const [rows] = await connection.execute<RowDataPacket[]>(sql, params);
@@ -2287,8 +2287,14 @@ export class MySqlActionExecutor {
           } else {
             const status = input.action === "RETURN" ? "RETURNED" : "REJECTED";
             await connection.execute(
-              `UPDATE wf_task SET status='CANCELLED',completed_at=NOW(3) WHERE instance_id=? AND status IN ('PENDING','WAITING')`,
-              [task.instance_id],
+              `UPDATE wf_task SET status=CASE WHEN id=? THEN ? ELSE 'CANCELLED' END,completed_at=NOW(3),completed_by=CASE WHEN id=? THEN ? ELSE completed_by END WHERE instance_id=? AND status IN ('PENDING','WAITING')`,
+              [
+                task.task_id,
+                status,
+                task.task_id,
+                user.employeeId,
+                task.instance_id,
+              ],
             );
             await connection.execute(
               `UPDATE wf_instance SET status=?,current_node_order=NULL,completed_at=NOW(3),version=version+1 WHERE id=?`,
