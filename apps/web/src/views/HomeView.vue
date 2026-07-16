@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { callApi } from "../api";
+import { buildCsv } from "../csv";
 
 interface Message {
   id: string;
@@ -102,11 +103,6 @@ onMounted(async () => {
   await Promise.all([loadDashboardAndMessages(), loadExportTasks()]);
 });
 
-const safe = (value: unknown) => {
-  const text = String(value ?? "");
-  return /^[=+\-@]/.test(text) ? `'${text}` : text;
-};
-
 async function exportProjects() {
   exporting.value = true;
   error.value = null;
@@ -140,12 +136,7 @@ async function exportProjects() {
       ["confirmedIncome", "\u5df2\u786e\u8ba4\u5408\u540c\u6536\u5165"],
       ["receivedAmount", "\u5df2\u6536\u6b3e"],
     ];
-    const quote = (v: unknown) => `"${safe(v).replaceAll('"', '""')}"`;
-    const csv = [
-      "\uFEFF" + headers.map((x) => quote(x[1])).join(","),
-      ...data.rows.map((row) => headers.map((x) => quote(row[x[0]])).join(",")),
-      quote(data.disclaimer),
-    ].join("\r\n");
+    const csv = buildCsv(headers, data.rows, data.disclaimer);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
