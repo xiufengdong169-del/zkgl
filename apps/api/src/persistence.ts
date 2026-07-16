@@ -4151,6 +4151,41 @@ export class MySqlActionExecutor {
         }
         case "deposit.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [counterparties] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.counterpartyId, all ? 1 : 0, user.employeeId],
+          );
+          if (!counterparties[0])
+            throw new AppError(
+              "DEPOSIT_COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
+          if (input.bidId) {
+            const [bids] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM bid_application WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
+              [input.bidId, input.projectId],
+            );
+            if (!bids[0])
+              throw new AppError(
+                "DEPOSIT_BID_NOT_FOUND",
+                "Bid not found in the same project",
+                404,
+              );
+          }
+          if (input.contractId) {
+            const [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
+              [input.contractId, input.projectId],
+            );
+            if (!contracts[0])
+              throw new AppError(
+                "DEPOSIT_CONTRACT_NOT_FOUND",
+                "Contract not found in the same project",
+                404,
+              );
+          }
           const code = await allocateNumber(connection, "DEPOSIT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_deposit(deposit_code,project_id,bid_id,contract_id,deposit_type,direction,counterparty_id,amount,due_payment_on,due_return_on,account,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
