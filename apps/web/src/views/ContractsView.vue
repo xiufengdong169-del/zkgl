@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 interface Row {
   id: string;
@@ -383,7 +384,7 @@ onMounted(load);
             <td>{{ item.status }}</td>
             <td>
               <button
-                v-if="['DRAFT', 'RETURNED'].includes(item.status)"
+                v-if="canSubmitApprovalStatus(item.status)"
                 @click="
                   submitApproval(
                     'CONTRACT',
@@ -496,6 +497,19 @@ onMounted(load);
           </p>
           <small>{{ change.reason }}</small>
         </div>
+        <button
+          v-if="canSubmitApprovalStatus(change.status)"
+          @click="
+            submitApproval(
+              'CONTRACT_CHANGE',
+              change.id,
+              `鍚堝悓鍙樻洿锛?{selected.contractName}`,
+              Number(change.newTaxInclusiveAmount),
+            )
+          "
+        >
+          鎻愪氦瀹℃壒
+        </button>
       </article>
       <p v-if="!changes.length">暂无变更</p>
       <form
