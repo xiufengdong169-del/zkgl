@@ -4308,13 +4308,23 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.stageId) {
             const [stages] = await connection.execute<RowDataPacket[]>(
-              `SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0 FOR UPDATE`,
+              `SELECT id,status FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0 FOR UPDATE`,
               [input.stageId, input.projectId],
             );
             if (!stages[0])
               throw new AppError(
                 "STAGE_PROJECT_MISMATCH",
                 "阶段不属于当前项目",
+                409,
+              );
+            if (
+              !["NOT_STARTED", "IN_PROGRESS", "DELAYED"].includes(
+                String(stages[0].status),
+              )
+            )
+              throw new AppError(
+                "STAGE_PROGRESS_NOT_ALLOWED",
+                "当前阶段状态不允许登记进展",
                 409,
               );
           }

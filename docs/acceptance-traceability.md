@@ -2,7 +2,7 @@
 
 本文档用于把《需求评审修订基线 V2.2》的关键验收项映射到当前实现与自动化测试，便于最终验收时快速复核。
 
-最后复核日期：2026-07-16。
+最后复核日期：2026-07-17。
 
 ## 自动化与现场验收覆盖
 
@@ -48,7 +48,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 46 个测试文件 / 180 条测试通过；Web 7 个测试文件 / 25 条测试通过。
+- `npm run test`：API 47 个测试文件 / 182 条测试通过；Web 7 个测试文件 / 25 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
