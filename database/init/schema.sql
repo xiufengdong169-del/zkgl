@@ -1124,6 +1124,7 @@ CREATE TABLE IF NOT EXISTS prj_deliverable (
   confirmation_result VARCHAR(32) NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   CONSTRAINT fk_deliverable_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_deliverable_stage FOREIGN KEY (stage_id) REFERENCES prj_stage(id),
   UNIQUE KEY uk_deliverable_version (project_id, deliverable_name, deliverable_version)

@@ -4196,7 +4196,7 @@ export class MySqlActionExecutor {
             [projectId, projectId, ...access.params],
           );
           const [deliverableRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_deliverable x WHERE x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
+            `SELECT COUNT(*) count FROM prj_deliverable x WHERE x.is_deleted=0 AND x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
           return {
@@ -4209,7 +4209,7 @@ export class MySqlActionExecutor {
         case "delivery.records": {
           const access = buildProjectReferenceScope(user, "x.project_id");
           const [deliverables] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           const [acceptances] = await connection.execute<RowDataPacket[]>(
@@ -4422,7 +4422,7 @@ export class MySqlActionExecutor {
         }
         case "project.deliverable.confirm": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,project_id projectId,status FROM prj_deliverable WHERE id=? FOR UPDATE`,
+            `SELECT id,project_id projectId,status FROM prj_deliverable WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.deliverableId],
           );
           if (!rows[0] || rows[0].status !== "SUBMITTED")
