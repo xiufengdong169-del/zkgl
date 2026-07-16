@@ -3899,6 +3899,17 @@ export class MySqlActionExecutor {
         }
         case "partner.plan.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [partners] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.partnerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!partners[0])
+            throw new AppError(
+              "PARTNER_PLAN_COUNTERPARTY_NOT_FOUND",
+              "Partner not found or access denied",
+              404,
+            );
           if (input.settlementMethod === "RATIO") {
             const [ratioRows] = await connection.execute<RowDataPacket[]>(
               `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
