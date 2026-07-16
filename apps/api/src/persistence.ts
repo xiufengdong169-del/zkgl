@@ -1511,9 +1511,10 @@ export class MySqlActionExecutor {
           return { lead, followUps };
         }
         case "lead.close": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 FOR UPDATE`,
-            [input.leadId],
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
+            [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
           if (!rows[0]) throw new AppError("LEAD_NOT_FOUND", "线索不存在", 404);
           const from = rows[0].status,
@@ -3161,9 +3162,10 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "lead.followUp.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [leads] = await connection.execute<RowDataPacket[]>(
-            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 FOR UPDATE`,
-            [input.leadId],
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
+            [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
           if (!leads[0])
             throw new AppError("LEAD_NOT_FOUND", "线索不存在", 404);
