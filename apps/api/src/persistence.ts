@@ -3671,7 +3671,40 @@ export class MySqlActionExecutor {
           };
         }
         case "bid.partner.create": {
-          await requireProjectWriteAccess(connection, input.projectId ?? null, user);
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          if (input.projectId)
+            await requireProjectWriteAccess(connection, input.projectId, user);
+          if (input.leadId) {
+            const [leads] = await connection.execute<RowDataPacket[]>(
+              `SELECT CAST(customer_id AS CHAR) customerId FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+              [input.leadId, all ? 1 : 0, user.employeeId, user.id],
+            );
+            if (!leads[0])
+              throw new AppError(
+                "BID_PARTNER_LEAD_NOT_FOUND",
+                "Lead not found or access denied",
+                404,
+              );
+            if (String(leads[0].customerId) !== String(input.finalCustomerId))
+              throw new AppError(
+                "BID_PARTNER_LEAD_CUSTOMER_MISMATCH",
+                "Final customer must match the source lead customer",
+                409,
+              );
+          }
+          const counterpartyIds = Array.from(
+            new Set([input.partnerId, input.finalCustomerId]),
+          );
+          const [counterparties] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${counterpartyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
+            [...counterpartyIds, all ? 1 : 0, user.employeeId],
+          );
+          if (counterparties.length !== counterpartyIds.length)
+            throw new AppError(
+              "BID_PARTNER_COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_partner_cooperation(project_id,lead_id,partner_id,final_customer_id,cooperation_type,registration_at,quotation_at,bidding_at,our_quotation,owner_id,result,description,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
