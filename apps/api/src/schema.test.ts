@@ -364,6 +364,9 @@ describe("empty database initialization schema", () => {
     expect(persistence).toContain(
       "FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')",
     );
+    expect(persistence).not.toContain(
+      "FROM con_contract WHERE id=? FOR UPDATE",
+    );
   });
 
   it("受限字段授权包含后端可执行的默认角色基线", () => {

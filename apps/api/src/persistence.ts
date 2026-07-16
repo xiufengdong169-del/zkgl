@@ -491,7 +491,7 @@ async function applyBusinessApprovalResult(
     if (!change)
       throw new AppError("CONTRACT_CHANGE_NOT_FOUND", "合同变更不存在", 404);
     const [contracts] = await connection.execute<RowDataPacket[]>(
-      `SELECT amount_status amountStatus FROM con_contract WHERE id=? FOR UPDATE`,
+      `SELECT amount_status amountStatus FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
       [change.contractId],
     );
     if (!contracts[0])
@@ -2614,7 +2614,7 @@ export class MySqlActionExecutor {
               409,
             );
           const [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT tax_inclusive_amount amount FROM con_contract WHERE id=? FOR UPDATE`,
+              `SELECT tax_inclusive_amount amount FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
               [application.contractId],
             ),
             [contractUsed] = await connection.execute<RowDataPacket[]>(
