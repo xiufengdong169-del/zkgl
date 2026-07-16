@@ -45,6 +45,24 @@ function fileConnection(classification = "INTERNAL") {
   };
 }
 
+function deniedDownloadConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("storage_key storageKey")) return [[], []];
+      if (sql.includes("SELECT f.id,v.id versionId"))
+        return [[{ id: "f99", versionId: "v1" }], []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("file access scopes", () => {
   it("does not let ALL project scope bypass export-task file ownership", async () => {
     const connection = fileConnection();
@@ -111,6 +129,38 @@ describe("file access scopes", () => {
       call.sql.includes("SENSITIVE_FILE_DENIED"),
     );
     expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-denied"]);
+  });
+
+  it("writes denied file access logs when download scope checks fail for an existing file", async () => {
+    const connection = deniedDownloadConnection();
+    const executor = new MySqlActionExecutor(
+      { getConnection: async () => connection } as never,
+      async () => {
+        throw new Error("temporary URL must not be created for denied files");
+      },
+    );
+
+    await expect(
+      executor.execute(
+        "file.download",
+        { fileId: "f99", versionId: null },
+        allScopeUser,
+        "api-request-business-denied",
+      ),
+    ).rejects.toMatchObject({
+      code: "BUSINESS_ACCESS_DENIED",
+      status: 403,
+    });
+
+    const log = connection.calls.find((call) =>
+      call.sql.includes("BUSINESS_ACCESS_DENIED"),
+    );
+    expect(log?.params).toEqual([
+      "f99",
+      "v1",
+      "u2",
+      "api-request-business-denied",
+    ]);
   });
 
   it("uses project and department scopes when preparing project file uploads", async () => {

@@ -1271,12 +1271,13 @@ export class MySqlActionExecutor {
               ],
             );
           const file = files[0];
-          if (!file)
+          if (!file) {
             throw new AppError(
               "FILE_BUSINESS_ACCESS_DENIED",
               "无权更新该文件",
               403,
             );
+          }
           const nextVersion = Number(file.currentVersion) + 1;
           const [pending] = await connection.execute<RowDataPacket[]>(
             `SELECT id FROM file_version WHERE file_id=? AND status='UPLOADING' LIMIT 1 FOR UPDATE`,
@@ -1382,8 +1383,27 @@ export class MySqlActionExecutor {
               ],
             );
           const file = rows[0];
-          if (!file)
+          if (!file) {
+            const [deniedFiles] = await connection.execute<RowDataPacket[]>(
+              `SELECT f.id,v.id versionId FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE'`,
+              [
+                input.versionId ?? null,
+                input.versionId ?? null,
+                input.fileId,
+              ],
+            );
+            if (deniedFiles[0])
+              await connection.execute(
+                `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,denial_code,request_id) VALUES(?,?,?,'DOWNLOAD','DENIED','BUSINESS_ACCESS_DENIED',?)`,
+                [
+                  deniedFiles[0].id,
+                  deniedFiles[0].versionId,
+                  user.id,
+                  requestId,
+                ],
+              );
             throw new AppError("BUSINESS_ACCESS_DENIED", "无权下载该文件", 403);
+          }
           if (
             file.classification === "SENSITIVE" &&
             !user.permissionCodes.includes("file.sensitive.read")
