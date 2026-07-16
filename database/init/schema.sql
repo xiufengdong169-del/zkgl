@@ -239,6 +239,7 @@ CREATE TABLE IF NOT EXISTS mkt_lead (
   owner_id BIGINT UNSIGNED NOT NULL,
   registration_status VARCHAR(32) NOT NULL DEFAULT 'NOT_SUBMITTED',
   status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  approval_instance_id BIGINT UNSIGNED NULL,
   next_follow_up_at DATETIME(3) NULL,
   source_visit_id BIGINT UNSIGNED NULL,
   created_by BIGINT UNSIGNED NOT NULL,

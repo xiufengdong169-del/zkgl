@@ -34,6 +34,19 @@ const extractObjectKeys = (source: string, pattern: RegExp) => {
     .sort();
 };
 
+const extractApprovalBusinessTables = (source: string) => {
+  const block =
+    /case "approval\.instance\.submit":[\s\S]*?const businessMap:[\s\S]*?= \{([\s\S]*?)\};\s*const config/.exec(
+      source,
+    )?.[1] ?? "";
+  return [...block.matchAll(/^\s*([A-Z_]+):\s*\{\s*table:\s*"([^"]+)"/gm)]
+    .map((match) => ({
+      businessType: match[1]!,
+      table: match[2]!.toLowerCase(),
+    }))
+    .sort((a, b) => a.businessType.localeCompare(b.businessType));
+};
+
 const extractPermissionCodes = (source: string) =>
   [
     ...new Set(
@@ -265,14 +278,29 @@ describe("empty database initialization schema", () => {
         ),
       ),
     ].sort();
+    const columnsByTable = extractTableColumns(schema);
+    const businessTables = extractApprovalBusinessTables(persistence);
 
     expect(submitBusinessTypes.length).toBeGreaterThan(10);
     expect(resultBusinessTypes).toEqual(submitBusinessTypes);
+    expect(businessTables.map((item) => item.businessType)).toEqual(
+      submitBusinessTypes,
+    );
     for (const businessType of submitBusinessTypes)
       expect(
         templateBusinessTypes,
         `missing approval template for ${businessType}`,
       ).toContain(businessType);
+    for (const { businessType, table } of businessTables) {
+      expect(
+        columnsByTable.get(table),
+        `missing approval table ${table}`,
+      ).toBeDefined();
+      expect(
+        columnsByTable.get(table),
+        `missing approval_instance_id for ${businessType} (${table})`,
+      ).toContain("approval_instance_id");
+    }
   });
 
   it("保证金缴纳和没收损失均配置审批模板与状态字段", () => {
