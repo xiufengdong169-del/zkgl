@@ -1262,13 +1262,9 @@ export class MySqlActionExecutor {
         }
         case "file.version.prepare": {
           const extension = extractSafeExtension(input.originalName),
-            fileAccess = buildFileAccessScope(user),
             [files] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.current_version currentVersion FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql}) FOR UPDATE`,
-              [
-                input.fileId,
-                ...fileAccess.params,
-              ],
+              `SELECT f.id,f.current_version currentVersion,CAST(f.project_id AS CHAR) projectId,CAST(f.created_by AS CHAR) createdBy FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 FOR UPDATE`,
+              [input.fileId],
             );
           const file = files[0];
           if (!file) {
@@ -1277,6 +1273,16 @@ export class MySqlActionExecutor {
               "无权更新该文件",
               403,
             );
+          }
+          if (file.createdBy !== user.id) {
+            if (file.projectId == null) {
+              throw new AppError(
+                "FILE_BUSINESS_ACCESS_DENIED",
+                "No write access to this file",
+                403,
+              );
+            }
+            await requireProjectWriteAccess(connection, file.projectId, user);
           }
           const nextVersion = Number(file.currentVersion) + 1;
           const [pending] = await connection.execute<RowDataPacket[]>(
