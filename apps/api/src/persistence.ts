@@ -2966,6 +2966,19 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.create": {
+          if (input.supplierId) {
+            const all = user.dataScopes.some((scope) => scope.type === "ALL");
+            const [suppliers] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+              [input.supplierId, all ? 1 : 0, user.employeeId],
+            );
+            if (!suppliers[0])
+              throw new AppError(
+                "PURCHASE_SUPPLIER_NOT_FOUND",
+                "Supplier not found or access denied",
+                404,
+              );
+          }
           if (input.contractId) {
             const [contractRows] = await connection.execute<RowDataPacket[]>(
               `SELECT project_id projectId FROM con_contract WHERE id=? AND is_deleted=0`,
