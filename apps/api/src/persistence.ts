@@ -252,6 +252,77 @@ async function assertInvoiceApplicationCapacityForSubmit(
     );
 }
 
+async function assertPaymentApplicationSourceForSubmit(
+  connection: PoolConnection,
+  paymentApplicationId: string,
+) {
+  const [applications] = await connection.execute<RowDataPacket[]>(
+    `SELECT project_id projectId,source_type sourceType,source_id sourceId,recipient_name recipientName,receiving_account receivingAccount,requested_amount requestedAmount FROM fin_payment_application WHERE id=?`,
+    [paymentApplicationId],
+  );
+  const application = applications[0];
+  if (!application)
+    throw new AppError(
+      "PAYMENT_APPLICATION_NOT_FOUND",
+      "浠樻鐢宠涓嶅瓨鍦?",
+      404,
+    );
+  const sourceType = String(application.sourceType) as
+    | "EXPENSE_CONTRACT"
+    | "REIMBURSEMENT"
+    | "PARTNER_SETTLEMENT"
+    | "DEPOSIT"
+    | "PURCHASE";
+  const paymentSourceQueries = {
+    EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
+    REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
+    PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
+    DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
+    PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
+  };
+  const sourceSql =
+    paymentSourceQueries[sourceType as keyof typeof paymentSourceQueries];
+  if (!sourceSql)
+    throw new AppError(
+      "PAYMENT_SOURCE_NOT_FOUND",
+      "浠樻鏉ユ簮涓嶅瓨鍦?",
+      404,
+    );
+  const [sources] = await connection.execute<RowDataPacket[]>(sourceSql, [
+    application.sourceId,
+  ]);
+  const source = sources[0];
+  if (!source)
+    throw new AppError(
+      "PAYMENT_SOURCE_NOT_FOUND",
+      "浠樻鏉ユ簮涓嶅瓨鍦?",
+      404,
+    );
+  const [existingPayments] = await connection.execute<RowDataPacket[]>(
+    `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND id<>?`,
+    [sourceType, application.sourceId, paymentApplicationId],
+  );
+  validatePaymentSource({
+    sourceType,
+    source: {
+      projectId: source.projectId,
+      recipientName: source.recipientName,
+      receivingAccount: source.receivingAccount,
+      approvalStatus: source.approvalStatus,
+      paymentStatus: source.paymentStatus,
+      sourceAmount: source.sourceAmount,
+    },
+    application: {
+      projectId: String(application.projectId),
+      recipientName: String(application.recipientName),
+      receivingAccount: String(application.receivingAccount),
+      requestedAmount: Number(application.requestedAmount),
+    },
+    alreadyUsed: Number(existingPayments[0]?.count ?? 0) > 0,
+    alreadyAppliedAmount: Number(existingPayments[0]?.appliedAmount ?? 0),
+  });
+}
+
 function buildProjectDataScope(user: SessionUser) {
   const projectIds = user.dataScopes.flatMap((scope) =>
     scope.type === "PROJECT" ? scope.projectIds : [],
@@ -2082,6 +2153,11 @@ export class MySqlActionExecutor {
             );
           if (input.businessType === "INVOICE_APPLICATION")
             await assertInvoiceApplicationCapacityForSubmit(
+              connection,
+              input.businessId,
+            );
+          if (input.businessType === "PROJECT_PAYMENT")
+            await assertPaymentApplicationSourceForSubmit(
               connection,
               input.businessId,
             );

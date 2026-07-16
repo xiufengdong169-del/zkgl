@@ -133,6 +133,7 @@ function approvalSubmitConnection(options: {
   canWriteProject: boolean;
   operation?: "SUBMIT" | "WITHDRAW";
   invoiceCapacityExceeded?: boolean;
+  paymentSourceAlreadyUsed?: boolean;
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const businessCase = approvalBusinessCases.find(
@@ -187,6 +188,55 @@ function approvalSubmitConnection(options: {
       )
         return [
           [{ amount: options.invoiceCapacityExceeded ? "300.00" : "0.00" }],
+          [],
+        ];
+      if (
+        options.businessType === "PROJECT_PAYMENT" &&
+        sql.includes("source_type sourceType")
+      )
+        return [
+          [
+            {
+              projectId: "allowed-project",
+              sourceType: "REIMBURSEMENT",
+              sourceId: "reimbursement-1",
+              recipientName: "zhangsan",
+              receivingAccount: "6222",
+              requestedAmount: "100.00",
+            },
+          ],
+          [],
+        ];
+      if (
+        options.businessType === "PROJECT_PAYMENT" &&
+        sql.includes("FROM fin_reimbursement r")
+      )
+        return [
+          [
+            {
+              projectId: "allowed-project",
+              recipientName: "zhangsan",
+              receivingAccount: "6222",
+              approvalStatus: "APPROVED",
+              paymentStatus: "UNPAID",
+              sourceAmount: "100.00",
+            },
+          ],
+          [],
+        ];
+      if (
+        options.businessType === "PROJECT_PAYMENT" &&
+        sql.includes("FROM fin_payment_application WHERE source_type=?")
+      )
+        return [
+          [
+            {
+              count: options.paymentSourceAlreadyUsed ? 1 : 0,
+              appliedAmount: options.paymentSourceAlreadyUsed
+                ? "100.00"
+                : "0.00",
+            },
+          ],
           [],
         ];
       if (businessCase && sql.includes(businessCase.projectResolutionSqlFragment))
@@ -307,6 +357,38 @@ describe("approval submission project scope", () => {
         creatorWithoutProjectAccess,
       ),
     ).rejects.toMatchObject({ code: "INVOICE_CAPACITY_EXCEEDED" });
+
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM wf_template")),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("rechecks payment source occupancy before submitting payment approval", async () => {
+    const connection = approvalSubmitConnection({
+      businessType: "PROJECT_PAYMENT",
+      businessId: "pay-1",
+      projectId: "allowed-project",
+      canWriteProject: true,
+      paymentSourceAlreadyUsed: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.submit",
+        {
+          actionKey: "submit-payment-source-001",
+          businessType: "PROJECT_PAYMENT",
+          businessId: "pay-1",
+          title: "鎻愪氦瀹℃壒",
+          amount: 100,
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).rejects.toMatchObject({ code: "PAYMENT_SOURCE_ALREADY_USED" });
 
     expect(
       connection.calls.some((call) => call.sql.includes("FROM wf_template")),
