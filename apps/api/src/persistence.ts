@@ -2642,7 +2642,7 @@ export class MySqlActionExecutor {
               input.buyerInformation,
               input.plannedInvoiceOn,
               input.collectionCondition ?? null,
-              user.id,
+              user.employeeId,
               user.id,
               user.id,
             ],
