@@ -63,6 +63,57 @@ const extractInlinePermissionCodes = (source: string) =>
     ),
   ].sort();
 
+const extractTableColumns = (source: string) => {
+  const tables = new Map<string, Set<string>>();
+  for (const match of source.matchAll(
+    /CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([\s\S]*?)\)\s*ENGINE=/gi,
+  )) {
+    const table = match[1]!.toLowerCase();
+    const columns = new Set(
+      [...match[2]!.matchAll(/^\s*([a-z0-9_]+)\s+/gim)]
+        .map((column) => column[1]!.toLowerCase())
+        .filter(
+          (column) =>
+            ![
+              "constraint",
+              "foreign",
+              "primary",
+              "unique",
+              "index",
+              "key",
+            ].includes(column),
+        ),
+    );
+    tables.set(table, columns);
+  }
+  return tables;
+};
+
+const extractTablesFilteredByIsDeleted = (source: string) => {
+  const tables = new Set<string>();
+  for (const match of source.matchAll(/`([^`]*\bis_deleted\b[^`]*)`/gi)) {
+    const sql = match[1]!;
+    const refs = [
+      ...sql.matchAll(
+        /\b(?:FROM|JOIN|UPDATE)\s+([a-z0-9_]+)(?:\s+([a-z][a-z0-9_]*))?/gi,
+      ),
+    ];
+
+    for (const ref of refs) {
+      const table = ref[1]!.toLowerCase();
+      const alias = ref[2];
+      if (alias && new RegExp(`\\b${alias}\\.is_deleted\\b`, "i").test(sql)) {
+        tables.add(table);
+      }
+    }
+
+    if (refs.length === 1 && /\bis_deleted\b/i.test(sql)) {
+      tables.add(refs[0]![1]!.toLowerCase());
+    }
+  }
+  return [...tables].sort();
+};
+
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
     const parser = new Parser();
@@ -237,5 +288,19 @@ describe("empty database initialization schema", () => {
     });
     expect(definitions.length).toBeGreaterThan(40);
     for (const line of definitions) expect(line).toMatch(/DECIMAL\(/i);
+  });
+
+  it("tables filtered by is_deleted define the column in the empty schema", () => {
+    const columnsByTable = extractTableColumns(schema);
+    const filteredTables = extractTablesFilteredByIsDeleted(persistence);
+
+    expect(filteredTables.length).toBeGreaterThan(20);
+    for (const table of filteredTables) {
+      expect(columnsByTable.get(table), `missing table ${table}`).toBeDefined();
+      expect(
+        columnsByTable.get(table),
+        `missing is_deleted column on ${table}`,
+      )?.toContain("is_deleted");
+    }
   });
 });
