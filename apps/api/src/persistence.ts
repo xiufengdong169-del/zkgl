@@ -1562,7 +1562,7 @@ export class MySqlActionExecutor {
                ORDER BY id DESC LIMIT ? OFFSET ?`,
             [
               all ? 1 : 0,
-              user.id,
+              user.employeeId,
               user.employeeId,
               keyword,
               pattern,
@@ -1581,7 +1581,7 @@ export class MySqlActionExecutor {
                 input.applicationId,
                 all ? 1 : 0,
                 user.id,
-                user.id,
+                user.employeeId,
                 user.employeeId,
               ],
             );

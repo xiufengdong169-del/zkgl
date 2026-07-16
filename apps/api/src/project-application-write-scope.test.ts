@@ -15,6 +15,11 @@ const user: SessionUser = {
   dataScopes: [],
 };
 
+const reader: SessionUser = {
+  ...user,
+  permissionCodes: ["project.application.read"],
+};
+
 const applicationData = {
   projectName: "智慧园区二期",
   customerId: "c1",
@@ -81,7 +86,76 @@ function projectApplicationConnection(options: {
   };
 }
 
+function projectApplicationReadConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM prj_project_application WHERE is_deleted=0")) {
+        return [[], []];
+      }
+      if (sql.includes("FROM prj_project_application WHERE id=?")) {
+        return [
+          [
+            {
+              id: "app-1",
+              code: "PA-1",
+              projectName: "智慧园区二期",
+              status: "DRAFT",
+              version: 1,
+            },
+          ],
+          [],
+        ];
+      }
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("project application write scopes", () => {
+  it("uses employee id for applicant visibility while keeping created-by visibility as user id", async () => {
+    const connection = projectApplicationReadConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "project.application.list",
+        { page: 1, pageSize: 20 },
+        reader,
+      ),
+    ).resolves.toMatchObject({ page: 1, pageSize: 20 });
+
+    const listQuery = connection.calls.find((call) =>
+      call.sql.includes("FROM prj_project_application WHERE is_deleted=0"),
+    )!;
+    expect(listQuery.sql).toContain("applicant_id=?");
+    expect(listQuery.sql).toContain("proposed_manager_id=?");
+    expect(listQuery.params.slice(0, 3)).toEqual([0, "e1", "e1"]);
+
+    await expect(
+      executor.execute(
+        "project.application.detail",
+        { applicationId: "app-1" },
+        reader,
+      ),
+    ).resolves.toMatchObject({ application: { id: "app-1" } });
+
+    const detailQuery = connection.calls.find((call) =>
+      call.sql.includes("FROM prj_project_application WHERE id=?"),
+    )!;
+    expect(detailQuery.sql).toContain("created_by=?");
+    expect(detailQuery.sql).toContain("applicant_id=?");
+    expect(detailQuery.params).toEqual(["app-1", 0, "u1", "e1", "e1"]);
+  });
+
   it("stores applicant id as employee id while keeping audit columns as user id", async () => {
     const connection = projectApplicationConnection({
       customerAccessible: true,
