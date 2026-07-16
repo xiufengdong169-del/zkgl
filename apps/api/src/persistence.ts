@@ -3174,6 +3174,35 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code, leadId };
         }
         case "lead.create": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [customers] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!customers[0])
+            throw new AppError(
+              "LEAD_CUSTOMER_NOT_FOUND",
+              "Customer not found or access denied",
+              404,
+            );
+          if (input.sourceVisitId) {
+            const [visits] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM crm_visit WHERE id=? AND customer_id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+              [
+                input.sourceVisitId,
+                input.customerId,
+                all ? 1 : 0,
+                user.employeeId,
+                user.id,
+              ],
+            );
+            if (!visits[0])
+              throw new AppError(
+                "LEAD_SOURCE_VISIT_NOT_FOUND",
+                "Source visit not found or access denied",
+                404,
+              );
+          }
           const [duplicates] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,lead_code code FROM mkt_lead
               WHERE customer_id=? AND project_name=? AND status NOT IN('INVALID','CONVERTED') AND is_deleted=0
