@@ -39,6 +39,57 @@ function executorWithExistingHistory(row: Record<string, unknown>) {
 }
 
 describe("approval persistence idempotency", () => {
+  it("keeps withdrawn lead business status inside the lead state machine", async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      calls,
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM wf_action_history")) return [[], []];
+        if (sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")) {
+          return [
+            [
+              {
+                id: "instance-lead-1",
+                applicantId: "u-1",
+                status: "PENDING",
+                businessType: "LEAD",
+                businessId: "lead-1",
+              },
+            ],
+            [],
+          ];
+        }
+        return [{ affectedRows: 1 }, []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.withdraw",
+        {
+          instanceId: "instance-lead-1",
+          actionKey: "withdraw-lead-001",
+          comment: "resubmit later",
+        },
+        user,
+      ),
+    ).resolves.toEqual({ idempotent: false, status: "WITHDRAWN" });
+
+    const leadUpdate = calls.find((call) =>
+      call.sql.startsWith("UPDATE mkt_lead SET status=?"),
+    );
+    expect(leadUpdate?.params).toEqual(["DRAFT", "u-1", "lead-1"]);
+    expect(calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
   it("同一审批任务和动作重复提交时返回幂等成功", async () => {
     const { calls, executor } = executorWithExistingHistory({
       taskId: "task-1",

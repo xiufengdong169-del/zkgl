@@ -328,7 +328,12 @@ async function applyBusinessApprovalResult(
   };
   const config = map[businessType];
   if (!config) return;
-  const target = status === "APPROVED" ? config.approved : status;
+  const target =
+    status === "APPROVED"
+      ? config.approved
+      : businessType === "LEAD" && status === "WITHDRAWN"
+        ? "DRAFT"
+        : status;
   await connection.execute(
     `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?`,
     [target, actorUserId, businessId],
