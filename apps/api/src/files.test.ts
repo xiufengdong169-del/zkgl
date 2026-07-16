@@ -75,6 +75,44 @@ describe("private files", () => {
     );
   });
 
+  it("requires project attachments to carry the same project id as business id", () => {
+    expect(() =>
+      validateUpload({
+        businessType: "PROJECT",
+        businessId: "p1",
+        logicalName: "合同",
+        originalName: "a.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      }),
+    ).toThrow("项目附件必须绑定同一项目 ID");
+    expect(() =>
+      validateUpload({
+        businessType: "PROJECT",
+        businessId: "p1",
+        projectId: "p2",
+        logicalName: "合同",
+        originalName: "a.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      }),
+    ).toThrow("项目附件必须绑定同一项目 ID");
+    expect(
+      validateUpload({
+        businessType: "PROJECT",
+        businessId: "p1",
+        projectId: "p1",
+        logicalName: "合同",
+        originalName: "a.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      }),
+    ).toMatchObject({ projectId: "p1", extension: "pdf" });
+  });
+
   it("先校验业务权限再生成五分钟临时地址", async () => {
     const deps = dependencies();
     const result = await authorizeFileDownload(user, file, "r1", deps);

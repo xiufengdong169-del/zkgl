@@ -140,4 +140,49 @@ describe("file access scopes", () => {
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2", "e3"]);
   });
+
+  it("rejects project file uploads when project id is missing or mismatched", async () => {
+    for (const input of [
+      {
+        businessType: "PROJECT",
+        businessId: "p9",
+        logicalName: "report.csv",
+        originalName: "report.csv",
+        mimeType: "text/csv",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      },
+      {
+        businessType: "PROJECT",
+        businessId: "p9",
+        projectId: "other-project",
+        logicalName: "report.csv",
+        originalName: "report.csv",
+        mimeType: "text/csv",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      },
+    ]) {
+      const connection = fileConnection();
+      const executor = new MySqlActionExecutor({
+        getConnection: async () => connection,
+      } as never);
+
+      await expect(
+        executor.execute("file.upload.prepare", input, scopedUser),
+      ).rejects.toThrow("项目附件必须绑定同一项目 ID");
+
+      expect(
+        connection.calls.some((call) =>
+          call.sql.startsWith("INSERT INTO file_object"),
+        ),
+      ).toBe(false);
+      expect(
+        connection.calls.some((call) =>
+          call.sql.startsWith("INSERT INTO file_version"),
+        ),
+      ).toBe(false);
+      expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+    }
+  });
 });

@@ -48,7 +48,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 48 个测试文件 / 189 条测试通过；Web 7 个测试文件 / 25 条测试通过。
+- `npm run test`：API 48 个测试文件 / 191 条测试通过；Web 7 个测试文件 / 25 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。

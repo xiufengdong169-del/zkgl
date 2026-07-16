@@ -33,7 +33,7 @@ const blockedExtensions = new Set([
   "scr",
 ]);
 
-export const fileUploadInput = z.object({
+const fileUploadBaseInput = z.object({
   businessType: z.string().trim().min(1).max(64),
   businessId: z.string().min(1),
   projectId: z.string().nullable().optional(),
@@ -45,6 +45,19 @@ export const fileUploadInput = z.object({
   classification: z.enum(["INTERNAL", "SENSITIVE"]).default("INTERNAL"),
 });
 
+export const fileUploadInput = fileUploadBaseInput.superRefine((value, ctx) => {
+  if (
+    value.businessType === "PROJECT" &&
+    String(value.projectId ?? "") !== value.businessId
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["projectId"],
+      message: "项目附件必须绑定同一项目 ID",
+    });
+  }
+});
+
 export const fileListInput = z.object({
   businessType: z.string().trim().min(1).max(64),
   businessId: z.string().min(1),
@@ -53,7 +66,7 @@ export const fileCompleteInput = z.object({
   fileId: z.string().min(1),
   cloudFileId: z.string().regex(/^cloud:\/\//),
 });
-export const fileVersionUploadInput = fileUploadInput
+export const fileVersionUploadInput = fileUploadBaseInput
   .pick({
     originalName: true,
     mimeType: true,
