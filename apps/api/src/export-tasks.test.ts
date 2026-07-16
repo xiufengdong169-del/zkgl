@@ -14,7 +14,7 @@ const user: SessionUser = {
   departmentId: "d1",
   enabled: true,
   roleCodes: ["ADMIN"],
-  permissionCodes: ["project.export", "project.read"],
+  permissionCodes: ["project.export", "project.read", "report.financial.read"],
   sensitiveFieldAccess: {},
   dataScopes: [{ type: "ALL" }],
 };
@@ -82,6 +82,11 @@ describe("export task persistence", () => {
     )!;
     expect(JSON.parse(String(insertCall.params[4]))).toMatchObject({
       employeeId: "e1",
+      permissionCodes: [
+        "project.export",
+        "project.read",
+        "report.financial.read",
+      ],
       temporaryProjectIds: ["p-temp"],
     });
     expect(connection.calls.some((sql) => sql.includes("project_code projectCode"))).toBe(false);
@@ -110,6 +115,29 @@ describe("export task persistence", () => {
     expect(countCall!.sql).toContain("p.id IN (?)");
     expect(countCall!.sql).toContain("pm.department_id IN (?)");
     expect(countCall!.params).toEqual([0, "e1", "e1", "p9", "d2", "e1"]);
+  });
+
+  it("requires financial report permission before exporting operating amounts", async () => {
+    const connection = fakeConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+    const exportOnlyUser: SessionUser = {
+      ...user,
+      permissionCodes: ["project.export"],
+    };
+
+    await expect(
+      executor.execute("report.project.export", {}, exportOnlyUser),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
+    expect(
+      connection.calls.some((sql) =>
+        sql.includes("COUNT(*) count FROM prj_project"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((sql) => sql.startsWith("INSERT INTO sys_export_task")),
+    ).toBe(false);
   });
 });
 
@@ -146,7 +174,7 @@ function exportWorkerConnection() {
       if (sql.includes("FROM sys_parameter"))
         return [[{ paramValue: "21" }], []];
       if (sql.includes("FROM sys_export_task"))
-        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", permissionCodes: ["project.export"], dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }], temporaryProjectIds: ["p-temp"] }) }], []];
+        return [[{ id: 7, taskCode: "DC-2026-0007", requesterId: "u1", permissionSnapshot: JSON.stringify({ employeeId: "e1", permissionCodes: ["project.export", "report.financial.read"], dataScopes: [{ type: "PROJECT", projectIds: ["p9"] }, { type: "DEPARTMENT", departmentIds: ["d2"] }], temporaryProjectIds: ["p-temp"] }) }], []];
       if (sql.includes("FROM prj_project p"))
         return [[{ projectCode: "=ZK-001", projectName: "项目A", customerName: "客户A", status: "IN_PROGRESS", estimatedRevenue: "100.00", estimatedCost: "20.00", confirmedIncome: "80.00", receivedAmount: "60.00" }], []];
       if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 88 }, []];
@@ -229,6 +257,37 @@ describe("export task worker", () => {
       JSON.stringify({
         employeeId: "e1",
         permissionCodes: ["project.read"],
+        dataScopes: [{ type: "ALL" }],
+      }),
+    );
+    const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async (cloudPath, content) => {
+        uploads.push({ cloudPath, content });
+        return "cloud://exports/DC-2026-0007.csv";
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 0, failed: 1 });
+    expect(uploads).toEqual([]);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM prj_project p")),
+    ).toBe(false);
+    const failedUpdate = connection.calls.find((call) =>
+      call.sql.includes("status='FAILED'"),
+    );
+    expect(failedUpdate?.params).toEqual([
+      "EXPORT_PERMISSION_SNAPSHOT_INVALID",
+      7,
+    ]);
+  });
+
+  it("marks tasks failed when permission snapshots do not include financial report permission", async () => {
+    const connection = exportWorkerConnectionWithSnapshot(
+      JSON.stringify({
+        employeeId: "e1",
+        permissionCodes: ["project.export"],
         dataScopes: [{ type: "ALL" }],
       }),
     );

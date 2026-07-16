@@ -100,7 +100,10 @@ export async function processPendingProjectExportTasks(
       const permissionCodes = Array.isArray(snapshot.permissionCodes)
         ? snapshot.permissionCodes.map(String)
         : [];
-      if (!permissionCodes.includes("project.export"))
+      if (
+        !permissionCodes.includes("project.export") ||
+        !permissionCodes.includes("report.financial.read")
+      )
         throw new Error("EXPORT_PERMISSION_SNAPSHOT_INVALID");
       const employeeId = String(snapshot.employeeId ?? "");
       const scopes = Array.isArray(snapshot.dataScopes) ? snapshot.dataScopes : [];

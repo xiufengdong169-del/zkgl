@@ -29,6 +29,7 @@ import {
   extractSafeExtension,
   validateUpload,
 } from "./files.js";
+import { requirePermission } from "./rbac.js";
 
 const toCents = (value: unknown) =>
   BigInt(Math.round(Number(value ?? 0) * 100));
@@ -561,6 +562,7 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "report.project.export": {
+          requirePermission(user, "report.financial.read");
           const projectScope = buildProjectDataScope(user);
           const [countRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COUNT(*) count FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
@@ -584,7 +586,11 @@ export class MySqlActionExecutor {
                   employeeId: user.employeeId,
                   dataScopes: user.dataScopes,
                   permissionCodes: user.permissionCodes.filter((code) =>
-                    ["project.export", "project.read"].includes(code),
+                    [
+                      "project.export",
+                      "project.read",
+                      "report.financial.read",
+                    ].includes(code),
                   ),
                   temporaryProjectIds: temporaryGrants.map((row) =>
                     String(row.projectId),
