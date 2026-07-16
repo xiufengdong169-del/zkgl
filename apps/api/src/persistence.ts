@@ -3473,6 +3473,20 @@ export class MySqlActionExecutor {
         }
         case "bid.application.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const counterpartyIds = Array.from(
+            new Set([input.tendererId, input.agencyId].filter(Boolean)),
+          );
+          const [counterparties] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${counterpartyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
+            [...counterpartyIds, all ? 1 : 0, user.employeeId],
+          );
+          if (counterparties.length !== counterpartyIds.length)
+            throw new AppError(
+              "BID_COUNTERPARTY_NOT_FOUND",
+              "Counterparty not found or access denied",
+              404,
+            );
           const code = await allocateNumber(connection, "BID");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO bid_application(bid_code,project_id,tenderer_id,agency_id,tender_number,project_budget,bid_ceiling,registration_at,document_purchase_at,clarification_at,deadline_at,opening_at,bid_location,bid_method,deposit_amount,document_fee,business_owner_id,technical_owner_id,pricing_owner_id,application_reason,created_by,updated_by)
