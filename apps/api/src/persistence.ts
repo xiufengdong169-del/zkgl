@@ -2993,6 +2993,30 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.complete": {
+          const [purchases] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(p.applicant_id AS CHAR) applicantId,p.status,CAST(c.project_id AS CHAR) projectId
+               FROM fin_daily_purchase p
+               LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0
+              WHERE p.id=? AND p.is_deleted=0
+              FOR UPDATE`,
+            [input.purchaseId],
+          );
+          const purchase = purchases[0];
+          if (!purchase || purchase.status !== "APPROVED")
+            throw new AppError(
+              "PURCHASE_NOT_COMPLETABLE",
+              "Only approved daily purchase can be completed",
+              409,
+            );
+          if (purchase.applicantId !== user.employeeId) {
+            if (purchase.projectId == null)
+              throw new AppError(
+                "PURCHASE_COMPLETE_FORBIDDEN",
+                "Daily purchase is outside the current user scope",
+                403,
+              );
+            await requireProjectWriteAccess(connection, purchase.projectId, user);
+          }
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
             [user.id, input.purchaseId],
