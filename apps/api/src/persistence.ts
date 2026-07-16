@@ -4803,6 +4803,18 @@ export class MySqlActionExecutor {
         }
         case "project.acceptance.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          if (input.contractId) {
+            const [contracts] = await connection.execute<RowDataPacket[]>(
+              `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
+              [input.contractId, input.projectId],
+            );
+            if (!contracts[0])
+              throw new AppError(
+                "ACCEPTANCE_CONTRACT_NOT_FOUND",
+                "Contract not found in the same project",
+                404,
+              );
+          }
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO prj_acceptance(project_id,contract_id,acceptance_type,applied_on,acceptance_scope,acceptance_basis,status,created_by,updated_by) VALUES(?,?,?,?,?,?,'DRAFT',?,?)`,
             [
