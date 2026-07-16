@@ -56,6 +56,18 @@ const extractPermissionCodes = (source: string) =>
     ),
   ].sort();
 
+const extractActionDefinitions = (source: string) =>
+  [...source.matchAll(/^\s*"([^"]+)":\s*\{/gm)]
+    .map((match) => match[1]!)
+    .filter((action) => action.includes("."))
+    .sort();
+
+const extractPersistenceActionCases = (source: string) =>
+  [...source.matchAll(/^\s*case "([^"]+)":/gm)]
+    .map((match) => match[1]!)
+    .filter((action) => action.includes("."))
+    .sort();
+
 function listWebSourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const fullPath = join(directory, entry.name);
@@ -226,7 +238,12 @@ describe("empty database initialization schema", () => {
 
   it("所有接口权限码均存在初始化权限种子", () => {
     const actionPermissions = extractPermissionCodes(actions);
+    const actionDefinitions = extractActionDefinitions(actions);
+    const persistenceCases = extractPersistenceActionCases(persistence);
+
     expect(actionPermissions.length).toBeGreaterThan(40);
+    expect(actionDefinitions.length).toBeGreaterThan(100);
+    expect(persistenceCases).toEqual(actionDefinitions);
     for (const permission of actionPermissions)
       expect(schema, `missing permission seed ${permission}`).toContain(
         `('${permission}'`,
