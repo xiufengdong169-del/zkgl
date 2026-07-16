@@ -15,7 +15,7 @@ const admin: SessionUser = {
   dataScopes: [{ type: "ALL" }],
 };
 
-function parameterConnection(valueType = "NUMBER") {
+function parameterConnection(valueType = "NUMBER", affectedRows = 1) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -27,7 +27,7 @@ function parameterConnection(valueType = "NUMBER") {
       calls.push({ sql, params });
       if (sql.includes("SELECT value_type valueType FROM sys_parameter"))
         return [[{ valueType }], []];
-      return [{ affectedRows: 1 }, []];
+      return [{ affectedRows }, []];
     },
   };
 }
@@ -87,6 +87,70 @@ describe("admin system parameters", () => {
         admin,
       ),
     ).rejects.toThrow("数字参数值非法");
+    expect(connection.calls.some((call) => call.sql === "ROLLBACK")).toBe(true);
+  });
+
+  it("rejects invalid JSON parameter values before updating", async () => {
+    const connection = parameterConnection("JSON");
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "admin.parameter.update",
+        {
+          parameterId: "p-json",
+          name: "JSON 参数",
+          parameterValue: "{bad-json",
+          description: null,
+          status: "ENABLED",
+          version: 1,
+        },
+        admin,
+      ),
+    ).rejects.toMatchObject({ code: "PARAMETER_VALUE_INVALID" });
+    expect(
+      connection.calls.some((call) =>
+        call.sql.includes("UPDATE sys_parameter SET"),
+      ),
+    ).toBe(false);
+    expect(connection.calls.some((call) => call.sql === "ROLLBACK")).toBe(true);
+  });
+
+  it("rejects stale parameter versions with optimistic conflict", async () => {
+    const connection = parameterConnection("BOOLEAN", 0);
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "admin.parameter.update",
+        {
+          parameterId: "p-boolean",
+          name: "布尔参数",
+          parameterValue: "true",
+          description: null,
+          status: "ENABLED",
+          version: 3,
+        },
+        admin,
+      ),
+    ).rejects.toMatchObject({ code: "PARAMETER_CONFLICT" });
+
+    const update = connection.calls.find((call) =>
+      call.sql.includes("UPDATE sys_parameter SET"),
+    );
+    expect(update?.params).toEqual([
+      "布尔参数",
+      "true",
+      null,
+      "ENABLED",
+      admin.id,
+      "p-boolean",
+      3,
+    ]);
     expect(connection.calls.some((call) => call.sql === "ROLLBACK")).toBe(true);
   });
 });
