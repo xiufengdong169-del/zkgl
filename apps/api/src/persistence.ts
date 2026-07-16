@@ -2636,6 +2636,38 @@ export class MySqlActionExecutor {
         }
         case "receipt.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
+          const [contracts] = await connection.execute<RowDataPacket[]>(
+            `SELECT id,CAST(party_a_id AS CHAR) partyAId,CAST(party_b_id AS CHAR) partyBId FROM con_contract WHERE id=? AND project_id=? AND contract_type='INCOME' AND is_deleted=0 LIMIT 1`,
+            [input.contractId, input.projectId],
+          );
+          const contract = contracts[0];
+          if (!contract)
+            throw new AppError(
+              "RECEIPT_CONTRACT_NOT_FOUND",
+              "Income contract not found in the same project",
+              404,
+            );
+          if (
+            ![String(contract.partyAId), String(contract.partyBId)].includes(
+              String(input.customerId),
+            )
+          )
+            throw new AppError(
+              "RECEIPT_CUSTOMER_CONTRACT_MISMATCH",
+              "Receipt customer must match the income contract party",
+              409,
+            );
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [customers] = await connection.execute<RowDataPacket[]>(
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!customers[0])
+            throw new AppError(
+              "RECEIPT_CUSTOMER_NOT_FOUND",
+              "Customer not found or access denied",
+              404,
+            );
           const code = await allocateNumber(connection, "RECEIPT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_receipt(receipt_code,project_id,contract_id,customer_id,received_on,amount,receiving_account,payer_name,payer_account,receipt_type,voucher_number,operator_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
