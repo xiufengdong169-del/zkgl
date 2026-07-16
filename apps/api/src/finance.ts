@@ -160,7 +160,9 @@ export function validatePaymentSource(
       409,
     );
   if (
-    ["EXPENSE_CONTRACT", "PURCHASE"].includes(input.sourceType) &&
+    ["EXPENSE_CONTRACT", "PARTNER_SETTLEMENT", "PURCHASE"].includes(
+      input.sourceType,
+    ) &&
     !input.source.receivingAccount
   )
     throw new AppError(
@@ -171,6 +173,8 @@ export function validatePaymentSource(
   if (
     (input.sourceType === "REIMBURSEMENT" ||
       (input.sourceType === "DEPOSIT" && input.source.receivingAccount) ||
+      (input.sourceType === "PARTNER_SETTLEMENT" &&
+        input.source.receivingAccount) ||
       (input.sourceType === "EXPENSE_CONTRACT" &&
         input.source.receivingAccount) ||
       (input.sourceType === "PURCHASE" && input.source.receivingAccount)) &&

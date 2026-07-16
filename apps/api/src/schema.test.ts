@@ -330,6 +330,16 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("合作方结算付款来源读取合作方档案收款账户", () => {
+    expect(schema).toContain("bank_account VARCHAR(128) NULL");
+    expect(persistence).toContain(
+      "PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount",
+    );
+    expect(persistence).not.toContain(
+      "PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount",
+    );
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",

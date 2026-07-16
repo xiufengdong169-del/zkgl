@@ -276,7 +276,7 @@ async function assertPaymentApplicationSourceForSubmit(
   const paymentSourceQueries = {
     EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
     REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
-    PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
+    PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
     DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
     PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
   };
@@ -3088,7 +3088,7 @@ export class MySqlActionExecutor {
           const sourceSql = {
             EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
             REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
-            PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,'' receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
+            PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
             DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
             PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
           }[
@@ -3112,9 +3112,12 @@ export class MySqlActionExecutor {
             );
           await requireProjectWriteAccess(connection, source.projectId, user);
           if (
-            ["DEPOSIT", "EXPENSE_CONTRACT", "PURCHASE"].includes(
-              input.sourceType,
-            ) &&
+            [
+              "DEPOSIT",
+              "EXPENSE_CONTRACT",
+              "PARTNER_SETTLEMENT",
+              "PURCHASE",
+            ].includes(input.sourceType) &&
             source.receivingAccount
           )
             receivingAccount = String(source.receivingAccount);

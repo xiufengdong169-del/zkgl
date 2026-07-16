@@ -277,4 +277,38 @@ describe("finance invariants", () => {
       }),
     ).toThrow("收款方与付款来源不一致");
   });
+
+  it("合作方结算付款必须使用合作方档案收款账户", () => {
+    const valid = {
+      sourceType: "PARTNER_SETTLEMENT" as const,
+      source: {
+        projectId: "p1",
+        recipientName: "合作方A",
+        receivingAccount: "6222",
+        approvalStatus: "APPROVED",
+        paymentStatus: "UNPAID",
+        sourceAmount: "500.00",
+      },
+      application: {
+        projectId: "p1",
+        recipientName: "合作方A",
+        receivingAccount: "6222",
+        requestedAmount: 500,
+      },
+      alreadyUsed: false,
+    };
+    expect(() => validatePaymentSource(valid)).not.toThrow();
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        source: { ...valid.source, receivingAccount: null },
+      }),
+    ).toThrow("未维护收款账户");
+    expect(() =>
+      validatePaymentSource({
+        ...valid,
+        application: { ...valid.application, receivingAccount: "other" },
+      }),
+    ).toThrow("收款账户");
+  });
 });
