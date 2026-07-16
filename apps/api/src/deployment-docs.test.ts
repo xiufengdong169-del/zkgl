@@ -26,7 +26,14 @@ const gitignore = readFileSync(
 );
 const cloudbaseConfig = JSON.parse(
   readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
-) as { functions: Array<{ name: string; handler: string; runtime: string }> };
+) as {
+  functions: Array<{
+    name: string;
+    handler: string;
+    runtime: string;
+    triggers?: Array<{ name: string }>;
+  }>;
+};
 
 const verificationCommands = [
   "npm run verify",
@@ -77,6 +84,14 @@ describe("deployment documentation", () => {
   it("documents exact CloudBase timer trigger names used by scheduled functions", () => {
     expect(deploymentDoc).toContain(REMINDER_TRIGGER_NAME);
     expect(deploymentDoc).toContain(EXPORT_TRIGGER_NAME);
+    expect(
+      cloudbaseConfig.functions.find((fn) => fn.name === "zkgl-reminder")
+        ?.triggers?.[0]?.name,
+    ).toBe(REMINDER_TRIGGER_NAME);
+    expect(
+      cloudbaseConfig.functions.find((fn) => fn.name === "zkgl-export-worker")
+        ?.triggers?.[0]?.name,
+    ).toBe(EXPORT_TRIGGER_NAME);
   });
 
   it("uses the full verification command before deployment and acceptance", () => {
