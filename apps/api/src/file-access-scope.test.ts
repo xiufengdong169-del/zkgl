@@ -26,7 +26,7 @@ const scopedUser: SessionUser = {
   ],
 };
 
-function fileConnection() {
+function fileConnection(classification = "INTERNAL") {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -37,7 +37,7 @@ function fileConnection() {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes("storage_key storageKey"))
-        return [[{ id: "f99", classification: "INTERNAL", versionId: "v1", storageKey: "cloud://x" }], []];
+        return [[{ id: "f99", classification, versionId: "v1", storageKey: "cloud://x" }], []];
       if (sql.includes("SELECT p.id FROM prj_project")) return [[{ id: "p9" }], []];
       if (sql.startsWith("INSERT INTO file_object")) return [{ insertId: 99 }, []];
       return [{ affectedRows: 1 }, []];
@@ -89,6 +89,28 @@ describe("file access scopes", () => {
       call.sql.includes("INSERT INTO file_access_log"),
     );
     expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-1"]);
+  });
+
+  it("uses the API request id when writing denied sensitive file download logs", async () => {
+    const connection = fileConnection("SENSITIVE");
+    const executor = new MySqlActionExecutor(
+      { getConnection: async () => connection } as never,
+      async () => "https://temporary.example/export.csv",
+    );
+
+    await expect(
+      executor.execute(
+        "file.download",
+        { fileId: "f99" },
+        allScopeUser,
+        "api-request-denied",
+      ),
+    ).rejects.toMatchObject({ code: "SENSITIVE_FILE_DENIED" });
+
+    const log = connection.calls.find((call) =>
+      call.sql.includes("SENSITIVE_FILE_DENIED"),
+    );
+    expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-denied"]);
   });
 
   it("uses project and department scopes when preparing project file uploads", async () => {
