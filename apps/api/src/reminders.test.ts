@@ -76,4 +76,17 @@ describe("scheduled reminders", () => {
     expect(sql).toContain("'CLOSE_OPEN_ITEM_OVERDUE'");
     expect(sql).toContain("'RISK_DUE'");
   });
+
+  it("prevents duplicate reminders by recipient, type, business id and recent window", () => {
+    for (const sql of reminderStatements) {
+      const messageType = /,'([^']+)',CONCAT/.exec(sql)?.[1];
+
+      expect(messageType).toBeTruthy();
+      expect(sql).toContain("NOT EXISTS(SELECT 1 FROM sys_message m WHERE");
+      expect(sql).toContain("m.recipient_id=");
+      expect(sql).toContain(`m.message_type='${messageType}'`);
+      expect(sql).toContain("m.business_id=");
+      expect(sql).toContain("m.created_at>=DATE_SUB(NOW(),INTERVAL");
+    }
+  });
 });
