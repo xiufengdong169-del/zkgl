@@ -474,7 +474,7 @@ function startPartnerPayment(item: SettlementDocument) {
     recipientName: item.partnerName,
     requestedAmount: Number(item.netAmount),
     plannedOn: today,
-    receivingAccount: "",
+    receivingAccount: "由合作方档案带入",
     invoiceRequired: Boolean(item.invoiceRequirement),
   };
   mode.value = "PARTNER_PAYMENT";

@@ -141,4 +141,16 @@ describe("frontend API action usage", () => {
 
     expect(invalidPageSizes).toEqual([]);
   });
+
+  it("合作方结算付款申请使用非空账户占位并由后端覆盖档案账户", () => {
+    const settlementsView = readFileSync(
+      join(webSourceDir, "views", "SettlementsView.vue"),
+      "utf8",
+    );
+
+    expect(settlementsView).toContain('sourceType: "PARTNER_SETTLEMENT"');
+    expect(settlementsView).toContain(
+      'receivingAccount: "由合作方档案带入"',
+    );
+  });
 });
