@@ -1396,7 +1396,7 @@ export class MySqlActionExecutor {
         }
         case "file.upload.complete": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT f.id,v.id versionId,v.storage_key expectedStorageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.created_by=? AND f.status='UPLOADING' FOR UPDATE`,
+            `SELECT f.id,v.id versionId,v.storage_key expectedStorageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.created_by=? AND f.status='UPLOADING' AND f.is_deleted=0 AND v.status='UPLOADING' FOR UPDATE`,
             [input.fileId, user.id],
           );
           const row = rows[0];
@@ -1412,14 +1412,26 @@ export class MySqlActionExecutor {
               "上传文件与预分配路径不一致",
               409,
             );
-          await connection.execute(
-            `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=?`,
+          const [versionResult] = await connection.execute<ResultSetHeader>(
+            `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=? AND status='UPLOADING'`,
             [input.cloudFileId, row.versionId],
           );
-          await connection.execute(
-            `UPDATE file_object SET status='ACTIVE',updated_by=?,version=version+1 WHERE id=?`,
+          if (!versionResult.affectedRows)
+            throw new AppError(
+              "FILE_UPLOAD_NOT_PENDING",
+              "待完成的文件不存在",
+              409,
+            );
+          const [fileResult] = await connection.execute<ResultSetHeader>(
+            `UPDATE file_object SET status='ACTIVE',updated_by=?,version=version+1 WHERE id=? AND status='UPLOADING' AND is_deleted=0`,
             [user.id, input.fileId],
           );
+          if (!fileResult.affectedRows)
+            throw new AppError(
+              "FILE_UPLOAD_NOT_PENDING",
+              "待完成的文件不存在",
+              409,
+            );
           return { id: input.fileId, status: "ACTIVE" };
         }
         case "file.version.prepare": {
@@ -1486,7 +1498,7 @@ export class MySqlActionExecutor {
         }
         case "file.version.complete": {
           const [versions] = await connection.execute<RowDataPacket[]>(
-            `SELECT v.id,v.version_number versionNumber,v.storage_key expectedStorageKey FROM file_version v JOIN file_object f ON f.id=v.file_id WHERE v.id=? AND v.file_id=? AND v.uploaded_by=? AND v.status='UPLOADING' AND f.status='ACTIVE' FOR UPDATE`,
+            `SELECT v.id,v.version_number versionNumber,v.storage_key expectedStorageKey FROM file_version v JOIN file_object f ON f.id=v.file_id WHERE v.id=? AND v.file_id=? AND v.uploaded_by=? AND v.status='UPLOADING' AND f.status='ACTIVE' AND f.is_deleted=0 FOR UPDATE`,
             [input.versionId, input.fileId, user.id],
           );
           const version = versions[0];
@@ -1502,14 +1514,26 @@ export class MySqlActionExecutor {
               "上传文件与预分配路径不一致",
               409,
             );
-          await connection.execute(
-            `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=?`,
+          const [versionResult] = await connection.execute<ResultSetHeader>(
+            `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=? AND status='UPLOADING'`,
             [input.cloudFileId, input.versionId],
           );
-          await connection.execute(
-            `UPDATE file_object SET current_version=?,updated_by=?,version=version+1 WHERE id=?`,
+          if (!versionResult.affectedRows)
+            throw new AppError(
+              "FILE_VERSION_UPLOAD_NOT_PENDING",
+              "待完成的新版本不存在",
+              409,
+            );
+          const [fileResult] = await connection.execute<ResultSetHeader>(
+            `UPDATE file_object SET current_version=?,updated_by=?,version=version+1 WHERE id=? AND status='ACTIVE' AND is_deleted=0`,
             [version.versionNumber, user.id, input.fileId],
           );
+          if (!fileResult.affectedRows)
+            throw new AppError(
+              "FILE_VERSION_UPLOAD_NOT_PENDING",
+              "待完成的新版本不存在",
+              409,
+            );
           return {
             id: input.fileId,
             versionId: input.versionId,

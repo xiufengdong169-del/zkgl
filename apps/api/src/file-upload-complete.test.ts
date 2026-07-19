@@ -42,6 +42,33 @@ function uploadCompleteConnection() {
   };
 }
 
+function versionCompleteConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("expectedStorageKey")) {
+        return [
+          [
+            {
+              id: "v2",
+              versionNumber: 2,
+              expectedStorageKey: "private/files/f1/v2/aaaaaaaa.pdf",
+            },
+          ],
+          [],
+        ];
+      }
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("file upload completion", () => {
   it("rejects completion when the uploaded cloud file does not match the reserved storage key", async () => {
     const connection = uploadCompleteConnection();
@@ -96,11 +123,51 @@ describe("file upload completion", () => {
     );
 
     expect(select?.params).toEqual(["f1", "u1"]);
+    expect(select?.sql).toContain("f.is_deleted=0");
+    expect(select?.sql).toContain("v.status='UPLOADING'");
+    expect(versionUpdate?.sql).toContain("status='UPLOADING'");
+    expect(fileUpdate?.sql).toContain("status='UPLOADING'");
+    expect(fileUpdate?.sql).toContain("is_deleted=0");
     expect(versionUpdate?.params).toEqual([
       "cloud://env/private/files/f1/v1/aaaaaaaa.pdf",
       "v1",
     ]);
     expect(fileUpdate?.params).toEqual(["u1", "f1"]);
+    expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
+  it("activates uploaded file versions only for active non-deleted file objects", async () => {
+    const connection = versionCompleteConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "file.version.complete",
+        {
+          fileId: "f1",
+          versionId: "v2",
+          cloudFileId: "cloud://env/private/files/f1/v2/aaaaaaaa.pdf",
+        },
+        user,
+      ),
+    ).resolves.toEqual({ id: "f1", versionId: "v2", versionNumber: 2 });
+
+    const select = connection.calls.find((call) =>
+      call.sql.includes("FROM file_version v JOIN file_object f"),
+    );
+    const versionUpdate = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE file_version SET storage_key="),
+    );
+    const fileUpdate = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE file_object SET current_version="),
+    );
+
+    expect(select?.sql).toContain("f.is_deleted=0");
+    expect(versionUpdate?.sql).toContain("status='UPLOADING'");
+    expect(fileUpdate?.sql).toContain("status='ACTIVE'");
+    expect(fileUpdate?.sql).toContain("is_deleted=0");
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
   });
 });
