@@ -75,6 +75,11 @@ describe("scheduled reminders", () => {
     expect(sql).toContain("'EARLY_START_CONTRACT_MISSING'");
     expect(sql).toContain("'CLOSE_OPEN_ITEM_OVERDUE'");
     expect(sql).toContain("'RISK_DUE'");
+    expect(sql).toContain("g.is_deleted=0");
+    expect(sql).toContain("p.is_deleted=0");
+    expect(sql.match(/JOIN prj_project p ON p\.id=/g) ?? []).toHaveLength(
+      sql.match(/p\.is_deleted=0/g)?.length ?? 0,
+    );
     expect(sql).toContain("s.is_deleted=0");
     expect(sql).toContain("c.is_deleted=0");
   });
