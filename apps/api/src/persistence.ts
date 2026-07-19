@@ -3361,7 +3361,7 @@ export class MySqlActionExecutor {
             await requireProjectWriteAccess(connection, purchase.projectId, user);
           }
           const [result] = await connection.execute<ResultSetHeader>(
-            `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
+            `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED' AND is_deleted=0`,
             [user.id, input.purchaseId],
           );
           if (!result.affectedRows)

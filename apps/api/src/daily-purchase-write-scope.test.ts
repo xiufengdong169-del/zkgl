@@ -249,11 +249,10 @@ describe("daily purchase write scopes", () => {
     ).toContain(
       "LEFT JOIN prj_project pr ON pr.id=c.project_id AND pr.is_deleted=0",
     );
-    expect(
-      connection.calls.some((call) =>
-        call.sql.startsWith("UPDATE fin_daily_purchase"),
-      ),
-    ).toBe(true);
+    const update = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE fin_daily_purchase"),
+    );
+    expect(update?.sql).toContain("AND is_deleted=0");
   });
 
   it("rejects non-applicants for standalone purchases without project scope", async () => {
@@ -320,10 +319,9 @@ describe("daily purchase write scopes", () => {
       call.sql.includes("FROM prj_project p"),
     )!;
     expect(projectCheck.params).toEqual(["p1", 0, "e1", "e1", "e1"]);
-    expect(
-      connection.calls.some((call) =>
-        call.sql.startsWith("UPDATE fin_daily_purchase"),
-      ),
-    ).toBe(true);
+    const update = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE fin_daily_purchase"),
+    );
+    expect(update?.sql).toContain("AND is_deleted=0");
   });
 });
