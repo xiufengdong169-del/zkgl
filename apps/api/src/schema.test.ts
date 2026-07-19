@@ -328,6 +328,11 @@ describe("empty database initialization schema", () => {
     expect(schema).toMatch(
       /CREATE TABLE IF NOT EXISTS fin_deposit_event[\s\S]*?status VARCHAR\(32\) NOT NULL DEFAULT 'APPROVED'/,
     );
+    expect(persistence).toContain("pa.source_type<>'DEPOSIT'");
+    expect(persistence).toContain("operatingPaymentRows");
+    expect(persistence).toContain(
+      "cashContribution: receivedAmount - operatingPayment",
+    );
   });
 
   it("合作方结算付款来源读取合作方档案收款账户", () => {
