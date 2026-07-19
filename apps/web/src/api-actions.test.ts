@@ -153,4 +153,13 @@ describe("frontend API action usage", () => {
       'receivingAccount: "由合作方档案带入"',
     );
   });
+
+  it("带遗留事项结项支持登记未付款类型", () => {
+    const settlementsView = readFileSync(
+      join(webSourceDir, "views", "SettlementsView.vue"),
+      "utf8",
+    );
+
+    expect(settlementsView).toContain('<option value="PAYABLE">未付款</option>');
+  });
 });

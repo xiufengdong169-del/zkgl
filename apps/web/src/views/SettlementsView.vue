@@ -1163,6 +1163,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
           <label
             >类型<select v-model="item.type" required>
               <option value="RECEIVABLE">未收款</option>
+              <option value="PAYABLE">未付款</option>
               <option value="DEPOSIT_RETURN">未退保证金</option>
               <option value="RISK_ISSUE">未关闭问题</option>
               <option value="OTHER">其他</option>

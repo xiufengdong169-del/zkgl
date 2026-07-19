@@ -77,7 +77,13 @@ export const closeApplicationInput = z
     openItems: z
       .array(
         z.object({
-          type: z.enum(["RECEIVABLE", "DEPOSIT_RETURN", "RISK_ISSUE", "OTHER"]),
+          type: z.enum([
+            "RECEIVABLE",
+            "PAYABLE",
+            "DEPOSIT_RETURN",
+            "RISK_ISSUE",
+            "OTHER",
+          ]),
           description: z.string().trim().min(1),
           responsibleId: z.string().min(1),
           dueOn: z.iso.date(),
