@@ -389,6 +389,15 @@ describe("empty database initialization schema", () => {
     );
     expect(persistence).toContain("TRIM(remaining_issues)<>''");
     expect(persistence).toContain("acceptanceIssueRows");
+    expect(persistence).toContain(
+      "SUM(tax_exclusive_amount),0) profitAmount,COALESCE(SUM(tax_inclusive_amount),0) receivableAmount",
+    );
+    expect(persistence).toContain(
+      "outstandingReceivable: receivedAmount < contractReceivableAmount",
+    );
+    expect(persistence).toContain(
+      "contractOperatingProfit: contractProfitAmount - confirmedCost",
+    );
     expect(persistence).toContain("outstandingPayableRows");
     expect(persistence).toContain("pa.source_type<>'DEPOSIT'");
     expect(persistence).toContain("payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')");

@@ -4609,10 +4609,15 @@ export class MySqlActionExecutor {
           );
           const acceptancePassed = Number(acceptanceRows[0]?.count ?? 0) > 0;
           const [contractRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
+            `SELECT COALESCE(SUM(tax_exclusive_amount),0) profitAmount,COALESCE(SUM(tax_inclusive_amount),0) receivableAmount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
             [input.projectId],
           );
-          const contractAmount = Number(contractRows[0]?.amount ?? 0);
+          const contractProfitAmount = Number(
+            contractRows[0]?.profitAmount ?? 0,
+          );
+          const contractReceivableAmount = Number(
+            contractRows[0]?.receivableAmount ?? 0,
+          );
           const [invoiceRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0 AND is_deleted=0`,
             [input.projectId],
@@ -4662,7 +4667,7 @@ export class MySqlActionExecutor {
           const check = {
             acceptancePassed,
             archivePassed: Boolean(input.archiveCheckPassed),
-            outstandingReceivable: receivedAmount < contractAmount,
+            outstandingReceivable: receivedAmount < contractReceivableAmount,
             outstandingPayable,
             unreturnedDeposit,
             openIssues,
@@ -4676,7 +4681,7 @@ export class MySqlActionExecutor {
             );
           const operatingPayment = Number(operatingPaymentRows[0]?.amount ?? 0);
           const profit = {
-            contractOperatingProfit: contractAmount - confirmedCost,
+            contractOperatingProfit: contractProfitAmount - confirmedCost,
             cashContribution: receivedAmount - operatingPayment,
           };
           const [result] = await connection.execute<ResultSetHeader>(
@@ -4687,7 +4692,7 @@ export class MySqlActionExecutor {
               input.appliedOn,
               input.completionSummary,
               input.acceptanceConclusion,
-              contractAmount,
+              contractReceivableAmount,
               invoicedAmount,
               receivedAmount,
               confirmedCost,
