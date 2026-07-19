@@ -465,10 +465,16 @@ async function applyBusinessApprovalResult(
       : businessType === "LEAD" && status === "WITHDRAWN"
         ? "DRAFT"
         : status;
-  await connection.execute(
+  const [businessResult] = await connection.execute<ResultSetHeader>(
     `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"}`,
     [target, actorUserId, businessId],
   );
+  if (!businessResult.affectedRows)
+    throw new AppError(
+      "APPROVAL_BUSINESS_NOT_FOUND",
+      "审批业务记录不存在或已删除",
+      404,
+    );
   if (businessType === "PROJECT_PAYMENT" && status === "REJECTED") {
     const [payments] = await connection.execute<RowDataPacket[]>(
       `SELECT source_type sourceType,source_id sourceId FROM fin_payment_application WHERE id=? AND is_deleted=0`,

@@ -300,6 +300,9 @@ describe("empty database initialization schema", () => {
 
     expect(submitBusinessTypes.length).toBeGreaterThan(10);
     expect(resultBusinessTypes).toEqual(submitBusinessTypes);
+    expect(persistence).toContain("const [businessResult]");
+    expect(persistence).toContain("!businessResult.affectedRows");
+    expect(persistence).toContain("APPROVAL_BUSINESS_NOT_FOUND");
     expect(businessTables.map((item) => item.businessType)).toEqual(
       submitBusinessTypes,
     );
