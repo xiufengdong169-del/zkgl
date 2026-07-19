@@ -2658,14 +2658,21 @@ export class MySqlActionExecutor {
             Number(applicationUsed[0]?.amount ?? 0) +
               Number(input.taxInclusiveAmount) >=
             Number(application.requestedAmount);
-          await connection.execute(
-            `UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
-            [
-              completed ? "COMPLETED" : "PARTIALLY_INVOICED",
-              user.id,
-              input.applicationId,
-            ],
-          );
+          const [applicationResult] =
+            await connection.execute<ResultSetHeader>(
+              `UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+              [
+                completed ? "COMPLETED" : "PARTIALLY_INVOICED",
+                user.id,
+                input.applicationId,
+              ],
+            );
+          if (!applicationResult.affectedRows)
+            throw new AppError(
+              "INVOICE_APPLICATION_STATUS_INVALID",
+              "开票申请状态异常",
+              409,
+            );
           return {
             id: String(result.insertId),
             applicationCompleted: completed,
@@ -2748,10 +2755,16 @@ export class MySqlActionExecutor {
               total >= Number(invoice.amount)
                 ? "ALLOCATED"
                 : "PARTIALLY_ALLOCATED";
-          await connection.execute(
+          const [invoiceResult] = await connection.execute<ResultSetHeader>(
             `UPDATE fin_sales_invoice SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, user.id, input.invoiceId],
           );
+          if (!invoiceResult.affectedRows)
+            throw new AppError(
+              "SALES_INVOICE_STATUS_INVALID",
+              "销售发票状态异常",
+              409,
+            );
           return {
             id: String(result.insertId),
             invoiceStatus: status,

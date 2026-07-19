@@ -509,6 +509,17 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("开票与核销状态回写排除已删除单据", () => {
+    expect(persistence).toContain(
+      "UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "UPDATE fin_sales_invoice SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain("INVOICE_APPLICATION_STATUS_INVALID");
+    expect(persistence).toContain("SALES_INVOICE_STATUS_INVALID");
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",
