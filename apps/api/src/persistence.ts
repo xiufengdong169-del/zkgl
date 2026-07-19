@@ -3443,7 +3443,7 @@ export class MySqlActionExecutor {
             );
           if (input.contactId) {
             const [contacts] = await connection.execute<RowDataPacket[]>(
-              `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE'`,
+              `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0`,
               [input.contactId, input.customerId],
             );
             if (!contacts[0])

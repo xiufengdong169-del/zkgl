@@ -15,7 +15,10 @@ const scopedUser: SessionUser = {
   dataScopes: [],
 };
 
-function crmWriteConnection(options: { counterpartyAccessible: boolean }) {
+function crmWriteConnection(options: {
+  counterpartyAccessible: boolean;
+  contactAccessible?: boolean;
+}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -32,7 +35,10 @@ function crmWriteConnection(options: { counterpartyAccessible: boolean }) {
         ];
       }
       if (sql.includes("FROM crm_contact WHERE id=?"))
-        return [[{ id: params[0] }], []];
+        return [
+          options.contactAccessible === false ? [] : [{ id: params[0] }],
+          [],
+        ];
       if (sql.includes("FROM sys_number_rule"))
         return [
           [
@@ -117,6 +123,46 @@ describe("CRM write data scopes", () => {
     expect(
       connection.calls.some((call) =>
         call.sql.startsWith("INSERT INTO mkt_lead"),
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects inactive or deleted contacts before creating visits", async () => {
+    const connection = crmWriteConnection({
+      counterpartyAccessible: true,
+      contactAccessible: false,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "crm.visit.create",
+        {
+          customerId: "c1",
+          contactId: "ct-deleted",
+          visitedAt: "2026-07-17T10:00:00.000Z",
+          method: "ONSITE",
+          participantIds: ["e1"],
+          purpose: "沟通需求",
+          communication: "客户需求沟通",
+          generateLead: false,
+        },
+        scopedUser,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONTACT_CUSTOMER_MISMATCH",
+      status: 409,
+    });
+
+    const contactCheck = connection.calls.find((call) =>
+      call.sql.includes("FROM crm_contact WHERE id=?"),
+    )!;
+    expect(contactCheck.sql).toContain("is_deleted=0");
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO crm_visit"),
       ),
     ).toBe(false);
   });
