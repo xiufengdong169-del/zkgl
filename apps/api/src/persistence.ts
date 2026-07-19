@@ -3036,11 +3036,19 @@ export class MySqlActionExecutor {
             `UPDATE fin_payment_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, user.id, input.paymentId],
           );
-          if (payment.sourceType === "REIMBURSEMENT")
-            await connection.execute(
-              `UPDATE fin_reimbursement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
-              [status, user.id, payment.sourceId],
-            );
+          if (payment.sourceType === "REIMBURSEMENT") {
+            const [reimbursementResult] =
+              await connection.execute<ResultSetHeader>(
+                `UPDATE fin_reimbursement SET payment_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+                [status, user.id, payment.sourceId],
+              );
+            if (!reimbursementResult.affectedRows)
+              throw new AppError(
+                "REIMBURSEMENT_PAYMENT_SOURCE_INVALID",
+                "报销付款来源状态异常",
+                409,
+              );
+          }
           if (payment.sourceType === "PARTNER_SETTLEMENT") {
             const [settlementResult] =
               await connection.execute<ResultSetHeader>(
@@ -3054,11 +3062,18 @@ export class MySqlActionExecutor {
                 409,
               );
           }
-          if (payment.sourceType === "PURCHASE" && status === "PAID")
-            await connection.execute(
-              `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
+          if (payment.sourceType === "PURCHASE" && status === "PAID") {
+            const [purchaseResult] = await connection.execute<ResultSetHeader>(
+              `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED' AND is_deleted=0`,
               [user.id, payment.sourceId],
             );
+            if (!purchaseResult.affectedRows)
+              throw new AppError(
+                "PURCHASE_PAYMENT_SOURCE_INVALID",
+                "采购付款来源状态异常",
+                409,
+              );
+          }
           if (payment.sourceType === "DEPOSIT") {
             const [depositRows] = await connection.execute<RowDataPacket[]>(
               `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') AND is_deleted=0 FOR UPDATE`,
@@ -3192,11 +3207,19 @@ export class MySqlActionExecutor {
               user.id,
             ],
           );
-          if (input.sourceType === "REIMBURSEMENT")
-            await connection.execute(
-              `UPDATE fin_reimbursement SET payment_status='PENDING_PAYMENT',updated_by=?,version=version+1 WHERE id=?`,
-              [user.id, input.sourceId],
-            );
+          if (input.sourceType === "REIMBURSEMENT") {
+            const [reimbursementResult] =
+              await connection.execute<ResultSetHeader>(
+                `UPDATE fin_reimbursement SET payment_status='PENDING_PAYMENT',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+                [user.id, input.sourceId],
+              );
+            if (!reimbursementResult.affectedRows)
+              throw new AppError(
+                "REIMBURSEMENT_PAYMENT_SOURCE_INVALID",
+                "报销付款来源状态异常",
+                409,
+              );
+          }
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.create": {
@@ -3247,9 +3270,10 @@ export class MySqlActionExecutor {
         }
         case "daily.purchase.complete": {
           const [purchases] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(p.applicant_id AS CHAR) applicantId,p.status,CAST(c.project_id AS CHAR) projectId
+            `SELECT CAST(p.applicant_id AS CHAR) applicantId,p.status,p.contract_related contractRelated,CAST(pr.id AS CHAR) projectId
                FROM fin_daily_purchase p
                LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0
+               LEFT JOIN prj_project pr ON pr.id=c.project_id AND pr.is_deleted=0
               WHERE p.id=? AND p.is_deleted=0
               FOR UPDATE`,
             [input.purchaseId],
@@ -3259,6 +3283,12 @@ export class MySqlActionExecutor {
             throw new AppError(
               "PURCHASE_NOT_COMPLETABLE",
               "Only approved daily purchase can be completed",
+              409,
+            );
+          if (Number(purchase.contractRelated) === 1 && purchase.projectId == null)
+            throw new AppError(
+              "PURCHASE_CONTRACT_PROJECT_INVALID",
+              "合同关联采购的合同或项目已失效",
               409,
             );
           if (purchase.applicantId !== user.employeeId) {

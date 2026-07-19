@@ -494,6 +494,21 @@ describe("empty database initialization schema", () => {
     }
   });
 
+  it("付款来源状态回写排除已删除来源", () => {
+    expect(persistence).toContain(
+      "UPDATE fin_reimbursement SET payment_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "UPDATE fin_reimbursement SET payment_status='PENDING_PAYMENT',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED' AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "LEFT JOIN prj_project pr ON pr.id=c.project_id AND pr.is_deleted=0",
+    );
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",

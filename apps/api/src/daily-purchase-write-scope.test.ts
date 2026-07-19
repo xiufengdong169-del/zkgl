@@ -18,6 +18,7 @@ const user: SessionUser = {
 function purchaseConnection(purchase: {
   applicantId: string;
   projectId: string | null;
+  contractRelated?: number;
   status?: string;
 }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
@@ -35,6 +36,7 @@ function purchaseConnection(purchase: {
             {
               applicantId: purchase.applicantId,
               status: purchase.status ?? "APPROVED",
+              contractRelated: purchase.contractRelated ?? 0,
               projectId: purchase.projectId,
             },
           ],
@@ -155,6 +157,13 @@ describe("daily purchase write scopes", () => {
       connection.calls.some((call) => call.sql.includes("FROM prj_project p")),
     ).toBe(false);
     expect(
+      connection.calls
+        .find((call) => call.sql.includes("FROM fin_daily_purchase p"))
+        ?.sql,
+    ).toContain(
+      "LEFT JOIN prj_project pr ON pr.id=c.project_id AND pr.is_deleted=0",
+    );
+    expect(
       connection.calls.some((call) =>
         call.sql.startsWith("UPDATE fin_daily_purchase"),
       ),
@@ -183,10 +192,35 @@ describe("daily purchase write scopes", () => {
     ).toBe(false);
   });
 
+  it("rejects contract-related purchases when the contract project is inactive", async () => {
+    const connection = purchaseConnection({
+      applicantId: "e1",
+      projectId: null,
+      contractRelated: 1,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("daily.purchase.complete", { purchaseId: "p-invalid" }, user),
+    ).rejects.toMatchObject({
+      code: "PURCHASE_CONTRACT_PROJECT_INVALID",
+      status: 409,
+    });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE fin_daily_purchase"),
+      ),
+    ).toBe(false);
+  });
+
   it("allows project-authorized non-applicants to complete contract-related purchases", async () => {
     const connection = purchaseConnection({
       applicantId: "other-employee",
       projectId: "p1",
+      contractRelated: 1,
     });
     const executor = new MySqlActionExecutor({
       getConnection: async () => connection,
