@@ -572,7 +572,7 @@ async function applyBusinessApprovalResult(
       );
       if (app.source_lead_id)
         await connection.execute(
-          `UPDATE mkt_lead SET status='CONVERTED',updated_by=?,version=version+1 WHERE id=?`,
+          `UPDATE mkt_lead SET status='CONVERTED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
           [actorUserId, app.source_lead_id],
         );
     }
@@ -1717,7 +1717,7 @@ export class MySqlActionExecutor {
           const from = rows[0].status,
             status = transitionLead(from, "CLOSE");
           await connection.execute(
-            `UPDATE mkt_lead SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE mkt_lead SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, user.id, input.leadId],
           );
           await connection.execute(
@@ -2055,7 +2055,7 @@ export class MySqlActionExecutor {
             );
           await requireProjectWriteAccess(connection, rows[0].projectId, user);
           await connection.execute(
-            `UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [input.signedOn, input.effectiveOn, user.id, input.contractId],
           );
           await connection.execute(
@@ -3616,7 +3616,7 @@ export class MySqlActionExecutor {
             ],
           );
           await connection.execute(
-            `UPDATE mkt_lead SET success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE mkt_lead SET success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               input.successProbability,
               input.nextFollowUpAt ?? null,
@@ -3750,7 +3750,7 @@ export class MySqlActionExecutor {
               );
           }
           const [result] = await connection.execute<ResultSetHeader>(
-            `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=?`,
+            `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0`,
             [
               data.projectName,
               data.customerId,
@@ -3852,7 +3852,7 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionBid(rows[0].status, input.action);
           await connection.execute(
-            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, user.id, input.bidId],
           );
           return { id: input.bidId, status };
@@ -3887,7 +3887,7 @@ export class MySqlActionExecutor {
             ],
           );
           await connection.execute(
-            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [input.result, user.id, input.bidId],
           );
           return { id: String(result.insertId), status: input.result };
@@ -3952,7 +3952,7 @@ export class MySqlActionExecutor {
               409,
             );
           await connection.execute(
-            `UPDATE bid_task SET status=?,completion_description=COALESCE(?,completion_description),updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE bid_task SET status=?,completion_description=COALESCE(?,completion_description),updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               status,
               input.completionDescription ?? null,
@@ -4004,7 +4004,7 @@ export class MySqlActionExecutor {
           )
             throw new AppError("BID_CHECK_FORBIDDEN", "无权处理该检查项", 403);
           await connection.execute(
-            `UPDATE bid_check SET result=?,issue_description=?,rectifier_id=?,rectification_due_at=?,recheck_result=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE bid_check SET result=?,issue_description=?,rectifier_id=?,rectification_due_at=?,recheck_result=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               input.result,
               input.issueDescription ?? null,
@@ -4243,7 +4243,7 @@ export class MySqlActionExecutor {
               409,
             );
           await connection.execute(
-            `UPDATE con_contract_milestone SET completed_on=?,status='COMPLETED',updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE con_contract_milestone SET completed_on=?,status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [input.completedOn, user.id, input.milestoneId],
           );
           return { id: input.milestoneId, status: "COMPLETED" };
@@ -4385,7 +4385,7 @@ export class MySqlActionExecutor {
             [input.versionId],
           );
           await connection.execute(
-            `UPDATE partner_plan SET current_version=?,status='ENABLED',updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE partner_plan SET current_version=?,status='ENABLED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [version.versionNumber, user.id, input.planId],
           );
           return {
@@ -5026,7 +5026,7 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionStage(rows[0].status, input.action);
           await connection.execute(
-            `UPDATE prj_stage SET status=?,actual_start_on=CASE WHEN ?='IN_PROGRESS' AND actual_start_on IS NULL THEN CURDATE() ELSE actual_start_on END,actual_end_on=CASE WHEN ?='COMPLETED' THEN CURDATE() ELSE actual_end_on END,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE prj_stage SET status=?,actual_start_on=CASE WHEN ?='IN_PROGRESS' AND actual_start_on IS NULL THEN CURDATE() ELSE actual_start_on END,actual_end_on=CASE WHEN ?='COMPLETED' THEN CURDATE() ELSE actual_end_on END,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, status, status, user.id, input.stageId],
           );
           return { id: input.stageId, status };
@@ -5071,7 +5071,7 @@ export class MySqlActionExecutor {
           );
           if (input.stageId)
             await connection.execute(
-              `UPDATE prj_stage SET completion_percentage=?,status=CASE WHEN ?=100 THEN 'PENDING_CONFIRMATION' WHEN status='NOT_STARTED' THEN 'IN_PROGRESS' ELSE status END,updated_by=?,version=version+1 WHERE id=?`,
+              `UPDATE prj_stage SET completion_percentage=?,status=CASE WHEN ?=100 THEN 'PENDING_CONFIRMATION' WHEN status='NOT_STARTED' THEN 'IN_PROGRESS' ELSE status END,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
               [
                 input.currentProgress,
                 input.currentProgress,
@@ -5112,7 +5112,7 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, rows[0].projectId, user);
           const status = transitionRisk(rows[0].status, input.action);
           await connection.execute(
-            `UPDATE prj_risk_issue SET status=?,actual_resolution_on=CASE WHEN ?='CLOSED' THEN CURDATE() ELSE actual_resolution_on END,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE prj_risk_issue SET status=?,actual_resolution_on=CASE WHEN ?='CLOSED' THEN CURDATE() ELSE actual_resolution_on END,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, status, user.id, input.riskId],
           );
           return { id: input.riskId, status };
@@ -5162,7 +5162,7 @@ export class MySqlActionExecutor {
           const status =
             input.confirmationResult === "ACCEPTED" ? "CONFIRMED" : "REJECTED";
           await connection.execute(
-            `UPDATE prj_deliverable SET confirmation_result=?,status=? WHERE id=?`,
+            `UPDATE prj_deliverable SET confirmation_result=?,status=? WHERE id=? AND is_deleted=0`,
             [input.confirmationResult, status, input.deliverableId],
           );
           return { id: input.deliverableId, status };
@@ -5225,7 +5225,7 @@ export class MySqlActionExecutor {
             ],
           );
           await connection.execute(
-            `UPDATE prj_project SET status=?,updated_by=?,version=version+1 WHERE id=? AND status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+            `UPDATE prj_project SET status=?,updated_by=?,version=version+1 WHERE id=? AND status NOT IN('CLOSED','TERMINATED','CANCELLED') AND is_deleted=0`,
             [
               status === "COMPLETED" ? "ACCEPTED" : "PENDING_ACCEPTANCE",
               user.id,
