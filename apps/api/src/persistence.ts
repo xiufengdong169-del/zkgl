@@ -4624,7 +4624,16 @@ export class MySqlActionExecutor {
             `SELECT COUNT(*) count FROM prj_risk_issue WHERE project_id=? AND is_deleted=0 AND status NOT IN('CLOSED')`,
             [input.projectId],
           );
-          const openIssues = Number(riskRows[0]?.count ?? 0) > 0;
+          const [acceptanceIssueRows] = await connection.execute<
+            RowDataPacket[]
+          >(
+            `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND result='CONDITIONAL' AND remaining_issues IS NOT NULL AND TRIM(remaining_issues)<>''`,
+            [input.projectId],
+          );
+          const openIssues =
+            Number(riskRows[0]?.count ?? 0) +
+              Number(acceptanceIssueRows[0]?.count ?? 0) >
+            0;
           const [settlementRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')`,
             [input.projectId],

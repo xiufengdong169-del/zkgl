@@ -378,6 +378,14 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("项目结项前置检查纳入有条件验收遗留问题", () => {
+    expect(persistence).toContain(
+      "FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND result='CONDITIONAL'",
+    );
+    expect(persistence).toContain("TRIM(remaining_issues)<>''");
+    expect(persistence).toContain("acceptanceIssueRows");
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",
