@@ -181,6 +181,7 @@ export interface CloseCheck {
   acceptancePassed: boolean;
   archivePassed: boolean;
   outstandingReceivable: boolean;
+  outstandingPayable: boolean;
   unreturnedDeposit: boolean;
   openIssues: boolean;
 }
@@ -202,7 +203,10 @@ export function validateProjectClose(
       409,
     );
   const hasOpen =
-    check.outstandingReceivable || check.unreturnedDeposit || check.openIssues;
+    check.outstandingReceivable ||
+    check.outstandingPayable ||
+    check.unreturnedDeposit ||
+    check.openIssues;
   if (hasOpen && type === "NORMAL")
     throw new AppError("OPEN_ITEMS_EXIST", "存在遗留事项，不能普通结项", 409);
   if (
@@ -220,6 +224,7 @@ export function validateProjectClose(
   if (hasOpen) {
     const requiredTypes = [
       check.outstandingReceivable ? "RECEIVABLE" : null,
+      check.outstandingPayable ? "PAYABLE" : null,
       check.unreturnedDeposit ? "DEPOSIT_RETURN" : null,
       check.openIssues ? "RISK_ISSUE" : null,
     ].filter((type): type is string => Boolean(type));
@@ -229,7 +234,7 @@ export function validateProjectClose(
     if (missing.length)
       throw new AppError(
         "OPEN_ITEM_TYPES_INCOMPLETE",
-        "必须逐项登记未收款、未退保证金和未关闭问题",
+        "必须逐项登记未收款、未付款、未退保证金和未关闭问题",
         409,
       );
   }

@@ -389,6 +389,10 @@ describe("empty database initialization schema", () => {
     );
     expect(persistence).toContain("TRIM(remaining_issues)<>''");
     expect(persistence).toContain("acceptanceIssueRows");
+    expect(persistence).toContain("outstandingPayableRows");
+    expect(persistence).toContain("pa.source_type<>'DEPOSIT'");
+    expect(persistence).toContain("payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')");
+    expect(persistence).toContain("outstandingPayable");
   });
 
   it("合作方结算与保证金核心资金表具备逻辑删除字段并排除已删除数据", () => {

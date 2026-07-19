@@ -4628,6 +4628,13 @@ export class MySqlActionExecutor {
             [input.projectId],
           );
           const unreturnedDeposit = Number(depositRows[0]?.amount ?? 0) > 0;
+          const [outstandingPayableRows] =
+            await connection.execute<RowDataPacket[]>(
+              `SELECT (COALESCE((SELECT COUNT(*) FROM fin_payment_application pa WHERE pa.project_id=? AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT' AND pa.status IN('PENDING_PAYMENT','PARTIALLY_PAID') AND pa.requested_amount>COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=pa.id AND d.status='ACTIVE'),0)),0)+COALESCE((SELECT COUNT(*) FROM fin_reimbursement h WHERE h.project_id=? AND h.is_deleted=0 AND h.approval_status='APPROVED' AND h.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)+COALESCE((SELECT COUNT(*) FROM partner_settlement s WHERE s.project_id=? AND s.is_deleted=0 AND s.status='APPROVED' AND s.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)) count`,
+              [input.projectId, input.projectId, input.projectId],
+            );
+          const outstandingPayable =
+            Number(outstandingPayableRows[0]?.count ?? 0) > 0;
           const [riskRows] = await connection.execute<RowDataPacket[]>(
             `SELECT COUNT(*) count FROM prj_risk_issue WHERE project_id=? AND is_deleted=0 AND status NOT IN('CLOSED')`,
             [input.projectId],
@@ -4656,6 +4663,7 @@ export class MySqlActionExecutor {
             acceptancePassed,
             archivePassed: Boolean(input.archiveCheckPassed),
             outstandingReceivable: receivedAmount < contractAmount,
+            outstandingPayable,
             unreturnedDeposit,
             openIssues,
           };

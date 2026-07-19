@@ -81,6 +81,7 @@ describe("partner settlement and close", () => {
       acceptancePassed: true,
       archivePassed: true,
       outstandingReceivable: false,
+      outstandingPayable: false,
       unreturnedDeposit: false,
       openIssues: false,
     };
@@ -112,6 +113,7 @@ describe("partner settlement and close", () => {
       acceptancePassed: true,
       archivePassed: true,
       outstandingReceivable: true,
+      outstandingPayable: true,
       unreturnedDeposit: true,
       openIssues: true,
     };
@@ -120,6 +122,12 @@ describe("partner settlement and close", () => {
       {
         type: "RECEIVABLE",
         description: "催收",
+        responsibleId: "u1",
+        dueOn: "2026-08-01",
+      },
+      {
+        type: "PAYABLE",
+        description: "完成应付款支付",
         responsibleId: "u1",
         dueOn: "2026-08-01",
       },
