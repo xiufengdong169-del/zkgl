@@ -360,7 +360,7 @@ function buildProjectReferenceScope(user: SessionUser, projectIdExpression: stri
 function buildFileAccessScope(user: SessionUser) {
   const projectScope = buildProjectDataScope(user);
   return {
-    sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=f.project_id AND ${projectScope.sql}))))`,
+    sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=f.project_id AND p.is_deleted=0 AND ${projectScope.sql}))))`,
     params: [
       user.id,
       user.id,
@@ -1333,7 +1333,7 @@ export class MySqlActionExecutor {
         case "file.list": {
           const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (f.classification<>'SENSITIVE' OR ?=1) AND (${fileAccess.sql}) ORDER BY f.id DESC`,
+              `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (f.classification<>'SENSITIVE' OR ?=1) AND (${fileAccess.sql}) ORDER BY f.id DESC`,
               [
                 input.businessType,
                 input.businessId,
@@ -1547,7 +1547,7 @@ export class MySqlActionExecutor {
             );
           const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE' AND (${fileAccess.sql})`,
+              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (${fileAccess.sql})`,
               [
                 input.versionId ?? null,
                 input.versionId ?? null,
@@ -1558,7 +1558,7 @@ export class MySqlActionExecutor {
           const file = rows[0];
           if (!file) {
             const [deniedFiles] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,v.id versionId FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND v.status='ACTIVE'`,
+              `SELECT f.id,v.id versionId FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE'`,
               [
                 input.versionId ?? null,
                 input.versionId ?? null,

@@ -113,6 +113,8 @@ describe("file access scopes", () => {
     const query = connection.calls.find((call) => call.sql.includes("storage_key storageKey"))!;
     expect(query.sql).toContain("f.business_type='EXPORT_TASK' AND f.created_by=?");
     expect(query.sql).toContain("f.business_type<>'EXPORT_TASK'");
+    expect(query.sql).toContain("f.is_deleted=0");
+    expect(query.sql).toContain("p.is_deleted=0");
     expect(query.params).toEqual([
       null,
       null,
@@ -192,6 +194,10 @@ describe("file access scopes", () => {
     const log = connection.calls.find((call) =>
       call.sql.includes("BUSINESS_ACCESS_DENIED"),
     );
+    const existingFileQuery = connection.calls.find((call) =>
+      call.sql.includes("SELECT f.id,v.id versionId"),
+    )!;
+    expect(existingFileQuery.sql).toContain("f.is_deleted=0");
     expect(log?.params).toEqual([
       "f99",
       "v1",
@@ -216,6 +222,8 @@ describe("file access scopes", () => {
       call.sql.includes("FROM file_object f JOIN file_version v"),
     )!;
     expect(query.sql).toContain("f.classification<>'SENSITIVE' OR ?=1");
+    expect(query.sql).toContain("f.is_deleted=0");
+    expect(query.sql).toContain("p.is_deleted=0");
     expect(query.params).toEqual([
       "PROJECT",
       "p9",
