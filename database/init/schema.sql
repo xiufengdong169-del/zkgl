@@ -1392,13 +1392,14 @@ CREATE TABLE IF NOT EXISTS partner_settlement (
   snapshot_sha256 CHAR(64) NOT NULL,
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_settlement_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_settlement_plan FOREIGN KEY (plan_id) REFERENCES partner_plan(id),
   CONSTRAINT fk_settlement_plan_version FOREIGN KEY (plan_version_id) REFERENCES partner_plan_version(id),
   CONSTRAINT fk_settlement_partner FOREIGN KEY (partner_id) REFERENCES crm_counterparty(id),
   CONSTRAINT chk_settlement_period CHECK (period_end_on >= period_start_on),
-  INDEX idx_settlement_project_status (project_id, status)
+  INDEX idx_settlement_project_status (project_id, status, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS fin_deposit (
@@ -1422,14 +1423,15 @@ CREATE TABLE IF NOT EXISTS fin_deposit (
   approval_instance_id BIGINT UNSIGNED NULL,
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_deposit_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_deposit_bid FOREIGN KEY (bid_id) REFERENCES bid_application(id),
   CONSTRAINT fk_deposit_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
   CONSTRAINT fk_deposit_counterparty FOREIGN KEY (counterparty_id) REFERENCES crm_counterparty(id),
   CONSTRAINT chk_deposit_amount CHECK (amount > 0 AND occupied_amount >= 0 AND loss_confirmed_amount >= 0),
-  INDEX idx_deposit_project_status (project_id, status),
-  INDEX idx_deposit_due_return (due_return_on, status)
+  INDEX idx_deposit_project_status (project_id, status, is_deleted),
+  INDEX idx_deposit_due_return (due_return_on, status, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS fin_deposit_event (

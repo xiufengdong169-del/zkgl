@@ -177,7 +177,7 @@ async function resolveApprovalBusinessProjectId(
   }
   if (businessType === "DEPOSIT_LOSS") {
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT CAST(d.project_id AS CHAR) projectId FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=?`,
+      `SELECT CAST(d.project_id AS CHAR) projectId FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND d.is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
@@ -276,8 +276,8 @@ async function assertPaymentApplicationSourceForSubmit(
   const paymentSourceQueries = {
     EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
     REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
-    PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
-    DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
+    PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? AND s.is_deleted=0 FOR UPDATE`,
+    DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' AND g.is_deleted=0 FOR UPDATE`,
     PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
   };
   const sourceSql =
@@ -572,12 +572,12 @@ async function applyBusinessApprovalResult(
     }
   } else if (businessType === "PARTNER_SETTLEMENT")
     await connection.execute(
-      `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount,payment_status='PENDING_PAYMENT' WHERE id=?`,
+      `UPDATE partner_settlement SET confirmed_cost_amount=net_settlement_amount,payment_status='PENDING_PAYMENT' WHERE id=? AND is_deleted=0`,
       [businessId],
     );
   else if (businessType === "DEPOSIT_LOSS" && status === "APPROVED") {
     const [events] = await connection.execute<RowDataPacket[]>(
-      `SELECT e.deposit_id depositId,e.amount,d.occupied_amount occupied FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND e.event_type='FORFEIT' FOR UPDATE`,
+      `SELECT e.deposit_id depositId,e.amount,d.occupied_amount occupied FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND e.event_type='FORFEIT' AND d.is_deleted=0 FOR UPDATE`,
       [businessId],
     );
     const event = events[0];
@@ -594,7 +594,7 @@ async function applyBusinessApprovalResult(
         409,
       );
     await connection.execute(
-      `UPDATE fin_deposit SET occupied_amount=occupied_amount-?,loss_confirmed_amount=loss_confirmed_amount+?,status='FORFEITED',updated_by=?,version=version+1 WHERE id=?`,
+      `UPDATE fin_deposit SET occupied_amount=occupied_amount-?,loss_confirmed_amount=loss_confirmed_amount+?,status='FORFEITED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
       [event.amount, event.amount, actorUserId, event.depositId],
     );
   } else if (businessType === "PROJECT_START")
@@ -660,7 +660,7 @@ export class MySqlActionExecutor {
         case "report.dashboard": {
           const projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(p.estimated_revenue-p.estimated_cost),0) expectedProfit,COALESCE(SUM((SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id)),0) contractOperatingProfit,COALESCE(SUM((SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(x.amount),0) FROM fin_payment_detail x WHERE x.project_id=p.id AND x.status='ACTIVE')),0) cashContribution,COUNT(*) projectCount FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
+            `SELECT COALESCE(SUM(p.estimated_revenue-p.estimated_cost),0) expectedProfit,COALESCE(SUM((SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID') AND s.is_deleted=0)-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id AND g.is_deleted=0)),0) contractOperatingProfit,COALESCE(SUM((SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(x.amount),0) FROM fin_payment_detail x WHERE x.project_id=p.id AND x.status='ACTIVE')),0) cashContribution,COUNT(*) projectCount FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
             projectScope.params,
           );
           return { ...rows[0], disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6" };
@@ -687,7 +687,7 @@ export class MySqlActionExecutor {
               projectScope.params,
             ),
             [profits] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID'))-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
+              `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID') AND s.is_deleted=0)-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id AND g.is_deleted=0) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE')-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d WHERE d.project_id=p.id AND d.status='ACTIVE') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
               projectScope.params,
             );
           return {
@@ -1799,7 +1799,7 @@ export class MySqlActionExecutor {
               [input.projectId],
             ),
             [money] = await connection.execute<RowDataPacket[]>(
-              `SELECT (SELECT COALESCE(SUM(amount),0) FROM fin_receipt WHERE project_id=? AND status='ACTIVE') receivedAmount,(SELECT COALESCE(SUM(tax_inclusive_amount),0) FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0) invoicedAmount,(SELECT COALESCE(SUM(occupied_amount),0) FROM fin_deposit WHERE project_id=?) occupiedDeposit`,
+              `SELECT (SELECT COALESCE(SUM(amount),0) FROM fin_receipt WHERE project_id=? AND status='ACTIVE') receivedAmount,(SELECT COALESCE(SUM(tax_inclusive_amount),0) FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0) invoicedAmount,(SELECT COALESCE(SUM(occupied_amount),0) FROM fin_deposit WHERE project_id=? AND is_deleted=0) occupiedDeposit`,
               [input.projectId, input.projectId, input.projectId],
             ),
             [timeline] = await connection.execute<RowDataPacket[]>(
@@ -2941,15 +2941,15 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [depositEvents] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE ${depositEventAccess.sql} ORDER BY e.id DESC LIMIT 200`,
+            `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE d.is_deleted=0 AND ${depositEventAccess.sql} ORDER BY e.id DESC LIMIT 200`,
             depositEventAccess.params,
           );
           return { payments, plans, settlements, deposits, depositEvents };
@@ -3035,11 +3035,19 @@ export class MySqlActionExecutor {
               `UPDATE fin_reimbursement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
               [status, user.id, payment.sourceId],
             );
-          if (payment.sourceType === "PARTNER_SETTLEMENT")
-            await connection.execute(
-              `UPDATE partner_settlement SET payment_status=?,updated_by=?,version=version+1 WHERE id=?`,
-              [status, user.id, payment.sourceId],
-            );
+          if (payment.sourceType === "PARTNER_SETTLEMENT") {
+            const [settlementResult] =
+              await connection.execute<ResultSetHeader>(
+                `UPDATE partner_settlement SET payment_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+                [status, user.id, payment.sourceId],
+              );
+            if (!settlementResult.affectedRows)
+              throw new AppError(
+                "PARTNER_SETTLEMENT_PAYMENT_SOURCE_INVALID",
+                "合作方结算付款来源状态异常",
+                409,
+              );
+          }
           if (payment.sourceType === "PURCHASE" && status === "PAID")
             await connection.execute(
               `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED'`,
@@ -3047,7 +3055,7 @@ export class MySqlActionExecutor {
             );
           if (payment.sourceType === "DEPOSIT") {
             const [depositRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') FOR UPDATE`,
+              `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') AND is_deleted=0 FOR UPDATE`,
               [payment.sourceId],
             );
             const deposit = depositRows[0];
@@ -3078,7 +3086,7 @@ export class MySqlActionExecutor {
               ],
             );
             await connection.execute(
-              `UPDATE fin_deposit SET occupied_amount=?,paid_on=COALESCE(paid_on,?),status=?,updated_by=?,version=version+1 WHERE id=?`,
+              `UPDATE fin_deposit SET occupied_amount=?,paid_on=COALESCE(paid_on,?),status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
               [
                 occupied,
                 input.paidOn,
@@ -3100,8 +3108,8 @@ export class MySqlActionExecutor {
           const sourceSql = {
             EXPENSE_CONTRACT: `SELECT c.project_id projectId,v.name recipientName,v.bank_account receivingAccount,c.status approvalStatus,'UNPAID' paymentStatus,c.tax_inclusive_amount sourceAmount FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.id=? AND c.contract_type='EXPENSE' AND c.amount_status='CONFIRMED' AND c.is_deleted=0 FOR UPDATE`,
             REIMBURSEMENT: `SELECT r.project_id projectId,r.payment_recipient recipientName,r.receiving_account receivingAccount,r.approval_status approvalStatus,r.payment_status paymentStatus,COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d WHERE d.reimbursement_id=r.id AND d.status='ACTIVE'),0) sourceAmount FROM fin_reimbursement r WHERE r.id=? AND r.is_deleted=0 FOR UPDATE`,
-            PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? FOR UPDATE`,
-            DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' FOR UPDATE`,
+            PARTNER_SETTLEMENT: `SELECT s.project_id projectId,c.name recipientName,c.bank_account receivingAccount,s.status approvalStatus,s.payment_status paymentStatus,s.net_settlement_amount sourceAmount FROM partner_settlement s JOIN crm_counterparty c ON c.id=s.partner_id WHERE s.id=? AND s.is_deleted=0 FOR UPDATE`,
+            DEPOSIT: `SELECT g.project_id projectId,c.name recipientName,g.account receivingAccount,g.status approvalStatus,g.status paymentStatus,g.amount sourceAmount FROM fin_deposit g JOIN crm_counterparty c ON c.id=g.counterparty_id WHERE g.id=? AND g.direction='PAY' AND g.is_deleted=0 FOR UPDATE`,
             PURCHASE: `SELECT c.project_id projectId,s.name recipientName,s.bank_account receivingAccount,p.status approvalStatus,'UNPAID' paymentStatus,p.budget_amount sourceAmount FROM fin_daily_purchase p JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.id=? AND p.contract_related=1 AND p.is_deleted=0 FOR UPDATE`,
           }[
             input.sourceType as
@@ -4322,7 +4330,7 @@ export class MySqlActionExecutor {
               [plan.projectId],
             );
             const [costRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=?),0)) amount`,
+              `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=? AND is_deleted=0),0)) amount`,
               [plan.projectId, plan.projectId, plan.projectId],
             );
             basisAmount = Math.max(
@@ -4332,7 +4340,7 @@ export class MySqlActionExecutor {
             );
           }
           const [historyRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE plan_id=? AND status IN('APPROVED','PAID')`,
+            `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE plan_id=? AND status IN('APPROVED','PAID') AND is_deleted=0`,
             [plan.planId],
           );
           const historical = Number(historyRows[0]?.amount ?? 0);
@@ -4456,7 +4464,7 @@ export class MySqlActionExecutor {
         }
         case "deposit.event.create": {
           const [old] = await connection.execute<RowDataPacket[]>(
-            `SELECT project_id projectId,amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? FOR UPDATE`,
+            `SELECT project_id projectId,amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.depositId],
           );
           const deposit = old[0];
@@ -4572,7 +4580,7 @@ export class MySqlActionExecutor {
             ],
           );
           await connection.execute(
-            `UPDATE fin_deposit SET occupied_amount=?,loss_confirmed_amount=?,status=?,paid_on=CASE WHEN ?='PAY' THEN ? ELSE paid_on END,returned_on=CASE WHEN ?='RETURN' AND ?=0 THEN ? ELSE returned_on END,version=version+1,updated_by=? WHERE id=?`,
+            `UPDATE fin_deposit SET occupied_amount=?,loss_confirmed_amount=?,status=?,paid_on=CASE WHEN ?='PAY' THEN ? ELSE paid_on END,returned_on=CASE WHEN ?='RETURN' AND ?=0 THEN ? ELSE returned_on END,version=version+1,updated_by=? WHERE id=? AND is_deleted=0`,
             [
               occupied,
               loss,
@@ -4616,7 +4624,7 @@ export class MySqlActionExecutor {
           );
           const receivedAmount = Number(receiptRows[0]?.amount ?? 0);
           const [depositRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(occupied_amount),0) amount FROM fin_deposit WHERE project_id=?`,
+            `SELECT COALESCE(SUM(occupied_amount),0) amount FROM fin_deposit WHERE project_id=? AND is_deleted=0`,
             [input.projectId],
           );
           const unreturnedDeposit = Number(depositRows[0]?.amount ?? 0) > 0;
@@ -4635,12 +4643,12 @@ export class MySqlActionExecutor {
               Number(acceptanceIssueRows[0]?.count ?? 0) >
             0;
           const [settlementRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')`,
+            `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0`,
             [input.projectId],
           );
           const settlementAmount = Number(settlementRows[0]?.amount ?? 0);
           const [costRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID')),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=?),0)) amount`,
+            `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=? AND is_deleted=0),0)) amount`,
             [input.projectId, input.projectId, input.projectId],
           );
           const confirmedCost = Number(costRows[0]?.amount ?? 0);
@@ -4770,11 +4778,11 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [settlementRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.net_settlement_amount),0) amount FROM partner_settlement x WHERE x.status IN('APPROVED','PAID') AND ${access.sql}`,
+            `SELECT COALESCE(SUM(x.net_settlement_amount),0) amount FROM partner_settlement x WHERE x.status IN('APPROVED','PAID') AND x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
           const [depositRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(x.occupied_amount),0) amount FROM fin_deposit x WHERE ${access.sql}`,
+            `SELECT COALESCE(SUM(x.occupied_amount),0) amount FROM fin_deposit x WHERE x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
           const [closeRows] = await connection.execute<RowDataPacket[]>(
