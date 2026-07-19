@@ -244,6 +244,35 @@ function approvalSubmitConnection(options: {
           ],
           [],
         ];
+      if (sql.includes("FROM wf_template_node"))
+        return [
+          [
+            {
+              nodeOrder: 1,
+              nodeName: "一级审批",
+              positionCode: "PROJECT_MANAGER",
+              minimumAmount: null,
+              maximumAmount: null,
+              isCc: 0,
+            },
+          ],
+          [],
+        ];
+      if (sql.includes("FROM wf_template WHERE"))
+        return [[{ id: "template-1", code: "TPL", version: 1 }], []];
+      if (sql.includes("FROM org_position_assignment"))
+        return [[{ employeeId: "approver-1" }], []];
+      if (sql.includes("FROM wf_instance WHERE business_type=?"))
+        return [[], []];
+      if (sql.startsWith("INSERT INTO wf_instance"))
+        return [{ insertId: 77 }, []];
+      if (
+        sql.startsWith("INSERT INTO wf_task") ||
+        sql.startsWith("INSERT IGNORE INTO wf_cc_recipient") ||
+        sql.startsWith("INSERT INTO wf_action_history") ||
+        (businessCase && sql.startsWith(`UPDATE ${businessCase.table} SET`))
+      )
+        return [{ affectedRows: 1 }, []];
       if (businessCase && sql.includes(businessCase.projectResolutionSqlFragment))
         return [[{ projectId: options.projectId }], []];
       if (sql.includes("FROM prj_project p") && sql.includes("iam_project_grant"))
@@ -382,7 +411,11 @@ describe("approval submission project scope", () => {
         },
         creatorWithoutProjectAccess,
       ),
-    ).rejects.not.toMatchObject({ code: "PROJECT_WRITE_FORBIDDEN" });
+    ).resolves.toMatchObject({
+      idempotent: false,
+      instanceId: "77",
+      status: "PENDING",
+    });
 
     expect(
       connection.calls.some((call) =>
@@ -390,6 +423,41 @@ describe("approval submission project scope", () => {
         call.sql.includes("iam_project_grant"),
       ),
     ).toBe(false);
+    const writeback = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE fin_daily_purchase SET"),
+    );
+    expect(writeback?.sql).toContain("AND is_deleted=0");
+  });
+
+  it("does not add soft-delete predicate to deposit event approval writeback", async () => {
+    const connection = approvalSubmitConnection({
+      businessType: "DEPOSIT_LOSS",
+      businessId: "deposit-event-1",
+      projectId: "allowed-project",
+      canWriteProject: true,
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.submit",
+        {
+          actionKey: "submit-deposit-loss-001",
+          businessType: "DEPOSIT_LOSS",
+          businessId: "deposit-event-1",
+          title: "提交审批",
+          amount: 100,
+        },
+        creatorWithoutProjectAccess,
+      ),
+    ).resolves.toMatchObject({ idempotent: false, status: "PENDING" });
+
+    const writeback = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE fin_deposit_event SET"),
+    );
+    expect(writeback?.sql).not.toContain("is_deleted=0");
   });
 
   it("rechecks invoice capacity before submitting invoice application approval", async () => {

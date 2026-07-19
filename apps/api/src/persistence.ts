@@ -2330,7 +2330,7 @@ export class MySqlActionExecutor {
             [input.actionKey, instanceId, user.id],
           );
           await connection.execute(
-            `UPDATE ${config.table} SET ${config.statusColumn}=?,approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE ${config.table} SET ${config.statusColumn}=?,approval_instance_id=?,updated_by=?,version=version+1 WHERE id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"}`,
             [
               config.pendingStatus ?? "APPROVAL_PENDING",
               instanceId,
