@@ -1014,6 +1014,7 @@ CREATE TABLE IF NOT EXISTS prj_start (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_start_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT chk_early_start_fields CHECK (
@@ -1107,6 +1108,7 @@ CREATE TABLE IF NOT EXISTS prj_change (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_project_change_project FOREIGN KEY (project_id) REFERENCES prj_project(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -1150,10 +1152,11 @@ CREATE TABLE IF NOT EXISTS prj_acceptance (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL,
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_acceptance_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_acceptance_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
-  INDEX idx_acceptance_project_status (project_id, status)
+  INDEX idx_acceptance_project_status (project_id, status, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS fin_invoice_application (
@@ -1301,6 +1304,7 @@ CREATE TABLE IF NOT EXISTS fin_payment_application (
   approval_instance_id BIGINT UNSIGNED NULL,
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_payment_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT chk_payment_requested CHECK (requested_amount > 0),
@@ -1474,6 +1478,7 @@ CREATE TABLE IF NOT EXISTS prj_close_application (
   approval_instance_id BIGINT UNSIGNED NULL,
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_close_project FOREIGN KEY (project_id) REFERENCES prj_project(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

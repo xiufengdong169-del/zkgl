@@ -149,7 +149,12 @@ function approvalSubmitConnection(options: {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes("FROM wf_action_history")) return [[], []];
-      if (businessCase && sql.includes(`FROM ${businessCase.table} WHERE id=? FOR UPDATE`))
+      if (
+        businessCase &&
+        new RegExp(
+          `FROM ${businessCase.table} WHERE id=\\?(?: AND is_deleted=0)? FOR UPDATE`,
+        ).test(sql)
+      )
         return [[{ id: businessId, createdBy: "u1", businessStatus: "DRAFT" }], []];
       if (
         options.operation === "WITHDRAW" &&

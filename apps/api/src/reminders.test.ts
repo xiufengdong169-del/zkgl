@@ -75,6 +75,8 @@ describe("scheduled reminders", () => {
     expect(sql).toContain("'EARLY_START_CONTRACT_MISSING'");
     expect(sql).toContain("'CLOSE_OPEN_ITEM_OVERDUE'");
     expect(sql).toContain("'RISK_DUE'");
+    expect(sql).toContain("s.is_deleted=0");
+    expect(sql).toContain("c.is_deleted=0");
   });
 
   it("prevents duplicate reminders by recipient, type, business id and recent window", () => {

@@ -163,14 +163,14 @@ async function resolveApprovalBusinessProjectId(
   const directTable = directProjectTables[businessType];
   if (directTable) {
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT CAST(project_id AS CHAR) projectId FROM ${directTable} WHERE id=?`,
+      `SELECT CAST(project_id AS CHAR) projectId FROM ${directTable} WHERE id=? AND is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
   }
   if (businessType === "CONTRACT_CHANGE") {
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT CAST(c.project_id AS CHAR) projectId FROM con_contract_change x JOIN con_contract c ON c.id=x.contract_id WHERE x.id=?`,
+      `SELECT CAST(c.project_id AS CHAR) projectId FROM con_contract_change x JOIN con_contract c ON c.id=x.contract_id WHERE x.id=? AND x.is_deleted=0 AND c.is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
@@ -184,7 +184,7 @@ async function resolveApprovalBusinessProjectId(
   }
   if (businessType === "DAILY_PURCHASE") {
     const [rows] = await connection.execute<RowDataPacket[]>(
-      `SELECT CAST(c.project_id AS CHAR) projectId FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id WHERE p.id=?`,
+      `SELECT CAST(c.project_id AS CHAR) projectId FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 WHERE p.id=? AND p.is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
@@ -257,7 +257,7 @@ async function assertPaymentApplicationSourceForSubmit(
   paymentApplicationId: string,
 ) {
   const [applications] = await connection.execute<RowDataPacket[]>(
-    `SELECT project_id projectId,source_type sourceType,source_id sourceId,recipient_name recipientName,receiving_account receivingAccount,requested_amount requestedAmount FROM fin_payment_application WHERE id=?`,
+    `SELECT project_id projectId,source_type sourceType,source_id sourceId,recipient_name recipientName,receiving_account receivingAccount,requested_amount requestedAmount FROM fin_payment_application WHERE id=? AND is_deleted=0`,
     [paymentApplicationId],
   );
   const application = applications[0];
@@ -299,7 +299,7 @@ async function assertPaymentApplicationSourceForSubmit(
       404,
     );
   const [existingPayments] = await connection.execute<RowDataPacket[]>(
-    `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND id<>?`,
+    `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND is_deleted=0 AND id<>?`,
     [sourceType, application.sourceId, paymentApplicationId],
   );
   validatePaymentSource({
@@ -466,25 +466,25 @@ async function applyBusinessApprovalResult(
         ? "DRAFT"
         : status;
   await connection.execute(
-    `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?`,
+    `UPDATE ${config.table} SET ${config.column}=?,updated_by=?,version=version+1 WHERE id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"}`,
     [target, actorUserId, businessId],
   );
   if (businessType === "PROJECT_PAYMENT" && status === "REJECTED") {
     const [payments] = await connection.execute<RowDataPacket[]>(
-      `SELECT source_type sourceType,source_id sourceId FROM fin_payment_application WHERE id=?`,
+      `SELECT source_type sourceType,source_id sourceId FROM fin_payment_application WHERE id=? AND is_deleted=0`,
       [businessId],
     );
     const payment = payments[0];
     if (payment?.sourceType === "REIMBURSEMENT")
       await connection.execute(
-        `UPDATE fin_reimbursement r SET r.payment_status='UNPAID',r.updated_by=?,r.version=r.version+1 WHERE r.id=? AND NOT EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=r.id AND pa.status<>'REJECTED')`,
+        `UPDATE fin_reimbursement r SET r.payment_status='UNPAID',r.updated_by=?,r.version=r.version+1 WHERE r.id=? AND NOT EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=r.id AND pa.status<>'REJECTED' AND pa.is_deleted=0)`,
         [actorUserId, payment.sourceId],
       );
   }
   if (status !== "APPROVED") return;
   if (businessType === "CONTRACT_CHANGE") {
     const [changes] = await connection.execute<RowDataPacket[]>(
-      `SELECT contract_id contractId,change_type changeType,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=?`,
+      `SELECT contract_id contractId,change_type changeType,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=? AND is_deleted=0`,
       [businessId],
     );
     const change = changes[0];
@@ -501,7 +501,7 @@ async function applyBusinessApprovalResult(
       String(change.changeType) as "AMOUNT" | "TERM" | "SCOPE" | "COMPOSITE",
     );
     await connection.execute(
-      `UPDATE con_contract SET tax_inclusive_amount=?,tax_exclusive_amount=?,tax_rate=?,tax_amount=?,amount_status=?,expires_on=COALESCE(?,expires_on),contract_version=contract_version+1,status='PERFORMING',updated_by=?,version=version+1 WHERE id=?`,
+      `UPDATE con_contract SET tax_inclusive_amount=?,tax_exclusive_amount=?,tax_rate=?,tax_amount=?,amount_status=?,expires_on=COALESCE(?,expires_on),contract_version=contract_version+1,status='PERFORMING',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
       [
         change.taxInclusiveAmount,
         change.taxExclusiveAmount,
@@ -516,17 +516,17 @@ async function applyBusinessApprovalResult(
   }
   if (businessType === "PROJECT_ACCEPTANCE") {
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id SET p.status='PENDING_ACCEPTANCE',p.updated_by=?,p.version=p.version+1 WHERE a.id=? AND p.status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+      `UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id AND a.is_deleted=0 SET p.status='PENDING_ACCEPTANCE',p.updated_by=?,p.version=p.version+1 WHERE a.id=? AND p.status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
       [actorUserId, businessId],
     );
   }
   if (businessType === "PROJECT_CHANGE") {
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id SET p.estimated_cost=GREATEST(0,p.estimated_cost+c.amount_impact),p.estimated_end_on=DATE_ADD(p.estimated_end_on,INTERVAL c.schedule_impact_days DAY),p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      `UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id AND c.is_deleted=0 SET p.estimated_cost=GREATEST(0,p.estimated_cost+c.amount_impact),p.estimated_end_on=DATE_ADD(p.estimated_end_on,INTERVAL c.schedule_impact_days DAY),p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
       [actorUserId, businessId],
     );
     await connection.execute(
-      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=?`,
+      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=? AND is_deleted=0`,
       [businessId],
     );
   }
@@ -599,17 +599,17 @@ async function applyBusinessApprovalResult(
     );
   } else if (businessType === "PROJECT_START")
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
+      `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id AND s.is_deleted=0 SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
       [actorUserId, businessId],
     );
   else if (businessType === "PROJECT_CHANGE")
     await connection.execute(
-      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=?`,
+      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=? AND is_deleted=0`,
       [businessId],
     );
   else if (businessType === "PROJECT_CLOSE")
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id AND c.is_deleted=0 SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
       [actorUserId, businessId],
     );
 }
@@ -1805,14 +1805,14 @@ export class MySqlActionExecutor {
             [timeline] = await connection.execute<RowDataPacket[]>(
               `SELECT eventType,title,eventAt,status FROM (
                 SELECT 'PROJECT' eventType,CONCAT('项目立项：',p.project_name) title,p.created_at eventAt,p.status FROM prj_project p WHERE p.id=?
-                UNION ALL SELECT 'START',CONCAT('项目启动：',start_type),created_at,status FROM prj_start WHERE project_id=?
+                UNION ALL SELECT 'START',CONCAT('项目启动：',start_type),created_at,status FROM prj_start WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'STAGE',CONCAT('阶段：',stage_name),created_at,status FROM prj_stage WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'PROGRESS','提交项目进展',created_at,'RECORDED' FROM prj_progress WHERE project_id=?
                 UNION ALL SELECT 'RISK',CONCAT('风险问题：',title),created_at,status FROM prj_risk_issue WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'DELIVERABLE',CONCAT('成果：',deliverable_name),created_at,status FROM prj_deliverable WHERE project_id=? AND is_deleted=0
-                UNION ALL SELECT 'ACCEPTANCE',CONCAT('验收：',acceptance_type),created_at,status FROM prj_acceptance WHERE project_id=?
+                UNION ALL SELECT 'ACCEPTANCE',CONCAT('验收：',acceptance_type),created_at,status FROM prj_acceptance WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'CONTRACT',CONCAT('合同：',contract_name),created_at,status FROM con_contract WHERE project_id=? AND is_deleted=0
-                UNION ALL SELECT 'CLOSE','项目结项申请',created_at,status FROM prj_close_application WHERE project_id=?
+                UNION ALL SELECT 'CLOSE','项目结项申请',created_at,status FROM prj_close_application WHERE project_id=? AND is_deleted=0
               ) events ORDER BY eventAt DESC LIMIT 200`,
               [
                 input.projectId,
@@ -1830,10 +1830,10 @@ export class MySqlActionExecutor {
               `SELECT CAST(i.id AS CHAR) id,i.instance_code instanceCode,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.title,i.status,i.submitted_at submittedAt,i.completed_at completedAt,u.username applicantName
                  FROM wf_instance i LEFT JOIN iam_user u ON u.id=i.applicant_id
                 WHERE (i.business_type='PROJECT_APPLICATION' AND i.business_id=?)
-                   OR (i.business_type='PROJECT_START' AND i.business_id IN (SELECT id FROM prj_start WHERE project_id=?))
-                   OR (i.business_type='PROJECT_CHANGE' AND i.business_id IN (SELECT id FROM prj_change WHERE project_id=?))
-                   OR (i.business_type='PROJECT_ACCEPTANCE' AND i.business_id IN (SELECT id FROM prj_acceptance WHERE project_id=?))
-                   OR (i.business_type='PROJECT_CLOSE' AND i.business_id IN (SELECT id FROM prj_close_application WHERE project_id=?))
+                   OR (i.business_type='PROJECT_START' AND i.business_id IN (SELECT id FROM prj_start WHERE project_id=? AND is_deleted=0))
+                   OR (i.business_type='PROJECT_CHANGE' AND i.business_id IN (SELECT id FROM prj_change WHERE project_id=? AND is_deleted=0))
+                   OR (i.business_type='PROJECT_ACCEPTANCE' AND i.business_id IN (SELECT id FROM prj_acceptance WHERE project_id=? AND is_deleted=0))
+                   OR (i.business_type='PROJECT_CLOSE' AND i.business_id IN (SELECT id FROM prj_close_application WHERE project_id=? AND is_deleted=0))
                 ORDER BY i.submitted_at DESC,i.id DESC LIMIT 100`,
               [
                 project.applicationId,
@@ -1955,7 +1955,7 @@ export class MySqlActionExecutor {
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,v.name partyBName,
                     CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
-                    c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED'),0) paymentAppliedAmount
+                    c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED' AND pa.is_deleted=0),0) paymentAppliedAmount
                FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,
@@ -2029,7 +2029,7 @@ export class MySqlActionExecutor {
             [input.signedOn, input.effectiveOn, user.id, input.contractId],
           );
           await connection.execute(
-            `UPDATE prj_start SET contract_reminder_active=0,updated_by=?,version=version+1 WHERE project_id=? AND start_type='EARLY' AND contract_reminder_active=1`,
+            `UPDATE prj_start SET contract_reminder_active=0,updated_by=?,version=version+1 WHERE project_id=? AND start_type='EARLY' AND contract_reminder_active=1 AND is_deleted=0`,
             [user.id, rows[0].projectId],
           );
           return { id: input.contractId, status: "PERFORMING" };
@@ -2104,7 +2104,7 @@ export class MySqlActionExecutor {
               400,
             );
           const [records] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,created_by createdBy,${config.statusColumn} businessStatus FROM ${config.table} WHERE id=? FOR UPDATE`,
+            `SELECT id,created_by createdBy,${config.statusColumn} businessStatus FROM ${config.table} WHERE id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"} FOR UPDATE`,
             [input.businessId],
           );
           const record = records[0];
@@ -2413,7 +2413,7 @@ export class MySqlActionExecutor {
             if (next == null) {
               if (task.business_type === "PROJECT_CLOSE") {
                 const [closeRows] = await connection.execute<RowDataPacket[]>(
-                  `SELECT close_type closeType FROM prj_close_application WHERE id=? FOR UPDATE`,
+                  `SELECT close_type closeType FROM prj_close_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
                   [task.business_id],
                 );
                 if (!closeRows[0])
@@ -2920,11 +2920,11 @@ export class MySqlActionExecutor {
             ),
             purchaseAccess = buildProjectReferenceScope(user, "c.project_id"),
             [reimbursements] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED') hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
               [user.employeeId, ...reimbursementAccess.params],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED') hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
+              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
               [user.employeeId, ...purchaseAccess.params],
             );
           return { reimbursements, purchases };
@@ -2933,7 +2933,7 @@ export class MySqlActionExecutor {
           const access = buildProjectReferenceScope(user, "x.project_id"),
             depositEventAccess = buildProjectReferenceScope(user, "d.project_id");
           const [payments] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [plans] = await connection.execute<RowDataPacket[]>(
@@ -2941,11 +2941,11 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [settlements] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [deposits] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED') hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
+            `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
           const [depositEvents] = await connection.execute<RowDataPacket[]>(
@@ -2976,7 +2976,7 @@ export class MySqlActionExecutor {
             return { idempotent: true, id: String(seen[0].id) };
           }
           const [payments] = await connection.execute<RowDataPacket[]>(
-            `SELECT id,project_id projectId,source_type sourceType,source_id sourceId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? FOR UPDATE`,
+            `SELECT id,project_id projectId,source_type sourceType,source_id sourceId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.paymentId],
           );
           const payment = payments[0];
@@ -3027,7 +3027,7 @@ export class MySqlActionExecutor {
                 ? "PAID"
                 : "PARTIALLY_PAID";
           await connection.execute(
-            `UPDATE fin_payment_application SET status=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE fin_payment_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [status, user.id, input.paymentId],
           );
           if (payment.sourceType === "REIMBURSEMENT")
@@ -3142,7 +3142,7 @@ export class MySqlActionExecutor {
           )
             receivingAccount = String(source.receivingAccount);
           const [existingPayments] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED'`,
+            `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND is_deleted=0`,
             [input.sourceType, input.sourceId],
           );
           validatePaymentSource({
@@ -4604,7 +4604,7 @@ export class MySqlActionExecutor {
         case "project.close.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           const [acceptanceRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED'`,
+            `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND is_deleted=0`,
             [input.projectId],
           );
           const acceptancePassed = Number(acceptanceRows[0]?.count ?? 0) > 0;
@@ -4635,7 +4635,7 @@ export class MySqlActionExecutor {
           const [acceptanceIssueRows] = await connection.execute<
             RowDataPacket[]
           >(
-            `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND result='CONDITIONAL' AND remaining_issues IS NOT NULL AND TRIM(remaining_issues)<>''`,
+            `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND result='CONDITIONAL' AND remaining_issues IS NOT NULL AND TRIM(remaining_issues)<>'' AND is_deleted=0`,
             [input.projectId],
           );
           const openIssues =
@@ -4707,7 +4707,7 @@ export class MySqlActionExecutor {
             closeAccess = buildProjectReferenceScope(user, "x.project_id"),
             openItemAccess = buildProjectReferenceScope(user, "c.project_id"),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
+              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
               [
                 user.id,
                 ...closeAccess.params,
@@ -4716,7 +4716,7 @@ export class MySqlActionExecutor {
               ],
             ),
             [openItems] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
+              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
               [
                 user.id,
                 user.employeeId,
@@ -4733,7 +4733,7 @@ export class MySqlActionExecutor {
         }
         case "project.close.openItem.complete": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id JOIN prj_project p ON p.id=c.project_id WHERE i.id=? FOR UPDATE`,
+            `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id WHERE i.id=? FOR UPDATE`,
             [input.itemId],
           );
           const item = rows[0];
@@ -4786,7 +4786,7 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [closeRows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND ${access.sql}`,
+            `SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
           return {
@@ -4825,7 +4825,7 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [acceptances] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           const [stages] = await connection.execute<RowDataPacket[]>(
@@ -4837,7 +4837,7 @@ export class MySqlActionExecutor {
             access.params,
           );
           const [changes] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           return { deliverables, acceptances, stages, risks, changes };
@@ -5083,7 +5083,7 @@ export class MySqlActionExecutor {
         }
         case "project.acceptance.result": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT project_id projectId,status FROM prj_acceptance WHERE id=? FOR UPDATE`,
+            `SELECT project_id projectId,status FROM prj_acceptance WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.acceptanceId],
           );
           if (!rows[0])
@@ -5097,7 +5097,7 @@ export class MySqlActionExecutor {
             );
           const status = input.result === "FAILED" ? "FAILED" : "COMPLETED";
           await connection.execute(
-            `UPDATE prj_acceptance SET accepted_on=?,acceptance_organization=?,result=?,remaining_issues=?,rectification_due_on=?,status=?,updated_by=?,version=version+1 WHERE id=?`,
+            `UPDATE prj_acceptance SET accepted_on=?,acceptance_organization=?,result=?,remaining_issues=?,rectification_due_on=?,status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               input.acceptedOn,
               input.acceptanceOrganization,

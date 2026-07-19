@@ -414,6 +414,41 @@ describe("empty database initialization schema", () => {
     );
   });
 
+  it("项目实施结项与付款申请主表具备逻辑删除字段并排除已删除数据", () => {
+    for (const table of [
+      "prj_start",
+      "prj_change",
+      "prj_acceptance",
+      "prj_close_application",
+      "fin_payment_application",
+    ]) {
+      expect(schema).toMatch(
+        new RegExp(
+          `CREATE TABLE IF NOT EXISTS ${table}[\\s\\S]*?is_deleted TINYINT\\(1\\) NOT NULL DEFAULT 0`,
+        ),
+      );
+    }
+
+    expect(persistence).toContain(
+      "FROM fin_payment_application WHERE id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM fin_payment_application x WHERE x.is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM prj_start WHERE project_id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM prj_change WHERE project_id=? AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0",
+    );
+  });
+
   it("受限字段授权包含后端可执行的默认角色基线", () => {
     expect(schema).toContain(
       "CREATE TABLE IF NOT EXISTS iam_sensitive_field_grant",
