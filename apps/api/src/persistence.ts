@@ -4159,7 +4159,7 @@ export class MySqlActionExecutor {
             );
           if (input.settlementMethod === "RATIO") {
             const [ratioRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
+              `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.is_deleted=0 AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
               [input.projectId, input.calculationBasis],
             );
             const ratioTotal = ratioRows.reduce(
@@ -4246,7 +4246,7 @@ export class MySqlActionExecutor {
         }
         case "partner.plan.version.activate": {
           const [versions] = await connection.execute<RowDataPacket[]>(
-            `SELECT v.id,v.version_number versionNumber,v.settlement_method settlementMethod,v.ratio,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,p.project_id projectId FROM partner_plan_version v JOIN partner_plan p ON p.id=v.plan_id WHERE v.id=? AND v.plan_id=? AND v.status='DRAFT' FOR UPDATE`,
+            `SELECT v.id,v.version_number versionNumber,v.settlement_method settlementMethod,v.ratio,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,p.project_id projectId FROM partner_plan_version v JOIN partner_plan p ON p.id=v.plan_id WHERE v.id=? AND v.plan_id=? AND p.is_deleted=0 AND v.status='DRAFT' FOR UPDATE`,
             [input.versionId, input.planId],
           );
           const version = versions[0];
@@ -4259,7 +4259,7 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, version.projectId, user);
           if (version.settlementMethod === "RATIO") {
             const [ratios] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(v.ratio),0) totalRatio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.version_number=p.current_version WHERE p.project_id=? AND p.id<>? AND p.status='ENABLED' AND v.status='ENABLED' AND v.calculation_basis=?`,
+              `SELECT COALESCE(SUM(v.ratio),0) totalRatio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.version_number=p.current_version WHERE p.project_id=? AND p.id<>? AND p.is_deleted=0 AND p.status='ENABLED' AND v.status='ENABLED' AND v.calculation_basis=?`,
               [version.projectId, input.planId, version.calculationBasis],
             );
             if (
@@ -4292,7 +4292,7 @@ export class MySqlActionExecutor {
         }
         case "partner.settlement.create": {
           const [plans] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.id planId,p.project_id projectId,p.partner_id partnerId,v.id versionId,v.version_number versionNumber,v.settlement_method settlementMethod,v.fixed_amount fixedAmount,v.ratio,v.calculation_basis basis,v.deductible_cost_scope deductibleScope,v.upper_limit upperLimit,v.lower_limit lowerLimit,v.rounding_rule roundingRule FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id WHERE p.id=? AND p.status='ENABLED' AND v.status='ENABLED' AND v.effective_from<=? AND (v.effective_to IS NULL OR v.effective_to>=?) ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE`,
+            `SELECT p.id planId,p.project_id projectId,p.partner_id partnerId,v.id versionId,v.version_number versionNumber,v.settlement_method settlementMethod,v.fixed_amount fixedAmount,v.ratio,v.calculation_basis basis,v.deductible_cost_scope deductibleScope,v.upper_limit upperLimit,v.lower_limit lowerLimit,v.rounding_rule roundingRule FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id WHERE p.id=? AND p.is_deleted=0 AND p.status='ENABLED' AND v.status='ENABLED' AND v.effective_from<=? AND (v.effective_to IS NULL OR v.effective_to>=?) ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE`,
             [input.planId, input.periodEndOn, input.periodStartOn],
           );
           const plan = plans[0];

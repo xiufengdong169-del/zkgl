@@ -367,6 +367,15 @@ describe("empty database initialization schema", () => {
     expect(persistence).not.toContain(
       "FROM con_contract WHERE id=? FOR UPDATE",
     );
+    expect(persistence).toContain(
+      "WHERE p.project_id=? AND p.is_deleted=0 AND p.status IN('DRAFT','ENABLED')",
+    );
+    expect(persistence).toContain(
+      "WHERE p.project_id=? AND p.id<>? AND p.is_deleted=0 AND p.status='ENABLED'",
+    );
+    expect(persistence).toContain(
+      "WHERE p.id=? AND p.is_deleted=0 AND p.status='ENABLED'",
+    );
   });
 
   it("受限字段授权包含后端可执行的默认角色基线", () => {
