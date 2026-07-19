@@ -1199,13 +1199,14 @@ CREATE TABLE IF NOT EXISTS fin_sales_invoice (
   status VARCHAR(32) NOT NULL DEFAULT 'UNALLOCATED',
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_sales_invoice_app FOREIGN KEY (application_id) REFERENCES fin_invoice_application(id),
   CONSTRAINT fk_sales_invoice_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_sales_invoice_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
   CONSTRAINT chk_sales_invoice_tax CHECK (ABS(tax_inclusive_amount - tax_exclusive_amount - tax_amount) <= 0.02),
   UNIQUE KEY uk_invoice_number_code (invoice_number, invoice_code),
-  INDEX idx_invoice_contract_date (contract_id, invoiced_on)
+  INDEX idx_invoice_contract_date (contract_id, invoiced_on, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS fin_receipt (
@@ -1225,12 +1226,13 @@ CREATE TABLE IF NOT EXISTS fin_receipt (
   status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
   created_by BIGINT UNSIGNED NOT NULL, created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_by BIGINT UNSIGNED NOT NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_receipt_project FOREIGN KEY (project_id) REFERENCES prj_project(id),
   CONSTRAINT fk_receipt_contract FOREIGN KEY (contract_id) REFERENCES con_contract(id),
   CONSTRAINT fk_receipt_customer FOREIGN KEY (customer_id) REFERENCES crm_counterparty(id),
   CONSTRAINT chk_receipt_amount CHECK (amount > 0),
-  INDEX idx_receipt_contract_date (contract_id, received_on)
+  INDEX idx_receipt_contract_date (contract_id, received_on, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS fin_receipt_invoice_allocation (

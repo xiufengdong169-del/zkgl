@@ -414,13 +414,15 @@ describe("empty database initialization schema", () => {
     );
   });
 
-  it("项目实施结项与付款申请主表具备逻辑删除字段并排除已删除数据", () => {
+  it("项目实施结项与收付款主表具备逻辑删除字段并排除已删除数据", () => {
     for (const table of [
       "prj_start",
       "prj_change",
       "prj_acceptance",
       "prj_close_application",
       "fin_payment_application",
+      "fin_sales_invoice",
+      "fin_receipt",
     ]) {
       expect(schema).toMatch(
         new RegExp(
@@ -446,6 +448,18 @@ describe("empty database initialization schema", () => {
     );
     expect(persistence).toContain(
       "FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM fin_receipt WHERE project_id=? AND status='ACTIVE' AND is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM fin_sales_invoice x WHERE x.is_reversed=0 AND x.is_deleted=0",
+    );
+    expect(persistence).toContain(
+      "FROM fin_receipt x WHERE x.status='ACTIVE' AND x.is_deleted=0",
     );
   });
 

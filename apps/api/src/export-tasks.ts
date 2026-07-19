@@ -125,7 +125,7 @@ export async function processPendingProjectExportTasks(
         ? `p.id IN (${temporaryProjectIds.map(() => "?").join(",")})`
         : "0=1";
       const [rows] = await connection.execute<ProjectExportRow[]>(
-        `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE') receivedAmount
+        `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE' AND r.is_deleted=0) receivedAmount
            FROM prj_project p
            JOIN crm_counterparty c ON c.id=p.customer_id
            JOIN org_employee pm ON pm.id=p.project_manager_id
