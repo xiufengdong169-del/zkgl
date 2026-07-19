@@ -162,4 +162,17 @@ describe("frontend API action usage", () => {
 
     expect(settlementsView).toContain('<option value="PAYABLE">未付款</option>');
   });
+
+  it("日常采购关联合同时只展示有效支出合同", () => {
+    const financeView = readFileSync(
+      join(webSourceDir, "views", "FinanceView.vue"),
+      "utf8",
+    );
+
+    expect(financeView).toContain("x.contractType === 'EXPENSE'");
+    expect(financeView).toContain("x.amountStatus === 'CONFIRMED'");
+    expect(financeView).toContain(
+      "['PENDING_SIGNATURE', 'PERFORMING', 'COMPLETED'].includes",
+    );
+  });
 });

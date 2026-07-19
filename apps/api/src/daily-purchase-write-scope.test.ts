@@ -62,7 +62,11 @@ const purchaseInput = {
   contractRelated: false,
 };
 
-function purchaseCreateConnection(options: { supplierAccessible: boolean }) {
+function purchaseCreateConnection(options: {
+  supplierAccessible: boolean;
+  contract?: { projectId: string; supplierId: string } | null;
+  projectAccessible?: boolean;
+}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -74,6 +78,22 @@ function purchaseCreateConnection(options: { supplierAccessible: boolean }) {
       calls.push({ sql, params });
       if (sql.includes("FROM crm_counterparty WHERE id=?")) {
         return [options.supplierAccessible ? [{ id: "supplier-1" }] : [], []];
+      }
+      if (sql.includes("FROM con_contract WHERE id=?")) {
+        return [
+          options.contract
+            ? [
+                {
+                  projectId: options.contract.projectId,
+                  supplierId: options.contract.supplierId,
+                },
+              ]
+            : [],
+          [],
+        ];
+      }
+      if (sql.includes("FROM prj_project p")) {
+        return [options.projectAccessible === false ? [] : [{ id: "p1" }], []];
       }
       if (sql.includes("FROM sys_number_rule"))
         return [
@@ -138,6 +158,72 @@ describe("daily purchase write scopes", () => {
       ),
     ).toBe(true);
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
+  it("uses the expense contract counterparty as supplier for contract-related purchases", async () => {
+    const connection = purchaseCreateConnection({
+      supplierAccessible: true,
+      contract: { projectId: "project-1", supplierId: "contract-supplier" },
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "daily.purchase.create",
+        {
+          ...purchaseInput,
+          supplierId: "",
+          contractRelated: true,
+          contractId: "contract-1",
+        },
+        user,
+      ),
+    ).resolves.toEqual({ id: "66", code: "DP-2026-0001" });
+
+    const contractCheck = connection.calls.find((call) =>
+      call.sql.includes("FROM con_contract WHERE id=?"),
+    )!;
+    expect(contractCheck.sql).toContain("contract_type='EXPENSE'");
+    expect(contractCheck.sql).toContain("amount_status='CONFIRMED'");
+    const insert = connection.calls.find((call) =>
+      call.sql.startsWith("INSERT INTO fin_daily_purchase"),
+    )!;
+    expect(insert.params[4]).toBe("contract-supplier");
+    expect(insert.params[12]).toBe("contract-1");
+  });
+
+  it("rejects contract-related purchases when supplier does not match the expense contract", async () => {
+    const connection = purchaseCreateConnection({
+      supplierAccessible: true,
+      contract: { projectId: "project-1", supplierId: "contract-supplier" },
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "daily.purchase.create",
+        {
+          ...purchaseInput,
+          supplierId: "other-supplier",
+          contractRelated: true,
+          contractId: "contract-1",
+        },
+        user,
+      ),
+    ).rejects.toMatchObject({
+      code: "PURCHASE_SUPPLIER_CONTRACT_MISMATCH",
+      status: 409,
+    });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO fin_daily_purchase"),
+      ),
+    ).toBe(false);
   });
 
   it("allows applicants to complete their approved standalone purchases", async () => {

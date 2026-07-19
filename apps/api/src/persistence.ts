@@ -3249,14 +3249,37 @@ export class MySqlActionExecutor {
                 404,
               );
           }
-          if (input.contractId) {
+          let purchaseSupplierId = input.supplierId ?? null;
+          const purchaseContractId = input.contractRelated
+            ? input.contractId
+            : null;
+          if (purchaseContractId) {
             const [contractRows] = await connection.execute<RowDataPacket[]>(
-              `SELECT project_id projectId FROM con_contract WHERE id=? AND is_deleted=0`,
-              [input.contractId],
+              `SELECT project_id projectId,CAST(party_b_id AS CHAR) supplierId FROM con_contract WHERE id=? AND contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
+              [purchaseContractId],
             );
             if (!contractRows[0])
-              throw new AppError("CONTRACT_NOT_FOUND", "合同不存在", 404);
-            await requireProjectWriteAccess(connection, contractRows[0].projectId, user);
+              throw new AppError(
+                "EXPENSE_CONTRACT_NOT_FOUND",
+                "有效支出合同不存在",
+                404,
+              );
+            const contractSupplierId = String(contractRows[0].supplierId);
+            if (
+              purchaseSupplierId &&
+              String(purchaseSupplierId) !== contractSupplierId
+            )
+              throw new AppError(
+                "PURCHASE_SUPPLIER_CONTRACT_MISMATCH",
+                "采购供应商必须与支出合同乙方一致",
+                409,
+              );
+            purchaseSupplierId = contractSupplierId;
+            await requireProjectWriteAccess(
+              connection,
+              contractRows[0].projectId,
+              user,
+            );
           }
           const code = await allocateNumber(connection, "DAILY_PURCHASE");
           const [result] = await connection.execute<ResultSetHeader>(
@@ -3266,7 +3289,7 @@ export class MySqlActionExecutor {
               user.employeeId,
               user.departmentId,
               input.purchaseType,
-              input.supplierId ?? null,
+              purchaseSupplierId,
               input.itemDescription,
               input.quantity,
               input.budgetAmount,
@@ -3274,7 +3297,7 @@ export class MySqlActionExecutor {
               input.expectedOn,
               input.paymentMethod,
               input.contractRelated,
-              input.contractId ?? null,
+              purchaseContractId,
               user.id,
               user.id,
             ],

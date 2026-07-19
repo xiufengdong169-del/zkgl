@@ -1233,7 +1233,18 @@ async function completePurchase(item: PurchaseDocument) {
       ><label v-if="purchase.contractRelated"
         >合同<select v-model="purchase.contractId" required>
           <option value="" disabled>请选择</option>
-          <option v-for="c in contracts" :key="c.id" :value="c.id">
+          <option
+            v-for="c in contracts.filter(
+              (x) =>
+                x.contractType === 'EXPENSE' &&
+                x.amountStatus === 'CONFIRMED' &&
+                ['PENDING_SIGNATURE', 'PERFORMING', 'COMPLETED'].includes(
+                  x.status || '',
+                ),
+            )"
+            :key="c.id"
+            :value="c.id"
+          >
             {{ c.contractName }}
           </option>
         </select></label
