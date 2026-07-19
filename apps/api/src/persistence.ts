@@ -543,7 +543,7 @@ async function applyBusinessApprovalResult(
     );
     if (!existing[0]) {
       const [apps] = await connection.execute<RowDataPacket[]>(
-        `SELECT project_name,customer_id,project_type,service_scope,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=?`,
+        `SELECT project_name,customer_id,project_type,service_scope,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=? AND is_deleted=0`,
         [businessId],
       );
       const app = apps[0];

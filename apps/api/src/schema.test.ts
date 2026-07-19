@@ -437,6 +437,7 @@ describe("empty database initialization schema", () => {
 
   it("项目实施结项与收付款主表具备逻辑删除字段并排除已删除数据", () => {
     for (const table of [
+      "prj_project_application",
       "prj_start",
       "prj_change",
       "prj_acceptance",
@@ -452,6 +453,9 @@ describe("empty database initialization schema", () => {
       );
     }
 
+    expect(persistence).toContain(
+      "FROM prj_project_application WHERE id=? AND is_deleted=0",
+    );
     expect(persistence).toContain(
       "FROM fin_payment_application WHERE id=? AND is_deleted=0",
     );
