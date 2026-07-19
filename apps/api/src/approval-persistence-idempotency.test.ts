@@ -90,6 +90,67 @@ describe("approval persistence idempotency", () => {
     expect(calls.map((call) => call.sql)).toContain("COMMIT");
   });
 
+  it("applies project change effective date only once after final approval", async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      calls,
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM wf_action_history")) return [[], []];
+        if (sql.includes("FROM wf_task t JOIN wf_instance i"))
+          return [
+            [
+              {
+                task_id: "task-1",
+                instance_id: "instance-1",
+                node_order: 1,
+                position_code: "PROJECT_MANAGER",
+                assignee_id: "e-1",
+                task_status: "PENDING",
+                instance_status: "PENDING",
+                current_node_order: 1,
+                applicant_id: "u-applicant",
+                configuration_snapshot: "{}",
+                business_type: "PROJECT_CHANGE",
+                business_id: "change-1",
+              },
+            ],
+            [],
+          ];
+        if (sql.includes("SELECT MIN(node_order) next_order"))
+          return [[{ next_order: null }], []];
+        return [{ affectedRows: 1 }, []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.task.action",
+        { taskId: "task-1", action: "APPROVE", actionKey: "approve-change-1" },
+        user,
+      ),
+    ).resolves.toEqual({ idempotent: false, status: "APPROVE" });
+
+    expect(
+      calls.filter((call) =>
+        call.sql.startsWith("UPDATE prj_change SET effective_on="),
+      ),
+    ).toHaveLength(1);
+    expect(
+      calls.some((call) =>
+        call.sql.startsWith("UPDATE prj_project p JOIN prj_change"),
+      ),
+    ).toBe(true);
+    expect(calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
   it("同一审批任务和动作重复提交时返回幂等成功", async () => {
     const { calls, executor } = executorWithExistingHistory({
       taskId: "task-1",

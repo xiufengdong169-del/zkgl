@@ -608,11 +608,6 @@ async function applyBusinessApprovalResult(
       `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id AND s.is_deleted=0 SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=? AND p.is_deleted=0`,
       [actorUserId, businessId],
     );
-  else if (businessType === "PROJECT_CHANGE")
-    await connection.execute(
-      `UPDATE prj_change SET effective_on=COALESCE(effective_on,CURDATE()) WHERE id=? AND is_deleted=0`,
-      [businessId],
-    );
   else if (businessType === "PROJECT_CLOSE")
     await connection.execute(
       `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id AND c.is_deleted=0 SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=? AND p.is_deleted=0`,
