@@ -35,6 +35,20 @@ function grantConnection() {
 }
 
 describe("admin temporary project grants", () => {
+  it("omits deleted projects from project grant overview rows", async () => {
+    const connection = grantConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await executor.execute("admin.overview", {}, admin);
+
+    const query = connection.calls.find((call) =>
+      call.sql.includes("FROM iam_project_grant g JOIN prj_project p"),
+    );
+    expect(query?.sql).toContain("p.is_deleted=0");
+  });
+
   it("creates a dated project grant with grantor recorded", async () => {
     const connection = grantConnection();
     const executor = new MySqlActionExecutor({

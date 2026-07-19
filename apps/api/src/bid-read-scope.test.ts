@@ -38,6 +38,9 @@ function bidConnection() {
 }
 
 function expectBidProjectScope(query: { sql: string; params: unknown[] }) {
+  expect(query.sql).toContain(
+    "JOIN prj_project p ON p.id=b.project_id AND p.is_deleted=0",
+  );
   expect(query.sql).toContain("b.business_owner_id=?");
   expect(query.sql).toContain("b.technical_owner_id=?");
   expect(query.sql).toContain("b.pricing_owner_id=?");

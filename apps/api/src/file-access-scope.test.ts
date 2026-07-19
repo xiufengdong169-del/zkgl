@@ -287,6 +287,11 @@ describe("file access scopes", () => {
     expect(query.sql).toContain("JOIN org_employee pm");
     expect(query.sql).toContain("iam_project_grant");
     expect(query.sql).toContain("p.id IN (?)");
+    expect(
+      connection.calls
+        .filter((call) => call.sql.includes("FROM prj_project p"))
+        .every((call) => call.sql.includes("p.is_deleted=0")),
+    ).toBe(true);
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual(["p9", 0, "e3", "e3", "p9", "d2", "e3"]);
   });

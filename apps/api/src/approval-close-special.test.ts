@@ -123,11 +123,10 @@ describe("project close approval final approver guard", () => {
       call.sql.startsWith("UPDATE prj_close_application SET"),
     );
     expect(closeUpdate?.params).toEqual(["CLOSED", "u-approver", "close-1"]);
-    expect(
-      connection.calls.some((call) =>
-        call.sql.startsWith("UPDATE prj_project p JOIN prj_close_application"),
-      ),
-    ).toBe(true);
+    const projectUpdate = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE prj_project p JOIN prj_close_application"),
+    );
+    expect(projectUpdate?.sql).toContain("p.is_deleted=0");
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
   });
 });

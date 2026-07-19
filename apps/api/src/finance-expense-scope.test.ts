@@ -58,6 +58,9 @@ describe("finance expense application scopes", () => {
     )!;
     expectProjectScope(reimbursementQuery);
     expect(reimbursementQuery.sql).toContain("h.claimant_id=? OR");
+    expect(reimbursementQuery.sql).toContain(
+      "h.project_id IS NULL OR EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=h.project_id AND pr.is_deleted=0)",
+    );
     expect(reimbursementQuery.sql).toContain("p.id=h.project_id");
     expect(reimbursementQuery.params).toEqual(["e1", ...scopeParams]);
 
@@ -66,6 +69,12 @@ describe("finance expense application scopes", () => {
     )!;
     expectProjectScope(purchaseQuery);
     expect(purchaseQuery.sql).toContain("p.applicant_id=? OR");
+    expect(purchaseQuery.sql).toContain(
+      "LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0",
+    );
+    expect(purchaseQuery.sql).toContain(
+      "p.contract_related=0 OR (c.id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=c.project_id AND pr.is_deleted=0))",
+    );
     expect(purchaseQuery.sql).toContain("p.id=c.project_id");
     expect(purchaseQuery.params).toEqual(["e1", ...scopeParams]);
   });

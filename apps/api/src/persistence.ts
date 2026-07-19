@@ -522,13 +522,13 @@ async function applyBusinessApprovalResult(
   }
   if (businessType === "PROJECT_ACCEPTANCE") {
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id AND a.is_deleted=0 SET p.status='PENDING_ACCEPTANCE',p.updated_by=?,p.version=p.version+1 WHERE a.id=? AND p.status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
+      `UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id AND a.is_deleted=0 SET p.status='PENDING_ACCEPTANCE',p.updated_by=?,p.version=p.version+1 WHERE a.id=? AND p.is_deleted=0 AND p.status NOT IN('CLOSED','TERMINATED','CANCELLED')`,
       [actorUserId, businessId],
     );
   }
   if (businessType === "PROJECT_CHANGE") {
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id AND c.is_deleted=0 SET p.estimated_cost=GREATEST(0,p.estimated_cost+c.amount_impact),p.estimated_end_on=DATE_ADD(p.estimated_end_on,INTERVAL c.schedule_impact_days DAY),p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      `UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id AND c.is_deleted=0 SET p.estimated_cost=GREATEST(0,p.estimated_cost+c.amount_impact),p.estimated_end_on=DATE_ADD(p.estimated_end_on,INTERVAL c.schedule_impact_days DAY),p.updated_by=?,p.version=p.version+1 WHERE c.id=? AND p.is_deleted=0`,
       [actorUserId, businessId],
     );
     await connection.execute(
@@ -605,7 +605,7 @@ async function applyBusinessApprovalResult(
     );
   } else if (businessType === "PROJECT_START")
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id AND s.is_deleted=0 SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=?`,
+      `UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id AND s.is_deleted=0 SET p.status='IN_PROGRESS',p.updated_by=?,p.version=p.version+1 WHERE s.id=? AND p.is_deleted=0`,
       [actorUserId, businessId],
     );
   else if (businessType === "PROJECT_CHANGE")
@@ -615,7 +615,7 @@ async function applyBusinessApprovalResult(
     );
   else if (businessType === "PROJECT_CLOSE")
     await connection.execute(
-      `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id AND c.is_deleted=0 SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=?`,
+      `UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id AND c.is_deleted=0 SET p.status='CLOSED',p.updated_by=?,p.version=p.version+1 WHERE c.id=? AND p.is_deleted=0`,
       [actorUserId, businessId],
     );
 }
@@ -681,7 +681,7 @@ export class MySqlActionExecutor {
               [all ? 1 : 0, employee],
             ),
             [bidStatus] = await connection.execute<RowDataPacket[]>(
-              `SELECT b.status,COUNT(*) count FROM bid_application b WHERE b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${bidProjectScope.sql}) GROUP BY b.status ORDER BY b.status`,
+              `SELECT b.status,COUNT(*) count FROM bid_application b WHERE b.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=b.project_id AND p.is_deleted=0) AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${bidProjectScope.sql}) GROUP BY b.status ORDER BY b.status`,
               [employee, employee, employee, ...bidProjectScope.params],
             ),
             [projectStatus] = await connection.execute<RowDataPacket[]>(
@@ -689,7 +689,7 @@ export class MySqlActionExecutor {
               projectScope.params,
             ),
             [collection] = await connection.execute<RowDataPacket[]>(
-              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0)),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND ${projectScope.sql}`,
+              `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0)),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND p.is_deleted=0 AND ${projectScope.sql}`,
               projectScope.params,
             ),
             [profits] = await connection.execute<RowDataPacket[]>(
@@ -710,7 +710,7 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             projectScope = buildProjectDataScope(user);
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
+            `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND p.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
             [...projectScope.params, pageSize, (page - 1) * pageSize],
           );
           return { items: rows, page, pageSize };
@@ -831,7 +831,7 @@ export class MySqlActionExecutor {
               `SELECT CAST(id AS CHAR) id,project_code projectCode,project_name projectName,status FROM prj_project WHERE is_deleted=0 ORDER BY id DESC LIMIT 500`,
             ),
             [projectGrants] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(g.id AS CHAR) id,CAST(g.project_id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,CAST(g.employee_id AS CHAR) employeeId,e.name employeeName,g.starts_on startsOn,g.ends_on endsOn,g.reason,g.status,iu.username grantedBy,g.created_at createdAt FROM iam_project_grant g JOIN prj_project p ON p.id=g.project_id JOIN org_employee e ON e.id=g.employee_id JOIN iam_user iu ON iu.id=g.granted_by ORDER BY g.status,g.starts_on DESC,g.id DESC LIMIT 200`,
+              `SELECT CAST(g.id AS CHAR) id,CAST(g.project_id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,CAST(g.employee_id AS CHAR) employeeId,e.name employeeName,g.starts_on startsOn,g.ends_on endsOn,g.reason,g.status,iu.username grantedBy,g.created_at createdAt FROM iam_project_grant g JOIN prj_project p ON p.id=g.project_id AND p.is_deleted=0 JOIN org_employee e ON e.id=g.employee_id JOIN iam_user iu ON iu.id=g.granted_by ORDER BY g.status,g.starts_on DESC,g.id DESC LIMIT 200`,
             ),
             [dictionaryTypes] = await connection.execute<RowDataPacket[]>(
               `SELECT CAST(t.id AS CHAR) id,t.type_code typeCode,t.name,t.description,t.status,t.version FROM sys_dictionary_type t ORDER BY t.type_code`,
@@ -1349,7 +1349,7 @@ export class MySqlActionExecutor {
           if (file.projectId) {
             const projectScope = buildProjectDataScope(user),
               [access] = await connection.execute<RowDataPacket[]>(
-                `SELECT p.id FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND ${projectScope.sql} LIMIT 1`,
+                `SELECT p.id FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql} LIMIT 1`,
                 [file.projectId, ...projectScope.params],
               );
             if (!access[0])
@@ -1810,7 +1810,7 @@ export class MySqlActionExecutor {
             ),
             [timeline] = await connection.execute<RowDataPacket[]>(
               `SELECT eventType,title,eventAt,status FROM (
-                SELECT 'PROJECT' eventType,CONCAT('项目立项：',p.project_name) title,p.created_at eventAt,p.status FROM prj_project p WHERE p.id=?
+                SELECT 'PROJECT' eventType,CONCAT('项目立项：',p.project_name) title,p.created_at eventAt,p.status FROM prj_project p WHERE p.id=? AND p.is_deleted=0
                 UNION ALL SELECT 'START',CONCAT('项目启动：',start_type),created_at,status FROM prj_start WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'STAGE',CONCAT('阶段：',stage_name),created_at,status FROM prj_stage WHERE project_id=? AND is_deleted=0
                 UNION ALL SELECT 'PROGRESS','提交项目进展',created_at,'RECORDED' FROM prj_progress WHERE project_id=?
@@ -1886,7 +1886,7 @@ export class MySqlActionExecutor {
             projectAccess = buildProjectReferenceScope(user, "b.project_id");
           const [rows] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(b.id AS CHAR) id,CAST(b.project_id AS CHAR) projectId,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
-               FROM bid_application b JOIN prj_project p ON p.id=b.project_id
+               FROM bid_application b JOIN prj_project p ON p.id=b.project_id AND p.is_deleted=0
               WHERE b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})
                 AND (?='' OR p.project_name LIKE ? ESCAPE '\\\\' OR b.bid_code LIKE ? ESCAPE '\\\\')
                ORDER BY b.id DESC LIMIT ? OFFSET ?`,
@@ -1913,7 +1913,7 @@ export class MySqlActionExecutor {
         case "bid.detail": {
           const projectAccess = buildProjectReferenceScope(user, "b.project_id"),
             [bids] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id WHERE b.id=? AND b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})`,
+              `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id AND p.is_deleted=0 WHERE b.id=? AND b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})`,
               [
                 input.bidId,
                 user.employeeId,
@@ -1962,7 +1962,7 @@ export class MySqlActionExecutor {
             `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,v.name partyBName,
                     CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
                     c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED' AND pa.is_deleted=0),0) paymentAppliedAmount
-               FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})
+               FROM con_contract c JOIN crm_counterparty v ON v.id=c.party_b_id WHERE c.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0) AND (c.owner_id=? OR ${projectAccess.sql})
                 AND (?='' OR c.contract_name LIKE ? ESCAPE '\\\\' OR c.contract_code LIKE ? ESCAPE '\\\\')
                ORDER BY c.id DESC LIMIT ? OFFSET ?`,
             [
@@ -1980,7 +1980,7 @@ export class MySqlActionExecutor {
         case "contract.detail": {
           const projectAccess = buildProjectReferenceScope(user, "c.project_id"),
             [contracts] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.tax_rate taxRate,c.tax_amount taxAmount,c.expires_on expiresOn,c.contract_version contractVersion,c.status FROM con_contract c WHERE c.id=? AND c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
+              `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.tax_rate taxRate,c.tax_amount taxAmount,c.expires_on expiresOn,c.contract_version contractVersion,c.status FROM con_contract c WHERE c.id=? AND c.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0) AND (c.owner_id=? OR ${projectAccess.sql})`,
               [input.contractId, user.employeeId, ...projectAccess.params],
             );
           if (!contracts[0])
@@ -2007,7 +2007,7 @@ export class MySqlActionExecutor {
               30,
             );
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND (c.owner_id=? OR ${projectAccess.sql})`,
+            `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0) AND (c.owner_id=? OR ${projectAccess.sql})`,
             [user.employeeId, ...projectAccess.params],
           );
           return (
@@ -2926,11 +2926,11 @@ export class MySqlActionExecutor {
             ),
             purchaseAccess = buildProjectReferenceScope(user, "c.project_id"),
             [reimbursements] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
+              `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.project_id IS NULL OR EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=h.project_id AND pr.is_deleted=0)) AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
               [user.employeeId, ...reimbursementAccess.params],
             ),
             [purchases] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
+              `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.contract_related=0 OR (c.id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=c.project_id AND pr.is_deleted=0))) AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
               [user.employeeId, ...purchaseAccess.params],
             );
           return { reimbursements, purchases };
@@ -4732,7 +4732,7 @@ export class MySqlActionExecutor {
             closeAccess = buildProjectReferenceScope(user, "x.project_id"),
             openItemAccess = buildProjectReferenceScope(user, "c.project_id"),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
+              `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
               [
                 user.id,
                 ...closeAccess.params,
@@ -4741,7 +4741,7 @@ export class MySqlActionExecutor {
               ],
             ),
             [openItems] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
+              `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0 WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
               [
                 user.id,
                 user.employeeId,
@@ -4758,7 +4758,7 @@ export class MySqlActionExecutor {
         }
         case "project.close.openItem.complete": {
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id WHERE i.id=? FOR UPDATE`,
+            `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0 WHERE i.id=? FOR UPDATE`,
             [input.itemId],
           );
           const item = rows[0];
@@ -4846,23 +4846,23 @@ export class MySqlActionExecutor {
         case "delivery.records": {
           const access = buildProjectReferenceScope(user, "x.project_id");
           const [deliverables] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           const [acceptances] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           const [stages] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.project_id,x.stage_order`,
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.project_id,x.stage_order`,
             access.params,
           );
           const [risks] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           const [changes] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
+            `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
           return { deliverables, acceptances, stages, risks, changes };

@@ -468,7 +468,7 @@ describe("empty database initialization schema", () => {
       "FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND is_deleted=0",
     );
     expect(persistence).toContain(
-      "FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id WHERE x.is_deleted=0",
+      "FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0",
     );
     expect(persistence).toContain(
       "FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0",
@@ -482,6 +482,16 @@ describe("empty database initialization schema", () => {
     expect(persistence).toContain(
       "FROM fin_receipt x WHERE x.status='ACTIVE' AND x.is_deleted=0",
     );
+    for (const statement of [
+      "UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id AND a.is_deleted=0 SET p.status='PENDING_ACCEPTANCE'",
+      "UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id AND c.is_deleted=0 SET p.estimated_cost",
+      "UPDATE prj_project p JOIN prj_start s ON s.project_id=p.id AND s.is_deleted=0 SET p.status='IN_PROGRESS'",
+      "UPDATE prj_project p JOIN prj_close_application c ON c.project_id=p.id AND c.is_deleted=0 SET p.status='CLOSED'",
+    ]) {
+      const start = persistence.indexOf(statement);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(persistence.slice(start, start + 400)).toContain("p.is_deleted=0");
+    }
   });
 
   it("受限字段授权包含后端可执行的默认角色基线", () => {

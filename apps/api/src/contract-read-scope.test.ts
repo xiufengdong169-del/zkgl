@@ -43,6 +43,9 @@ function contractConnection() {
 
 function expectProjectScope(query: { sql: string; params: unknown[] }) {
   expect(query.sql).toContain(
+    "EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0)",
+  );
+  expect(query.sql).toContain(
     "EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm",
   );
   expect(query.sql).toContain("p.id IN (?)");

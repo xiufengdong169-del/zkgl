@@ -111,6 +111,11 @@ describe("project reference data scopes", () => {
     expect(scopedQueries).toHaveLength(12);
     for (const query of scopedQueries) {
       expectProjectReferenceScope(query);
+      if (query.sql.includes("JOIN prj_project p ON p.id=x.project_id")) {
+        expect(query.sql).toContain(
+          "JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0",
+        );
+      }
     }
     const deliverySummaryQueries = scopedQueries.filter((call) =>
       call.sql.includes("(? IS NULL OR x.project_id=?)"),
@@ -133,6 +138,9 @@ describe("project reference data scopes", () => {
       call.sql.includes("FROM prj_close_application x"),
     )!;
     expectProjectReferenceScope(closeRows);
+    expect(closeRows.sql).toContain(
+      "JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0",
+    );
     expect(closeRows.sql).toContain("x.created_by=? OR");
     expect(closeRows.params).toEqual(["u1", ...scopeParams, 20, 20]);
 
@@ -140,7 +148,29 @@ describe("project reference data scopes", () => {
       call.sql.includes("FROM prj_close_open_item i"),
     )!;
     expectProjectReferenceScope(openItems);
+    expect(openItems.sql).toContain(
+      "JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0",
+    );
     expect(openItems.sql).toContain("c.created_by=? OR i.responsible_id=? OR");
     expect(openItems.params).toEqual(["u1", "e1", ...scopeParams]);
+  });
+
+  it("does not complete close open items for deleted projects", async () => {
+    const connection = projectReferenceConnection();
+
+    await expect(
+      executeWith(connection, "project.close.openItem.complete", {
+        itemId: "item-1",
+        completedOn: "2026-08-01",
+      }),
+    ).rejects.toMatchObject({ code: "CLOSE_OPEN_ITEM_NOT_FOUND" });
+
+    const query = connection.calls.find((call) =>
+      call.sql.includes("FROM prj_close_open_item i"),
+    )!;
+    expect(query.sql).toContain(
+      "JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0",
+    );
+    expect(query.params).toEqual(["item-1"]);
   });
 });

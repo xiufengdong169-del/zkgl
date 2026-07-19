@@ -92,6 +92,10 @@ describe("project read data scopes", () => {
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual(["p9", 0, "e1", "e1", "p9", "d2", "e1"]);
+    const timelineQuery = connection.calls.find((call) =>
+      call.sql.includes("SELECT 'PROJECT' eventType"),
+    )!;
+    expect(timelineQuery.sql).toContain("p.id=? AND p.is_deleted=0");
     expect(
       connection.calls.some((call) => call.sql.includes("FROM wf_instance i")),
     ).toBe(true);

@@ -69,6 +69,9 @@ describe("report project data scopes", () => {
       call.sql.includes("FROM bid_application b"),
     )!;
     expect(bidQuery.sql).toContain("b.business_owner_id=?");
+    expect(bidQuery.sql).toContain(
+      "EXISTS(SELECT 1 FROM prj_project p WHERE p.id=b.project_id AND p.is_deleted=0)",
+    );
     expect(bidQuery.sql).toContain("p.id IN (?)");
     expect(bidQuery.sql).toContain("pm.department_id IN (?)");
     expect(bidQuery.sql).toContain("iam_project_grant");
@@ -91,6 +94,7 @@ describe("report project data scopes", () => {
     expect(projectQueries).toHaveLength(3);
     for (const query of projectQueries) {
       expect(query.sql).toContain("p.id IN (?)");
+      expect(query.sql).toContain("p.is_deleted=0");
       expect(query.sql).toContain("pm.department_id IN (?)");
       if (query.sql.includes("con_contract c")) {
         expect(query.sql).toContain(
@@ -114,6 +118,7 @@ describe("report project data scopes", () => {
     expect(query.sql).toContain(
       "c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED')",
     );
+    expect(query.sql).toContain("p.is_deleted=0");
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");
     expect(query.params).toEqual([0, "e1", "e1", "p9", "d2", "e1", 20, 20]);
