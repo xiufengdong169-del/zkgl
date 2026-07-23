@@ -51,7 +51,23 @@ describe("private files", () => {
   });
 
   it("拒绝脚本和可执行文件", () => {
-    for (const name of ["a.exe", "a.ps1", "a.js", "a.sh"])
+    for (const name of [
+      "a.exe",
+      "a.dll",
+      "a.bat",
+      "a.cmd",
+      "a.ps1",
+      "a.js",
+      "a.sh",
+      "a.com",
+      "a.msi",
+      "a.scr",
+    ])
+      expect(() => extractSafeExtension(name)).toThrow();
+  });
+
+  it("拒绝无扩展名或不在白名单内的附件类型", () => {
+    for (const name of ["README", "archive.7z", "macro.xlsm", "page.html"])
       expect(() => extractSafeExtension(name)).toThrow();
   });
 
