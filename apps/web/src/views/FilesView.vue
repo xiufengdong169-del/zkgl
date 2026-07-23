@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { callApi } from "../api";
+import { callApi, openTrustedDownloadUrl } from "../api";
 import { cloudbaseApp } from "../cloudbase";
 
 interface Project {
@@ -184,7 +184,7 @@ async function download(fileId: string, versionId: string | null = null) {
       fileId,
       versionId,
     });
-    window.open(result.url, "_blank", "noopener,noreferrer");
+    openTrustedDownloadUrl(result.url);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "下载失败";
   }

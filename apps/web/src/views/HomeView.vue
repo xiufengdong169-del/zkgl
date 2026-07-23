@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { callApi } from "../api";
+import { callApi, openTrustedDownloadUrl } from "../api";
 import { buildCsv } from "../csv";
 
 interface Message {
@@ -155,7 +155,7 @@ async function downloadExportTask(task: ExportTask) {
   error.value = null;
   try {
     const result = await callApi<{ url: string }>("file.download", { fileId: task.fileId });
-    window.open(result.url, "_blank", "noopener,noreferrer");
+    openTrustedDownloadUrl(result.url);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u6587\u4ef6\u4e0b\u8f7d\u5931\u8d25";
   }

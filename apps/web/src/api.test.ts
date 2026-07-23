@@ -123,3 +123,40 @@ describe("callApi", () => {
     );
   });
 });
+
+describe("openTrustedDownloadUrl", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("只用 noopener/noreferrer 打开 HTTPS 下载地址", async () => {
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const { openTrustedDownloadUrl } = await loadApi();
+
+    openTrustedDownloadUrl("https://download.example.com/file.pdf?token=1");
+
+    expect(open).toHaveBeenCalledWith(
+      "https://download.example.com/file.pdf?token=1",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("拒绝非 HTTPS 或非法下载地址", async () => {
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const { openTrustedDownloadUrl } = await loadApi();
+
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "http://download.example.com/file.pdf",
+      "not a url",
+    ]) {
+      expect(() => openTrustedDownloadUrl(url)).toThrow();
+    }
+
+    expect(open).not.toHaveBeenCalled();
+  });
+});

@@ -21,3 +21,14 @@ export async function callApi<T>(action: string, payload?: unknown): Promise<T> 
   if (!response.ok || !result.ok) throw new Error(result.ok ? `请求失败：${response.status}` : result.error.message)
   return result.data
 }
+
+export function openTrustedDownloadUrl(rawUrl: string) {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    throw new Error('下载地址无效')
+  }
+  if (url.protocol !== 'https:') throw new Error('下载地址协议不受信任')
+  globalThis.open(url.toString(), '_blank', 'noopener,noreferrer')
+}
