@@ -97,6 +97,19 @@ const onsitePerformanceAcceptanceFragments = [
   "越权",
   "审计日志",
 ];
+const backupRecoveryAcceptanceFragments = [
+  "备份恢复验收",
+  "每日自动备份",
+  "30 天",
+  "关键发布",
+  "手工备份",
+  "项目附件",
+  "恢复点",
+  "独立验证环境",
+  "恢复演练",
+  "每半年",
+  "运维台账",
+];
 
 describe("deployment documentation", () => {
   it("documents exact CloudBase timer trigger names used by scheduled functions", () => {
@@ -200,6 +213,15 @@ describe("deployment documentation", () => {
 
   it("documents executable onsite performance acceptance criteria for AC-14", () => {
     for (const fragment of onsitePerformanceAcceptanceFragments) {
+      expect(
+        operationsAcceptanceDoc,
+        `operations acceptance docs missing ${fragment}`,
+      ).toContain(fragment);
+    }
+  });
+
+  it("documents executable backup and recovery acceptance criteria", () => {
+    for (const fragment of backupRecoveryAcceptanceFragments) {
       expect(
         operationsAcceptanceDoc,
         `operations acceptance docs missing ${fragment}`,
