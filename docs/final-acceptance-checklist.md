@@ -14,7 +14,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify` 并通过。
-- [ ] API 测试通过，当前基线为 63 个测试文件 / 304 条测试。
+- [ ] API 测试通过，当前基线为 63 个测试文件 / 305 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 33 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -39,6 +39,7 @@
 ## 5. CloudBase 部署
 
 - [ ] CloudBase 环境 ID 为 `cloudbase-d7gc2b32cd4196059`，地域为广州南沙。
+- [ ] 部署机器已安装 CloudBase CLI，且 `tcb --version` 能正常输出版本号。
 - [ ] 已开启用户名密码登录，且已配置 Web 安全域名。
 - [ ] 登录安全策略已设置：首次登录强制修改初始密码，连续失败 5 次后锁定 15 分钟。
 - [ ] 云函数环境变量已配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`，且未提交到 Git。

@@ -8,6 +8,7 @@
 4. 在云函数环境变量中配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`。这些值不得提交到 Git。
 5. 从空 MySQL 数据库执行 `database/init/schema.sql`，再按项目方名单维护部门、人员、内部用户、角色和授权。
 6. 当前新开发阶段不存在数据库迁移步骤，也不执行历史数据导入或旧系统兼容脚本。
+7. 部署机器已安装 CloudBase CLI，且执行 `tcb --version` 能正常输出版本号；如命令不可用，应先完成 CLI 安装、登录和权限授权后再执行部署命令。
 
 ## 上线初始化资料清单
 
@@ -53,6 +54,7 @@ npm run verify
 ## 云函数部署
 
 ```powershell
+tcb --version
 tcb login
 tcb fn deploy zkgl-api --yes
 tcb fn deploy zkgl-reminder --yes

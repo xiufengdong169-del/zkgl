@@ -97,6 +97,13 @@ const frontendDeploymentFragments = [
   "Web 安全域名",
   "session.get",
 ];
+const cloudbaseCliPrerequisiteFragments = [
+  "CloudBase CLI",
+  "tcb --version",
+  "tcb login",
+  "tcb fn deploy zkgl-api --yes",
+  "tcb hosting deploy apps/web/dist / --yes",
+];
 const onsitePerformanceAcceptanceFragments = [
   "AC-14",
   "生产级 CloudBase",
@@ -158,7 +165,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify",
-  "63 个测试文件 / 304 条测试",
+  "63 个测试文件 / 305 条测试",
   "9 个测试文件 / 33 条测试",
   "npm audit --omit=dev",
   "git status --short --branch",
@@ -167,6 +174,7 @@ const finalAcceptanceChecklistFragments = [
   "不存在数据库迁移",
   "上线初始化资料清单",
   "cloudbase-d7gc2b32cd4196059",
+  "tcb --version",
   "VITE_API_BASE_URL",
   "zkglDailyReminder",
   "zkglExportWorker",
@@ -303,6 +311,15 @@ describe("deployment documentation", () => {
       expect(
         deploymentDoc,
         `deployment docs missing frontend deployment item ${fragment}`,
+      ).toContain(fragment);
+    }
+  });
+
+  it("documents CloudBase CLI prerequisite before deployment commands", () => {
+    for (const fragment of cloudbaseCliPrerequisiteFragments) {
+      expect(
+        deploymentDoc,
+        `deployment docs missing CloudBase CLI prerequisite ${fragment}`,
       ).toContain(fragment);
     }
   });
