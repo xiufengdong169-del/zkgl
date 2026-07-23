@@ -30,6 +30,10 @@ const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
   "utf8",
 );
+const finalAcceptanceChecklist = readFileSync(
+  new URL("../../../docs/final-acceptance-checklist.md", import.meta.url),
+  "utf8",
+);
 const envExample = readFileSync(
   new URL("../../../.env.example", import.meta.url),
   "utf8",
@@ -136,8 +140,35 @@ const deliveryEntryFragments = [
   "docs/deployment.md",
   "docs/operations-acceptance.md",
   "docs/acceptance-traceability.md",
+  "docs/final-acceptance-checklist.md",
   "V2.2 结果型验收用例",
   "交付前必跑命令",
+];
+const finalAcceptanceChecklistFragments = [
+  "最终交付验收总清单",
+  "npm run verify",
+  "63 个测试文件 / 302 条测试",
+  "9 个测试文件 / 33 条测试",
+  "npm audit --omit=dev",
+  "git status --short --branch",
+  "origin/main",
+  "database/init/schema.sql",
+  "不存在数据库迁移",
+  "上线初始化资料清单",
+  "cloudbase-d7gc2b32cd4196059",
+  "VITE_API_BASE_URL",
+  "zkglDailyReminder",
+  "zkglExportWorker",
+  "内部账号停用",
+  "敏感字段",
+  "业务主流程验收",
+  "AC-01 至 AC-15",
+  "AC-14",
+  "30 用户",
+  "备份恢复",
+  "每日自动备份",
+  "每半年",
+  "上线判定",
 ];
 
 describe("deployment documentation", () => {
@@ -175,6 +206,15 @@ describe("deployment documentation", () => {
       expect(readme, `README missing delivery entry ${fragment}`).toContain(
         fragment,
       );
+    }
+  });
+
+  it("documents a final acceptance checklist covering release gates", () => {
+    for (const fragment of finalAcceptanceChecklistFragments) {
+      expect(
+        finalAcceptanceChecklist,
+        `final acceptance checklist missing ${fragment}`,
+      ).toContain(fragment);
     }
   });
 

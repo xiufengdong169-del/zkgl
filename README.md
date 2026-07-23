@@ -45,6 +45,7 @@ node scripts/verify-cloudbase-function-packages.mjs
 - `docs/deployment.md`：CloudBase 部署、空库初始化、账号开通、上线初始化资料清单和云函数部署说明。
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
 - `docs/acceptance-traceability.md`：V2.2 结果型验收用例、自动化测试映射和交付前必跑命令。
+- `docs/final-acceptance-checklist.md`：最终交付验收总清单，用于上线前逐项签核。
 
 ## 安全原则
 
