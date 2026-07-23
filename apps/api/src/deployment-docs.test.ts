@@ -312,6 +312,10 @@ describe("deployment documentation", () => {
         `${variable}=`,
       );
       expect(
+        webEnvTypes,
+        `frontend env type must not expose server-only variable ${variable}`,
+      ).not.toMatch(new RegExp(`readonly\\s+${variable}\\??:`));
+      expect(
         deploymentDoc,
         `deployment docs missing server-only variable ${variable}`,
       ).toContain(variable);
