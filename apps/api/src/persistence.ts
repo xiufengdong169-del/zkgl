@@ -26,7 +26,7 @@ import { assertAccountStatusChangeAllowed } from "./accounts.js";
 import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
-  extractSafeExtension,
+  validateFileType,
   validateUpload,
 } from "./files.js";
 import { requirePermission } from "./rbac.js";
@@ -1430,7 +1430,7 @@ export class MySqlActionExecutor {
           return { id: input.fileId, status: "ACTIVE" };
         }
         case "file.version.prepare": {
-          const extension = extractSafeExtension(input.originalName),
+          const extension = validateFileType(input.originalName, input.mimeType),
             [files] = await connection.execute<RowDataPacket[]>(
               `SELECT f.id,f.current_version currentVersion,CAST(f.project_id AS CHAR) projectId,CAST(f.created_by AS CHAR) createdBy FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 FOR UPDATE`,
               [input.fileId],

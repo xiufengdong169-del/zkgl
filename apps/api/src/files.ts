@@ -32,6 +32,40 @@ const blockedExtensions = new Set([
   "msi",
   "scr",
 ]);
+const allowedMimeTypesByExtension = new Map(
+  Object.entries({
+    pdf: ["application/pdf"],
+    doc: ["application/msword"],
+    docx: [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ],
+    xls: ["application/vnd.ms-excel"],
+    xlsx: [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ],
+    csv: ["text/csv", "application/csv", "application/vnd.ms-excel"],
+    png: ["image/png"],
+    jpg: ["image/jpeg"],
+    jpeg: ["image/jpeg"],
+    gif: ["image/gif"],
+    webp: ["image/webp"],
+    zip: ["application/zip", "application/x-zip-compressed"],
+  }).map(([extension, mimeTypes]) => [extension, new Set(mimeTypes)]),
+);
+const blockedMimeTypes = new Set([
+  "application/javascript",
+  "application/x-javascript",
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/x-msi",
+  "application/x-sh",
+  "application/x-shellscript",
+  "application/vnd.microsoft.portable-executable",
+  "text/html",
+  "text/javascript",
+  "text/x-javascript",
+  "text/x-shellscript",
+]);
 
 const fileUploadBaseInput = z.object({
   businessType: z.string().trim().min(1).max(64),
@@ -131,9 +165,29 @@ export function extractSafeExtension(name: string): string {
   return extension;
 }
 
+export function validateFileType(name: string, mimeType: string): string {
+  const extension = extractSafeExtension(name);
+  const normalizedMimeType = mimeType.split(";")[0]!.trim().toLowerCase();
+  if (
+    !normalizedMimeType ||
+    blockedMimeTypes.has(normalizedMimeType) ||
+    !allowedMimeTypesByExtension.get(extension)?.has(normalizedMimeType)
+  ) {
+    throw new AppError(
+      "FILE_TYPE_NOT_ALLOWED",
+      `不允许上传 ${normalizedMimeType || "(无 MIME 类型)"} 类型文件`,
+      415,
+    );
+  }
+  return extension;
+}
+
 export function validateUpload(input: unknown) {
   const parsed = fileUploadInput.parse(input);
-  return { ...parsed, extension: extractSafeExtension(parsed.originalName) };
+  return {
+    ...parsed,
+    extension: validateFileType(parsed.originalName, parsed.mimeType),
+  };
 }
 
 export function buildPrivateStorageKey(

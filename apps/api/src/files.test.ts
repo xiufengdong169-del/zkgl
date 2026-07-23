@@ -6,6 +6,7 @@ import {
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
   extractSafeExtension,
+  validateFileType,
   validateUpload,
   type FileAccessDependencies,
   type FileRecord,
@@ -48,6 +49,9 @@ function dependencies(
 describe("private files", () => {
   it("allows CSV report attachments", () => {
     expect(extractSafeExtension("project-export.csv")).toBe("csv");
+    expect(validateFileType("project-export.csv", "text/csv; charset=utf-8")).toBe(
+      "csv",
+    );
   });
 
   it("拒绝脚本和可执行文件", () => {
@@ -69,6 +73,25 @@ describe("private files", () => {
   it("拒绝无扩展名或不在白名单内的附件类型", () => {
     for (const name of ["README", "archive.7z", "macro.xlsm", "page.html"])
       expect(() => extractSafeExtension(name)).toThrow();
+  });
+
+  it("拒绝危险或与扩展名不匹配的 MIME 类型", () => {
+    for (const mimeType of [
+      "application/javascript",
+      "text/javascript",
+      "text/html",
+      "application/x-msdownload",
+      "application/vnd.microsoft.portable-executable",
+      "application/x-sh",
+    ]) {
+      expect(() => validateFileType("safe-name.pdf", mimeType)).toThrow(
+        "不允许上传",
+      );
+    }
+
+    expect(() => validateFileType("safe-name.pdf", "image/png")).toThrow(
+      "不允许上传",
+    );
   });
 
   it("限制单文件 100MB 并验证哈希", () => {
