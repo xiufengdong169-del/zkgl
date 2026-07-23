@@ -110,6 +110,24 @@ const backupRecoveryAcceptanceFragments = [
   "每半年",
   "运维台账",
 ];
+const initializationChecklistFragments = [
+  "上线初始化资料清单",
+  "部门清单",
+  "人员清单",
+  "CloudBase 身份清单",
+  "CloudBase UID",
+  "角色分配",
+  "系统管理员",
+  "公司负责人",
+  "项目经理",
+  "财务资金",
+  "审批岗位任职",
+  "审批金额阈值",
+  "编号规则确认",
+  "系统参数确认",
+  "验收演示账号",
+  "无权访问用户",
+];
 
 describe("deployment documentation", () => {
   it("documents exact CloudBase timer trigger names used by scheduled functions", () => {
@@ -174,6 +192,15 @@ describe("deployment documentation", () => {
     expect(architectureDoc).toContain("当前阶段不维护数据库迁移");
     expect(deploymentDoc).toContain("不存在数据库迁移步骤");
     expect(deploymentDoc).toContain("历史数据导入");
+  });
+
+  it("documents the project-provided initialization data required before acceptance demo", () => {
+    for (const fragment of initializationChecklistFragments) {
+      expect(
+        deploymentDoc,
+        `deployment docs missing initialization checklist item ${fragment}`,
+      ).toContain(fragment);
+    }
   });
 
   it("keeps the Word V2.2 requirement baseline aligned with current database and module naming", () => {
