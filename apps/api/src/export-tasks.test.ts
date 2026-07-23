@@ -199,6 +199,35 @@ function exportWorkerConnectionWithSnapshot(permissionSnapshot: unknown) {
   };
 }
 
+function exportWorkerConnectionWithLostClaim() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM sys_export_task"))
+        return [
+          [
+            {
+              id: 7,
+              taskCode: "DC-2026-0007",
+              requesterId: "u1",
+              permissionSnapshot: JSON.stringify({
+                employeeId: "e1",
+                permissionCodes: ["project.export", "report.financial.read"],
+                dataScopes: [{ type: "ALL" }],
+              }),
+            },
+          ],
+          [],
+        ];
+      if (sql.includes("SET status='RUNNING'"))
+        return [{ affectedRows: 0 }, []];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 describe("export task worker", () => {
   it("uploads CSV output and links the finished task to a private file", async () => {
     const connection = exportWorkerConnection();
@@ -318,5 +347,31 @@ describe("export task worker", () => {
       "EXPORT_PERMISSION_SNAPSHOT_INVALID",
       7,
     ]);
+  });
+
+  it("skips export output when a pending task cannot be claimed as running", async () => {
+    const connection = exportWorkerConnectionWithLostClaim();
+    const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async (cloudPath, content) => {
+        uploads.push({ cloudPath, content });
+        return "cloud://exports/DC-2026-0007.csv";
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 0, failed: 0 });
+    expect(uploads).toEqual([]);
+    expect(
+      connection.calls.some((call) => call.sql.includes("FROM prj_project p")),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("INSERT INTO file_object"),
+      ),
+    ).toBe(false);
+    expect(
+      connection.calls.some((call) => call.sql.includes("status='COMPLETED'")),
+    ).toBe(false);
   });
 });

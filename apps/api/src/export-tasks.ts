@@ -92,10 +92,11 @@ export async function processPendingProjectExportTasks(
   let failed = 0;
   for (const task of tasks) {
     try {
-      await connection.execute(
+      const [claim] = await connection.execute<ResultSetHeader>(
         `UPDATE sys_export_task SET status='RUNNING',started_at=NOW(3) WHERE id=? AND status='PENDING'`,
         [task.id],
       );
+      if (claim.affectedRows !== 1) continue;
       const snapshot = parseJsonObject(task.permissionSnapshot);
       const permissionCodes = Array.isArray(snapshot.permissionCodes)
         ? snapshot.permissionCodes.map(String)
