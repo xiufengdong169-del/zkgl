@@ -107,6 +107,11 @@ const generatedFunctionPackages = [
   "functions/zkgl-reminder/",
   "functions/zkgl-export-worker/",
 ];
+const generatedBuildOutputs = [
+  "apps/api/dist",
+  "apps/web/dist",
+  ...generatedFunctionPackages.map((directory) => directory.replace(/\/$/, "")),
+];
 const frontendDeploymentFragments = [
   "前端发布",
   "VITE_API_BASE_URL",
@@ -370,7 +375,8 @@ describe("deployment documentation", () => {
     expect(requirementDocxXml).not.toMatch(/迁移版本|迁移脚本|首个迁移/);
   });
 
-  it("documents and ignores generated CloudBase function package directories", () => {
+  it("documents and ignores generated build output directories", () => {
+    expect(gitignore).toContain("dist/");
     for (const directory of generatedFunctionPackages) {
       expect(gitignore, `.gitignore missing generated package ${directory}`).toContain(
         directory,
@@ -380,6 +386,15 @@ describe("deployment documentation", () => {
         `deployment docs missing generated package ${directory}`,
       ).toContain(directory.replace(/\/$/, ""));
     }
+
+    const trackedGeneratedOutputs = execFileSync(
+      "git",
+      ["ls-files", ...generatedBuildOutputs],
+      { encoding: "utf8" },
+    )
+      .split(/\r?\n/)
+      .filter(Boolean);
+    expect(trackedGeneratedOutputs).toEqual([]);
   });
 
   it("documents executable frontend deployment after API URL is known", () => {
