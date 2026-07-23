@@ -54,6 +54,10 @@ const gitignore = readFileSync(
   new URL("../../../.gitignore", import.meta.url),
   "utf8",
 );
+const webDistSecurityScript = readFileSync(
+  new URL("../../../scripts/verify-web-dist-security.mjs", import.meta.url),
+  "utf8",
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -315,6 +319,10 @@ describe("deployment documentation", () => {
         webEnvTypes,
         `frontend env type must not expose server-only variable ${variable}`,
       ).not.toMatch(new RegExp(`readonly\\s+${variable}\\??:`));
+      expect(
+        webDistSecurityScript,
+        `web dist security verifier must scan ${variable}`,
+      ).toContain(variable);
       expect(
         deploymentDoc,
         `deployment docs missing server-only variable ${variable}`,

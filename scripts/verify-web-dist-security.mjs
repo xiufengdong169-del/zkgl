@@ -12,6 +12,7 @@ const forbiddenPatterns = [
   /\bDB_NAME\b/,
   /\bDB_USER\b/,
   /\bDB_PASSWORD\b/,
+  /\bCLOUDBASE_ENV_ID\b/,
   /\bMYSQL_(?:HOST|PORT|DATABASE|USER|PASSWORD)\b/,
   /\bSecretKey\b/,
   /\bSECRET_KEY\b/,
