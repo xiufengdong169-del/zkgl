@@ -147,7 +147,7 @@ AC-14 需要在生产级 CloudBase 资源、正常企业网络和基准数据量
 npm run verify:acceptance
 ```
 
-该命令会先执行 `npm run verify`，再执行 `npm audit --omit=dev`。其中 `npm run verify` 会顺序执行：
+该命令会先执行 `npm run verify`，再执行 `npm audit --omit=dev`。完整命令顺序为：
 
 ```powershell
 npm run typecheck
