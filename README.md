@@ -18,10 +18,10 @@
 4. 提交前至少执行：
 
 ```powershell
-npm run verify
+npm run verify:acceptance
 ```
 
-该命令会顺序执行：
+该命令会先执行 `npm run verify`，再执行 `npm audit --omit=dev`。其中 `npm run verify` 会顺序执行：
 
 ```powershell
 npm run typecheck
@@ -31,6 +31,7 @@ node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
+npm audit --omit=dev
 ```
 
 ## 数据库初始化原则

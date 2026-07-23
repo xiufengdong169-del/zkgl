@@ -144,10 +144,10 @@ AC-14 需要在生产级 CloudBase 资源、正常企业网络和基准数据量
 每次交付前执行总验证命令：
 
 ```powershell
-npm run verify
+npm run verify:acceptance
 ```
 
-该命令会顺序执行：
+该命令会先执行 `npm run verify`，再执行 `npm audit --omit=dev`。其中 `npm run verify` 会顺序执行：
 
 ```powershell
 npm run typecheck
@@ -157,12 +157,14 @@ node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
+npm audit --omit=dev
 ```
 
-以下检查已纳入自动化测试和 `npm run verify`：
+以下检查已纳入自动化测试和 `npm run verify:acceptance`：
 
 - 动作定义与持久层实现一致。
 - 可提交审批业务均配置审批模板和审批结果回写。
 - 源码和交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - 三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置正确。
+- 生产依赖审计 `npm audit --omit=dev` 无已知漏洞。

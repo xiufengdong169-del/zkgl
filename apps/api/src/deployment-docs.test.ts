@@ -38,6 +38,10 @@ const finalAcceptanceChecklist = readFileSync(
   new URL("../../../docs/final-acceptance-checklist.md", import.meta.url),
   "utf8",
 );
+const acceptanceTraceabilityDoc = readFileSync(
+  new URL("../../../docs/acceptance-traceability.md", import.meta.url),
+  "utf8",
+);
 const envExample = readFileSync(
   new URL("../../../.env.example", import.meta.url),
   "utf8",
@@ -50,6 +54,9 @@ const gitignore = readFileSync(
   new URL("../../../.gitignore", import.meta.url),
   "utf8",
 );
+const packageJson = JSON.parse(
+  readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+) as { scripts: Record<string, string> };
 const cloudbaseConfig = JSON.parse(
   readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
 ) as {
@@ -62,6 +69,7 @@ const cloudbaseConfig = JSON.parse(
 };
 
 const verificationCommands = [
+  "npm run verify:acceptance",
   "npm run verify",
   "npm run typecheck",
   "npm run test",
@@ -70,6 +78,7 @@ const verificationCommands = [
   "node scripts/verify-web-dist-security.mjs",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
+  "npm audit --omit=dev",
 ];
 const browserEnvironmentVariables = [
   "VITE_CLOUDBASE_ENV_ID",
@@ -169,7 +178,7 @@ const deliveryEntryFragments = [
 ];
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
-  "npm run verify",
+  "npm run verify:acceptance",
   "64 个测试文件 / 310 条测试",
   "9 个测试文件 / 35 条测试",
   "npm audit --omit=dev",
@@ -239,13 +248,30 @@ describe("deployment documentation", () => {
   });
 
   it("uses the full verification command before deployment and acceptance", () => {
-    expect(deploymentDoc).toContain("npm run verify");
+    expect(packageJson.scripts["verify:acceptance"]).toBe(
+      "npm run verify && npm audit --omit=dev",
+    );
+    expect(packageJson.scripts.verify).toContain(
+      "node scripts/verify-cloudbase-function-packages.mjs",
+    );
+    for (const doc of [
+      readme,
+      deploymentDoc,
+      operationsAcceptanceDoc,
+      acceptanceTraceabilityDoc,
+      finalAcceptanceChecklist,
+    ]) {
+      expect(doc).toContain("npm run verify:acceptance");
+    }
+    expect(deploymentDoc).toContain("npm run verify:acceptance");
     expect(deploymentDoc).not.toMatch(
       /npm run typecheck\s+npm run test\s+npm run build\s+npm run build:function/,
     );
 
     for (const command of verificationCommands) {
+      expect(readme).toContain(command);
       expect(operationsAcceptanceDoc).toContain(command);
+      expect(acceptanceTraceabilityDoc).toContain(command);
     }
     for (const doc of [operationsAcceptanceDoc]) {
       expect(doc).not.toMatch(

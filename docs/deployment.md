@@ -40,7 +40,7 @@
 
 ```powershell
 npm install
-npm run verify
+npm run verify:acceptance
 ```
 
 函数包生成在：
