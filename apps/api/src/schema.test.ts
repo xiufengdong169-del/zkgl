@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Parser } from "node-sql-parser";
@@ -20,6 +20,9 @@ const webRoutes = readFileSync(
 const webNavigation = readFileSync(
   new URL("../../web/src/navigation.ts", import.meta.url),
   "utf8",
+);
+const migrationDir = fileURLToPath(
+  new URL("../../../database/migrations", import.meta.url),
 );
 const webSourceDir = fileURLToPath(new URL("../../web/src", import.meta.url));
 const statements = schema
@@ -211,6 +214,10 @@ describe("empty database initialization schema", () => {
 
   it("不包含数据库迁移版本表", () => {
     expect(schema).not.toMatch(/schema_migration|migration_version/i);
+  });
+
+  it("新开发阶段不维护数据库迁移目录或迁移脚本", () => {
+    expect(existsSync(migrationDir)).toBe(false);
   });
 
   it("内部账号与人员、CloudBase UID 均为一对一映射", () => {
