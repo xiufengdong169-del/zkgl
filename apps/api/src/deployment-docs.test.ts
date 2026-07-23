@@ -8,6 +8,11 @@ const deploymentDoc = readFileSync(
   new URL("../../../docs/deployment.md", import.meta.url),
   "utf8",
 );
+const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
+const architectureDoc = readFileSync(
+  new URL("../../../docs/architecture.md", import.meta.url),
+  "utf8",
+);
 const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
   "utf8",
@@ -130,6 +135,19 @@ describe("deployment documentation", () => {
       ).toContain(variable);
     }
     expect(deploymentDoc).toContain("VITE_API_BASE_URL");
+  });
+
+  it("keeps new-system empty-database initialization guidance aligned", () => {
+    for (const doc of [readme, architectureDoc, deploymentDoc]) {
+      expect(doc).toContain("database/init/schema.sql");
+      expect(doc).toContain("空");
+      expect(doc).toContain("迁移");
+    }
+
+    expect(readme).toContain("本项目不存在数据库迁移");
+    expect(architectureDoc).toContain("当前阶段不维护数据库迁移");
+    expect(deploymentDoc).toContain("不存在数据库迁移步骤");
+    expect(deploymentDoc).toContain("历史数据导入");
   });
 
   it("documents and ignores generated CloudBase function package directories", () => {
