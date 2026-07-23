@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { EXPORT_TRIGGER_NAME } from "./scheduled-export.js";
@@ -12,6 +14,17 @@ const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf
 const architectureDoc = readFileSync(
   new URL("../../../docs/architecture.md", import.meta.url),
   "utf8",
+);
+const requirementDocxPath = fileURLToPath(
+  new URL(
+    "../../../众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+    import.meta.url,
+  ),
+);
+const requirementDocxXml = execFileSync(
+  "tar",
+  ["-xOf", requirementDocxPath, "word/document.xml"],
+  { encoding: "utf8" },
 );
 const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
@@ -148,6 +161,16 @@ describe("deployment documentation", () => {
     expect(architectureDoc).toContain("当前阶段不维护数据库迁移");
     expect(deploymentDoc).toContain("不存在数据库迁移步骤");
     expect(deploymentDoc).toContain("历史数据导入");
+  });
+
+  it("keeps the Word V2.2 requirement baseline aligned with current database and module naming", () => {
+    expect(requirementDocxXml).toContain("prj_*");
+    expect(requirementDocxXml).toContain("con_*");
+    expect(requirementDocxXml).toContain("保证金、日常采购");
+    expect(requirementDocxXml).toContain("无历史数据迁移");
+    expect(requirementDocxXml).toContain("初始化建表脚本");
+    expect(requirementDocxXml).not.toMatch(/pm_\*|contract_\*|purchase_\*/);
+    expect(requirementDocxXml).not.toMatch(/迁移版本|迁移脚本|首个迁移/);
   });
 
   it("documents and ignores generated CloudBase function package directories", () => {
