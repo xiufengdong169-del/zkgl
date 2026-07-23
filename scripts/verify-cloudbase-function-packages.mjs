@@ -48,13 +48,13 @@ const fail = (message) => {
   throw new Error(`CloudBase function package verification failed: ${message}`);
 };
 
-async function listJavaScriptFiles(directory) {
+async function listFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const child = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...(await listJavaScriptFiles(child)));
-    else if (entry.isFile() && entry.name.endsWith(".js")) files.push(child);
+    if (entry.isDirectory()) files.push(...(await listFiles(child)));
+    else if (entry.isFile()) files.push(child);
   }
   return files;
 }
@@ -100,6 +100,14 @@ for (const pkg of packages) {
   if (indexSource !== expectedIndex)
     fail(`${pkg.target}/index.js does not export ${pkg.entry}`);
 
+  const rootEntries = await readdir(target, { withFileTypes: true });
+  const unexpectedRootEntries = rootEntries
+    .map((entry) => entry.name)
+    .filter((name) => !["dist", "index.js", "package.json"].includes(name));
+  if (unexpectedRootEntries.length) {
+    fail(`${pkg.target} contains unexpected root entries: ${unexpectedRootEntries.join(", ")}`);
+  }
+
   const manifest = JSON.parse(await readFile(packagePath, "utf8"));
   if (manifest.name !== pkg.name)
     fail(`${pkg.target}/package.json name mismatch`);
@@ -112,10 +120,16 @@ for (const pkg of packages) {
       fail(`${pkg.target}/package.json missing dependency ${dependency}`);
   }
 
-  for (const file of await listJavaScriptFiles(resolve(target, "dist"))) {
+  for (const file of await listFiles(resolve(target, "dist"))) {
+    if (!file.endsWith(".js")) {
+      fail(`${pkg.target} contains non-JavaScript dist artifact ${file}`);
+    }
     const source = await readFile(file, "utf8");
     if (source.includes("@zkgl/")) {
       fail(`${pkg.target} contains unresolved workspace package import`);
+    }
+    if (source.includes("sourceMappingURL")) {
+      fail(`${pkg.target} contains source map reference`);
     }
   }
 

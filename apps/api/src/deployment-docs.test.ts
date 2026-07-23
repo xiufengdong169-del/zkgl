@@ -58,6 +58,10 @@ const webDistSecurityScript = readFileSync(
   new URL("../../../scripts/verify-web-dist-security.mjs", import.meta.url),
   "utf8",
 );
+const cloudbaseFunctionPackageVerifier = readFileSync(
+  new URL("../../../scripts/verify-cloudbase-function-packages.mjs", import.meta.url),
+  "utf8",
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -258,6 +262,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
+    expect(cloudbaseFunctionPackageVerifier).toContain("unexpected root entries");
+    expect(cloudbaseFunctionPackageVerifier).toContain("non-JavaScript dist artifact");
+    expect(cloudbaseFunctionPackageVerifier).toContain("sourceMappingURL");
     for (const doc of [
       readme,
       deploymentDoc,
