@@ -76,7 +76,7 @@ describe("partner settlement and close", () => {
       depositEventInput.parse({ ...parsed, eventType: "CONFIRM_LOSS" }),
     ).toThrow();
   });
-  it("AC-14 普通结项必须通过验收归档且不存在遗留事项", () => {
+  it("AC-15 普通结项必须通过验收归档且不存在遗留事项", () => {
     const cleanCheck = {
       acceptancePassed: true,
       archivePassed: true,
