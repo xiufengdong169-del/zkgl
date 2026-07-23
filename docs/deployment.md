@@ -61,6 +61,21 @@ tcb fn deploy zkgl-export-worker --yes
 
 只为 `zkgl-api` 配置 HTTP 访问路径，并将完整地址写入前端构建变量 `VITE_API_BASE_URL`。不要为 `zkgl-reminder` 和 `zkgl-export-worker` 配置客户端 HTTP 访问路径。
 
+## 前端发布
+
+前端必须在 `zkgl-api` HTTP 访问路径确认后重新构建，避免浏览器产物中缺少 API 地址。
+
+```powershell
+$env:VITE_CLOUDBASE_ENV_ID="cloudbase-d7gc2b32cd4196059"
+$env:VITE_CLOUDBASE_REGION="ap-guangzhou"
+$env:VITE_API_BASE_URL="https://<zkgl-api-http-url>"
+npm run build -w @zkgl/web
+node scripts/verify-web-dist-security.mjs
+tcb hosting deploy apps/web/dist / --yes
+```
+
+发布后应在 CloudBase 静态网站托管控制台核对访问域名、HTTPS 状态、Web 安全域名、首页加载、登录跳转和 API 请求地址。若 API 地址调整，必须重新设置 `VITE_API_BASE_URL` 并重新构建前端。
+
 ## 定时触发器
 
 - `zkgl-reminder`：触发器名称必须为 `zkglDailyReminder`，建议每日 08:00 执行，CloudBase 七段 Cron 示例：`0 0 8 * * * *`。
@@ -79,3 +94,4 @@ tcb fn deploy zkgl-export-worker --yes
 5. `zkgl-reminder` 能生成合同、投标、保证金、先开工、结项未清事项和风险提醒。
 6. `zkgl-export-worker` 能处理后台导出任务并生成私有文件。
 7. `node scripts/verify-web-dist-security.mjs` 通过，前端构建产物不包含数据库变量、SecretKey、API Secret 或私钥标记。
+8. 浏览器访问前端域名后，登录、工作台加载和一次 `session.get` API 请求均成功。

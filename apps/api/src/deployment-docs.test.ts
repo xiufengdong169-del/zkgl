@@ -86,6 +86,17 @@ const generatedFunctionPackages = [
   "functions/zkgl-reminder/",
   "functions/zkgl-export-worker/",
 ];
+const frontendDeploymentFragments = [
+  "前端发布",
+  "VITE_API_BASE_URL",
+  "npm run build -w @zkgl/web",
+  "node scripts/verify-web-dist-security.mjs",
+  "tcb hosting deploy apps/web/dist / --yes",
+  "CloudBase 静态网站托管",
+  "HTTPS",
+  "Web 安全域名",
+  "session.get",
+];
 const onsitePerformanceAcceptanceFragments = [
   "AC-14",
   "生产级 CloudBase",
@@ -147,7 +158,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify",
-  "63 个测试文件 / 302 条测试",
+  "63 个测试文件 / 304 条测试",
   "9 个测试文件 / 33 条测试",
   "npm audit --omit=dev",
   "git status --short --branch",
@@ -159,6 +170,9 @@ const finalAcceptanceChecklistFragments = [
   "VITE_API_BASE_URL",
   "zkglDailyReminder",
   "zkglExportWorker",
+  "apps/web/dist",
+  "CloudBase 静态网站托管",
+  "session.get",
   "内部账号停用",
   "敏感字段",
   "业务主流程验收",
@@ -281,6 +295,15 @@ describe("deployment documentation", () => {
         deploymentDoc,
         `deployment docs missing generated package ${directory}`,
       ).toContain(directory.replace(/\/$/, ""));
+    }
+  });
+
+  it("documents executable frontend deployment after API URL is known", () => {
+    for (const fragment of frontendDeploymentFragments) {
+      expect(
+        deploymentDoc,
+        `deployment docs missing frontend deployment item ${fragment}`,
+      ).toContain(fragment);
     }
   });
 

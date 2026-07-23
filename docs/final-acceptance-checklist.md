@@ -14,7 +14,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify` 并通过。
-- [ ] API 测试通过，当前基线为 63 个测试文件 / 302 条测试。
+- [ ] API 测试通过，当前基线为 63 个测试文件 / 304 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 33 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -45,6 +45,8 @@
 - [ ] 仅 `zkgl-api` 配置客户端 HTTP 访问路径，并写入前端 `VITE_API_BASE_URL`。
 - [ ] `zkgl-reminder` 和 `zkgl-export-worker` 不配置客户端 HTTP 访问路径。
 - [ ] 定时触发器名称分别为 `zkglDailyReminder` 和 `zkglExportWorker`。
+- [ ] 前端在 `VITE_API_BASE_URL` 设置为 `zkgl-api` HTTP 访问路径后重新构建。
+- [ ] `apps/web/dist` 已发布到 CloudBase 静态网站托管，且 HTTPS、Web 安全域名、登录跳转和 `session.get` API 请求验证成功。
 
 ## 6. 账号、权限与审计
 
