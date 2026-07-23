@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const baseline = readFileSync(
@@ -9,6 +11,7 @@ const traceability = readFileSync(
   new URL("../../../docs/acceptance-traceability.md", import.meta.url),
   "utf8",
 );
+const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 function extractAcceptanceRows(markdown: string) {
   return new Map(
@@ -61,6 +64,23 @@ describe("V2.2 acceptance traceability", () => {
           `${baselineText}\n${traceabilityText}`,
           `${acceptanceCode} missing fragment ${fragment}`,
         ).toContain(fragment);
+      }
+    }
+  });
+
+  it("验收追踪表引用的自动化测试与现场验收文档均存在", () => {
+    const traceabilityRows = traceability
+      .split(/\r?\n/)
+      .filter((line) => /^\|\s*AC-\d{2}\s*\|/.test(line));
+
+    for (const row of traceabilityRows) {
+      const paths = [...row.matchAll(/`([^`]+)`/g)].map((match) => match[1]!);
+      expect(
+        paths.length,
+        `missing referenced artifact in row: ${row}`,
+      ).toBeGreaterThan(0);
+      for (const path of paths) {
+        expect(existsSync(join(repoRoot, path))).toBe(true);
       }
     }
   });
