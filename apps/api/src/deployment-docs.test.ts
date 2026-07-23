@@ -128,6 +128,17 @@ const initializationChecklistFragments = [
   "验收演示账号",
   "无权访问用户",
 ];
+const deliveryEntryFragments = [
+  "交付与验收入口",
+  "需求评审修订基线_V2.2.md",
+  "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+  "docs/architecture.md",
+  "docs/deployment.md",
+  "docs/operations-acceptance.md",
+  "docs/acceptance-traceability.md",
+  "V2.2 结果型验收用例",
+  "交付前必跑命令",
+];
 
 describe("deployment documentation", () => {
   it("documents exact CloudBase timer trigger names used by scheduled functions", () => {
@@ -155,6 +166,14 @@ describe("deployment documentation", () => {
     for (const doc of [operationsAcceptanceDoc]) {
       expect(doc).not.toMatch(
         /npm run typecheck\s+npm run test\s+npm run build\s+npm run build:function/,
+      );
+    }
+  });
+
+  it("README exposes the delivery and acceptance entry points", () => {
+    for (const fragment of deliveryEntryFragments) {
+      expect(readme, `README missing delivery entry ${fragment}`).toContain(
+        fragment,
       );
     }
   });

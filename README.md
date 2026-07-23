@@ -37,6 +37,15 @@ node scripts/verify-cloudbase-function-packages.mjs
 
 本项目不存在数据库迁移。开发、测试和首次上线环境均从空 MySQL 数据库执行 `database/init/schema.sql` 完成初始化。正式投产后的结构变更机制另行评审，不在当前新开发阶段引入迁移表或迁移执行器。
 
+## 交付与验收入口
+
+- `需求评审修订基线_V2.2.md`：当前唯一 Markdown 需求基线。
+- `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`：当前 Word 版需求说明书。
+- `docs/architecture.md`：系统架构、安全边界、事务与审计原则。
+- `docs/deployment.md`：CloudBase 部署、空库初始化、账号开通、上线初始化资料清单和云函数部署说明。
+- `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
+- `docs/acceptance-traceability.md`：V2.2 结果型验收用例、自动化测试映射和交付前必跑命令。
+
 ## 安全原则
 
 - 浏览器只允许使用 CloudBase 环境 ID、地域、Publishable Key 和已部署的 API 访问地址。
