@@ -243,6 +243,24 @@ describe("empty database initialization schema", () => {
     expect(schema).toContain("granted_by BIGINT UNSIGNED NOT NULL");
   });
 
+  it("系统管理员默认不获得敏感经营字段查看授权", () => {
+    expect(schema).toContain(
+      "管理员默认不授予利润、合作分成或银行账户等敏感字段查看权",
+    );
+    const sensitiveGrantSeeds = [
+      ...schema.matchAll(
+        /INSERT IGNORE INTO iam_sensitive_field_grant[\s\S]*?(?=\nINSERT|\n$)/g,
+      ),
+    ].map((match) => match[0]!);
+
+    expect(sensitiveGrantSeeds.length).toBeGreaterThan(0);
+    for (const seed of sensitiveGrantSeeds) {
+      expect(seed, "ADMIN must not be seeded with sensitive field access").not.toMatch(
+        /code IN\([^)]*'ADMIN'|code='ADMIN'/,
+      );
+    }
+  });
+
   it("所有接口权限码均存在初始化权限种子", () => {
     const actionPermissions = extractPermissionCodes(actions);
     const actionDefinitions = extractActionDefinitions(actions);

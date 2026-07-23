@@ -1623,10 +1623,11 @@ SELECT id,'CREATOR','' FROM iam_role WHERE code IN('MARKET_BUSINESS','PROJECT_MA
 INSERT IGNORE INTO iam_role_data_scope(role_id,scope_type,scope_value)
 SELECT id,'PARTICIPANT','' FROM iam_role WHERE code IN('PROJECT_MANAGER','PROJECT_MEMBER');
 
+-- 管理员默认不授予利润、合作分成或银行账户等敏感字段查看权；系统管理权不等同于敏感经营数据查看权。
 INSERT IGNORE INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny)
 SELECT r.id,f.field_code,'FULL',0 FROM iam_role r JOIN (
   SELECT 'bank_account' field_code UNION ALL SELECT 'profit' UNION ALL SELECT 'partner_settlement'
-) f WHERE r.code IN('ADMIN','COMPANY_PRINCIPAL','FINANCE');
+) f WHERE r.code IN('COMPANY_PRINCIPAL','FINANCE');
 INSERT IGNORE INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny)
 SELECT r.id,f.field_code,'FULL',0 FROM iam_role r JOIN (
   SELECT 'profit' field_code UNION ALL SELECT 'partner_settlement'
