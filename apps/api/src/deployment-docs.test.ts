@@ -30,6 +30,10 @@ const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
   "utf8",
 );
+const performanceAcceptanceTemplate = readFileSync(
+  new URL("../../../docs/performance-acceptance-template.md", import.meta.url),
+  "utf8",
+);
 const finalAcceptanceChecklist = readFileSync(
   new URL("../../../docs/final-acceptance-checklist.md", import.meta.url),
   "utf8",
@@ -157,6 +161,7 @@ const deliveryEntryFragments = [
   "docs/architecture.md",
   "docs/deployment.md",
   "docs/operations-acceptance.md",
+  "docs/performance-acceptance-template.md",
   "docs/acceptance-traceability.md",
   "docs/final-acceptance-checklist.md",
   "V2.2 结果型验收用例",
@@ -165,7 +170,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify",
-  "63 个测试文件 / 305 条测试",
+  "63 个测试文件 / 306 条测试",
   "9 个测试文件 / 33 条测试",
   "npm audit --omit=dev",
   "git status --short --branch",
@@ -187,10 +192,33 @@ const finalAcceptanceChecklistFragments = [
   "AC-01 至 AC-15",
   "AC-14",
   "30 用户",
+  "docs/performance-acceptance-template.md",
+  "P95 统计",
+  "CloudBase 函数日志",
+  "数据库慢查询记录",
   "备份恢复",
   "每日自动备份",
   "每半年",
   "上线判定",
+];
+const performanceAcceptanceTemplateFragments = [
+  "AC-14 现场性能验收记录模板",
+  "生产级 CloudBase",
+  "基准数据量确认",
+  "不少于 3000 个",
+  "不少于 10000 份",
+  "不少于 50000 条",
+  "合计并发用户",
+  "30",
+  "P95 响应时间",
+  "≤3 秒",
+  "≤5 秒",
+  "越权查询/保存/审批",
+  "重复审批",
+  "CloudBase 函数日志",
+  "数据库慢查询记录",
+  "验收会议纪要或签字页",
+  "是否通过 AC-14",
 ];
 
 describe("deployment documentation", () => {
@@ -342,6 +370,15 @@ describe("deployment documentation", () => {
       expect(
         operationsAcceptanceDoc,
         `operations acceptance docs missing ${fragment}`,
+      ).toContain(fragment);
+    }
+  });
+
+  it("provides a fillable AC-14 performance acceptance record template", () => {
+    for (const fragment of performanceAcceptanceTemplateFragments) {
+      expect(
+        performanceAcceptanceTemplate,
+        `performance acceptance template missing ${fragment}`,
       ).toContain(fragment);
     }
   });

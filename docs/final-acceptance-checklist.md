@@ -9,12 +9,13 @@
 - [ ] 架构、安全边界、事务与审计原则见 `docs/architecture.md`。
 - [ ] CloudBase 部署、空库初始化、账号开通和上线初始化资料清单见 `docs/deployment.md`。
 - [ ] 操作手册、主流程验收、现场性能验收和备份恢复验收见 `docs/operations-acceptance.md`。
+- [ ] AC-14 现场性能验收记录模板见 `docs/performance-acceptance-template.md`。
 - [ ] V2.2 结果型验收用例与自动化测试映射见 `docs/acceptance-traceability.md`。
 
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify` 并通过。
-- [ ] API 测试通过，当前基线为 63 个测试文件 / 305 条测试。
+- [ ] API 测试通过，当前基线为 63 个测试文件 / 306 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 33 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -75,6 +76,7 @@
 - [ ] AC-01 至 AC-15 均按 `docs/acceptance-traceability.md` 完成自动化或现场验收。
 - [ ] AC-14 现场性能验收在生产级 CloudBase 资源、正常企业网络和基准数据量下执行。
 - [ ] 30 用户混合查询、保存、提交和审批后，95% 请求满足 V2.2 性能阈值。
+- [ ] `docs/performance-acceptance-template.md` 已填写并归档压测原始记录、P95 统计、错误明细、CloudBase 函数日志和数据库慢查询记录。
 - [ ] 并发审批无重复审批记录，越权查询、保存和审批被拒绝并留下审计日志。
 
 ## 9. 备份恢复与运维
