@@ -34,6 +34,7 @@ export async function main(
   return handle(normalizedEvent, {
     audit: new MySqlAuditWriter(pool),
     findUserByCloudbaseUid: (uid) => findSessionUserByCloudbaseUid(pool, uid),
-    execute: (action, input, user) => executor.execute(action, input, user),
+    execute: (action, input, user, requestId) =>
+      executor.execute(action, input, user, requestId),
   });
 }

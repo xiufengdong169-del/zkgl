@@ -140,6 +140,33 @@ describe("API handler security boundary", () => {
     );
   });
 
+  it("执行业务动作时向持久层透传同一个 requestId", async () => {
+    const write = vi.fn();
+    const execute = vi.fn(async () => ({ id: "10" }));
+
+    const result = await handle(
+      {
+        action: "project.detail",
+        payload: { projectId: "10" },
+        auth: { uid: "cb-1" },
+        requestId: "req-trace",
+      },
+      {
+        audit: { write },
+        findUserByCloudbaseUid: async () => user,
+        execute,
+      },
+    );
+
+    expect(result).toMatchObject({ ok: true, requestId: "req-trace" });
+    expect(execute).toHaveBeenCalledWith(
+      "project.detail",
+      { projectId: "10" },
+      user,
+      "req-trace",
+    );
+  });
+
   it("未携带认证身份时拒绝业务动作并记录 DENIED 审计", async () => {
     const write = vi.fn();
     const findUserByCloudbaseUid = vi.fn();

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { normalizeFunctionEvent } from "./cloud-function-event.js";
+
+const cloudFunctionSource = readFileSync(
+  new URL("./cloud-function.ts", import.meta.url),
+  "utf8",
+);
 
 describe("CloudBase function event normalization", () => {
   it("优先使用 HTTP JSON body 中的动作、载荷和请求号，但认证身份必须来自 CloudBase context", () => {
@@ -89,5 +95,14 @@ describe("CloudBase function event normalization", () => {
         },
       }),
     ).not.toHaveProperty("auth");
+  });
+
+  it("CloudBase 入口向持久层透传归一化后的 requestId", () => {
+    expect(cloudFunctionSource).toContain(
+      "execute: (action, input, user, requestId)",
+    );
+    expect(cloudFunctionSource).toContain(
+      "executor.execute(action, input, user, requestId)",
+    );
   });
 });
