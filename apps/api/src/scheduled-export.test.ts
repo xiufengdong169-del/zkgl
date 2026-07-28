@@ -1,11 +1,31 @@
-﻿import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
 
 import { EXPORT_TRIGGER_NAME, isExportTimerEvent } from "./scheduled-export.js";
 
+const source = readFileSync(
+  new URL("./scheduled-export.ts", import.meta.url),
+  "utf8",
+);
+
 describe("scheduled export worker", () => {
   it("only accepts the export worker timer trigger", () => {
-    expect(isExportTimerEvent({ Type: "Timer", TriggerName: EXPORT_TRIGGER_NAME })).toBe(true);
-    expect(isExportTimerEvent({ Type: "Timer", TriggerName: "zkglDailyReminder" })).toBe(false);
-    expect(isExportTimerEvent({ Type: "HTTP", TriggerName: EXPORT_TRIGGER_NAME })).toBe(false);
+    expect(
+      isExportTimerEvent({ Type: "Timer", TriggerName: EXPORT_TRIGGER_NAME }),
+    ).toBe(true);
+    expect(
+      isExportTimerEvent({ Type: "Timer", TriggerName: "zkglDailyReminder" }),
+    ).toBe(false);
+    expect(
+      isExportTimerEvent({ Type: "HTTP", TriggerName: EXPORT_TRIGGER_NAME }),
+    ).toBe(false);
+  });
+
+  it("audits failed scheduled exports without persisting exception messages or stacks", () => {
+    expect(source).toContain('outcome: "FAILED"');
+    expect(source).toContain("errorType");
+    expect(source).not.toContain("error.message");
+    expect(source).not.toContain("error.stack");
   });
 });
