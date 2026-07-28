@@ -100,7 +100,7 @@ export async function handle(
       };
     }
     requirePermission(user, action);
-    throw new AppError("NOT_IMPLEMENTED", `操作尚未实现：${action}`, 501);
+    throw new AppError("NOT_IMPLEMENTED", "操作尚未实现", 501);
   } catch (error) {
     const appError = appErrorFromUnknown(error);
     await recordAudit(dependencies.audit, {

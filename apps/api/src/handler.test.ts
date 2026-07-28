@@ -167,6 +167,46 @@ describe("API handler security boundary", () => {
     );
   });
 
+  it("未实现动作返回固定错误文案而不回显客户端传入的 action", async () => {
+    const write = vi.fn();
+    const execute = vi.fn();
+    const unsafeAction = 'custom.unimplemented?<script>alert("x")</script>';
+    const result = await handle(
+      {
+        action: unsafeAction,
+        payload: {},
+        auth: { uid: "cb-1" },
+        requestId: "req-not-implemented",
+      },
+      {
+        audit: { write },
+        findUserByCloudbaseUid: async () => ({
+          ...user,
+          permissionCodes: [unsafeAction],
+        }),
+        execute,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "NOT_IMPLEMENTED",
+        message: "操作尚未实现",
+      },
+      requestId: "req-not-implemented",
+    });
+    expect(result.ok ? "" : result.error.message).not.toContain(unsafeAction);
+    expect(execute).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: unsafeAction,
+        outcome: "FAILED",
+        details: expect.objectContaining({ code: "NOT_IMPLEMENTED" }),
+      }),
+    );
+  });
+
   it("未携带认证身份时拒绝业务动作并记录 DENIED 审计", async () => {
     const write = vi.fn();
     const findUserByCloudbaseUid = vi.fn();
