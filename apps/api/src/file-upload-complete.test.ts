@@ -69,7 +69,61 @@ function versionCompleteConnection() {
   };
 }
 
+function rejectedVersionPrepareConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      throw new Error(`unexpected SQL before file type validation: ${sql}`);
+    },
+  };
+}
+
 describe("file upload completion", () => {
+  it("rejects unsafe file versions before creating pending version records", async () => {
+    for (const input of [
+      {
+        fileId: "f1",
+        originalName: "payload.js",
+        mimeType: "application/javascript",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      },
+      {
+        fileId: "f1",
+        originalName: "safe-name.pdf",
+        mimeType: "image/png",
+        sizeBytes: 100,
+        sha256: "a".repeat(64),
+      },
+    ]) {
+      const connection = rejectedVersionPrepareConnection();
+      const executor = new MySqlActionExecutor({
+        getConnection: async () => connection,
+      } as never);
+
+      await expect(
+        executor.execute("file.version.prepare", input, user),
+      ).rejects.toMatchObject({ code: "FILE_TYPE_NOT_ALLOWED", status: 415 });
+
+      expect(
+        connection.calls.some((call) =>
+          call.sql.startsWith("INSERT INTO file_version"),
+        ),
+      ).toBe(false);
+      expect(connection.calls.map((call) => call.sql)).toEqual([
+        "BEGIN",
+        "ROLLBACK",
+        "RELEASE",
+      ]);
+    }
+  });
+
   it("rejects completion when the uploaded cloud file does not match the reserved storage key", async () => {
     const connection = uploadCompleteConnection();
     const executor = new MySqlActionExecutor({
