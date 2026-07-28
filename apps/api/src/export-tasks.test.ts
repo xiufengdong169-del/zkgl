@@ -288,7 +288,7 @@ describe("export task worker", () => {
     ).toBe(true);
   });
 
-  it("权限快照损坏时标记任务失败且不上传导出文件", async () => {
+  it("权限快照损坏时标记安全失败代码且不上传导出文件", async () => {
     const connection = exportWorkerConnectionWithSnapshot("{bad-json");
     const uploads: Array<{ cloudPath: string; content: Buffer }> = [];
 
@@ -308,7 +308,7 @@ describe("export task worker", () => {
       call.sql.includes("status='FAILED'"),
     );
     expect(failedUpdate?.params).toEqual([
-      expect.stringContaining("Expected property name"),
+      "EXPORT_PERMISSION_SNAPSHOT_INVALID",
       7,
     ]);
   });
@@ -373,6 +373,23 @@ describe("export task worker", () => {
       "EXPORT_PERMISSION_SNAPSHOT_INVALID",
       7,
     ]);
+  });
+
+  it("stores a generic failure code for unexpected export processing errors", async () => {
+    const connection = exportWorkerConnection();
+
+    const result = await processPendingProjectExportTasks(connection as never, {
+      uploadFile: async () => {
+        throw new Error("cloud storage token leaked in raw message");
+      },
+    });
+
+    expect(result).toEqual({ processed: 1, completed: 0, failed: 1 });
+    const failedUpdate = connection.calls.find((call) =>
+      call.sql.includes("status='FAILED'"),
+    );
+    expect(failedUpdate?.params).toEqual(["EXPORT_TASK_PROCESS_FAILED", 7]);
+    expect(JSON.stringify(failedUpdate?.params)).not.toContain("token");
   });
 
   it("skips export output when a pending task cannot be claimed as running", async () => {

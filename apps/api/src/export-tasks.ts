@@ -37,8 +37,27 @@ async function loadExportRetentionDays(connection: Pick<PoolConnection, "execute
 }
 
 function parseJsonObject(value: string | object): Record<string, unknown> {
-  if (typeof value === "string") return JSON.parse(value) as Record<string, unknown>;
-  return value as Record<string, unknown>;
+  try {
+    const parsed =
+      typeof value === "string"
+        ? (JSON.parse(value) as unknown)
+        : (value as unknown);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error("invalid snapshot");
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new Error("EXPORT_PERMISSION_SNAPSHOT_INVALID");
+  }
+}
+
+function exportFailureReason(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "EXPORT_PERMISSION_SNAPSHOT_INVALID"
+  ) {
+    return "EXPORT_PERMISSION_SNAPSHOT_INVALID";
+  }
+  return "EXPORT_TASK_PROCESS_FAILED";
 }
 
 function scopedIds(scopes: unknown[], type: string, field: "projectIds" | "departmentIds"): string[] {
@@ -172,7 +191,7 @@ export async function processPendingProjectExportTasks(
       failed += 1;
       await connection.execute(
         `UPDATE sys_export_task SET status='FAILED',failure_reason=?,completed_at=NOW(3) WHERE id=?`,
-        [error instanceof Error ? error.message.slice(0, 1000) : "UNKNOWN_EXPORT_ERROR", task.id],
+        [exportFailureReason(error), task.id],
       );
     }
   }
