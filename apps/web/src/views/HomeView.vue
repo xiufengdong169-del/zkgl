@@ -61,6 +61,16 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const exporting = ref(false);
 
+const exportFailureMessages: Record<string, string> = {
+  EXPORT_PERMISSION_SNAPSHOT_INVALID: "导出权限快照已失效，请重新发起导出",
+  EXPORT_TASK_PROCESS_FAILED: "导出处理失败，请稍后重试或联系管理员",
+};
+
+function exportFailureText(reason: string | null) {
+  if (!reason) return "";
+  return exportFailureMessages[reason] ?? "导出处理失败，请稍后重试或联系管理员";
+}
+
 async function loadDashboardAndMessages() {
   const [report, messageResult, approvalResult, projectResult] = await Promise.allSettled([
     callApi<typeof summary.value>("report.dashboard", {}),
@@ -228,7 +238,7 @@ async function markRead(message: Message) {
             <span v-if="task.expiresAt"> &middot; &#36807;&#26399;&#26102;&#38388; {{ task.expiresAt }}</span>
           </p>
           <p v-if="task.isExpired" class="error">&#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;</p>
-          <p v-if="task.failureReason" class="error">{{ task.failureReason }}</p>
+          <p v-if="task.failureReason" class="error">{{ exportFailureText(task.failureReason) }}</p>
         </div>
         <button
           class="secondary-button"

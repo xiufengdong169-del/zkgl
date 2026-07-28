@@ -213,4 +213,16 @@ describe("frontend API action usage", () => {
     expect(homeView).toContain("&#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;");
     expect(homeView).toContain("!task.fileId || task.isExpired");
   });
+
+  it("maps background export failure codes before rendering dashboard errors", () => {
+    const homeView = readFileSync(
+      join(webSourceDir, "views", "HomeView.vue"),
+      "utf8",
+    );
+
+    expect(homeView).toContain("exportFailureText(task.failureReason)");
+    expect(homeView).toContain("EXPORT_PERMISSION_SNAPSHOT_INVALID");
+    expect(homeView).toContain("EXPORT_TASK_PROCESS_FAILED");
+    expect(homeView).not.toContain("{{ task.failureReason }}");
+  });
 });
