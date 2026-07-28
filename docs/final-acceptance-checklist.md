@@ -29,6 +29,7 @@
 - [ ] 本地分支为 `main`。
 - [ ] `git status --short --branch` 显示本地与 `origin/main` 一致，且工作区干净。
 - [ ] 每个交付改动均已提交并推送到 `https://github.com/xiufengdong169-del/zkgl`。
+- [ ] GitHub Actions 工作流 `.github/workflows/verify.yml` 已在 push 或 pull request 上执行 `npm run verify:acceptance` 并通过。
 
 ## 4. 数据库与初始化
 

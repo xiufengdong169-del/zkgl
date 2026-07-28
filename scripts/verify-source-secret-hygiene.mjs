@@ -9,6 +9,7 @@ const scannedRoots = [
   "scripts",
   "database",
   "docs",
+  ".github",
   "cloudbaserc.json",
   "package.json",
   "package-lock.json",

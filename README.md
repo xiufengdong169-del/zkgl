@@ -65,6 +65,8 @@ https://github.com/xiufengdong169-del/zkgl
 
 每个可验证改动应在通过测试与构建后提交并推送到 `main`。
 
+仓库包含 GitHub Actions 工作流 `.github/workflows/verify.yml`，会在 push 和 pull request 时执行 `npm ci` 与 `npm run verify:acceptance`，用于持续校验类型检查、测试、构建、敏感信息扫描、CloudBase 函数包校验和生产依赖审计。
+
 ## GitHub sync verification
 
 After pushing delivery changes, run:

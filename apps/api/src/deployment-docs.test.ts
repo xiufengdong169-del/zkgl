@@ -73,6 +73,10 @@ const githubSyncScript = readFileSync(
   new URL("../../../scripts/verify-github-sync.mjs", import.meta.url),
   "utf8",
 );
+const githubVerifyWorkflow = readFileSync(
+  new URL("../../../.github/workflows/verify.yml", import.meta.url),
+  "utf8",
+);
 const cloudbaseConfig = JSON.parse(
   readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
 ) as {
@@ -208,6 +212,8 @@ const finalAcceptanceChecklistFragments = [
   "npm audit --omit=dev",
   "git status --short --branch",
   "origin/main",
+  "GitHub Actions",
+  ".github/workflows/verify.yml",
   "database/init/schema.sql",
   "不存在数据库迁移",
   "上线初始化资料清单",
@@ -278,6 +284,10 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:github-sync"]).toBe(
       "node scripts/verify-github-sync.mjs",
     );
+    expect(githubVerifyWorkflow).toContain("npm ci");
+    expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
+    expect(githubVerifyWorkflow).toContain("push:");
+    expect(githubVerifyWorkflow).toContain("pull_request:");
     expect(githubSyncScript).toContain(
       "https://github.com/xiufengdong169-del/zkgl.git",
     );
