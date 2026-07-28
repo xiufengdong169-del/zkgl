@@ -24,6 +24,24 @@ describe('audit sanitization', () => {
     })
   })
 
+  it('遮蔽常见凭据和密钥类字段名', () => {
+    expect(
+      sanitizeAuditDetails({
+        credential: 'opaque-credential',
+        accessKey: 'access-key',
+        privateKey: 'private-key',
+        nested: { secretKey: 'secret-key' },
+        projectId: 'p-1'
+      })
+    ).toEqual({
+      credential: '[REDACTED]',
+      accessKey: '[REDACTED]',
+      privateKey: '[REDACTED]',
+      nested: { secretKey: '[REDACTED]' },
+      projectId: 'p-1'
+    })
+  })
+
   it('记录系统管理动作的资源 ID', () => {
     expect(deriveAuditResourceId({ roleId: 'r-admin' })).toBe('r-admin')
     expect(deriveAuditResourceId({ nodeId: 'wf-node-1' })).toBe('wf-node-1')

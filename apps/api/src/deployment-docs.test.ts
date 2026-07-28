@@ -203,7 +203,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "66 个测试文件 / 323 条测试",
+  "66 个测试文件 / 324 条测试",
   "8 个测试文件 / 37 条测试",
   "npm audit --omit=dev",
   "git status --short --branch",

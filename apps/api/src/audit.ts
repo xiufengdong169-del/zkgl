@@ -24,7 +24,7 @@ export function sanitizeAuditDetails(
 }
 
 const blockedAuditDetailKey =
-  /password|secret|token|api.?key|authorization|cookie|bank.?account|receiving.?account|paying.?account|payer.?account|buyer.?information/i;
+  /password|secret|token|credential|api.?key|access.?key|private.?key|authorization|cookie|bank.?account|receiving.?account|paying.?account|payer.?account|buyer.?information/i;
 
 function sanitizeAuditValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => sanitizeAuditValue(item));
