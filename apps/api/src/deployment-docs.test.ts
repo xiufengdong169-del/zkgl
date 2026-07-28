@@ -76,6 +76,7 @@ const githubSyncScript = readFileSync(
 const cloudbaseConfig = JSON.parse(
   readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
 ) as {
+  envId: string;
   functions: Array<{
     name: string;
     handler: string;
@@ -84,6 +85,8 @@ const cloudbaseConfig = JSON.parse(
   }>;
 };
 
+const expectedCloudbaseEnvId = "cloudbase-d7gc2b32cd4196059";
+const expectedCloudbaseRegion = "ap-guangzhou";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -200,7 +203,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "66 个测试文件 / 321 条测试",
+  "66 个测试文件 / 322 条测试",
   "8 个测试文件 / 37 条测试",
   "npm audit --omit=dev",
   "git status --short --branch",
@@ -433,6 +436,28 @@ describe("deployment documentation", () => {
         `deployment docs missing CloudBase CLI prerequisite ${fragment}`,
       ).toContain(fragment);
     }
+  });
+
+  it("keeps the CloudBase environment id and region aligned across deployment artifacts", () => {
+    expect(cloudbaseConfig.envId).toBe(expectedCloudbaseEnvId);
+    expect(envExample).toContain(
+      `VITE_CLOUDBASE_ENV_ID=${expectedCloudbaseEnvId}`,
+    );
+    expect(envExample).toContain(`CLOUDBASE_ENV_ID=${expectedCloudbaseEnvId}`);
+    expect(envExample).toContain(
+      `VITE_CLOUDBASE_REGION=${expectedCloudbaseRegion}`,
+    );
+
+    for (const doc of [
+      deploymentDoc,
+      performanceAcceptanceTemplate,
+      finalAcceptanceChecklist,
+    ]) {
+      expect(doc).toContain(expectedCloudbaseEnvId);
+    }
+    expect(deploymentDoc).toContain(expectedCloudbaseRegion);
+    expect(deploymentDoc).toContain("广州南沙");
+    expect(finalAcceptanceChecklist).toContain("广州南沙");
   });
 
   it("deployment docs and verification cover CloudBase function config", () => {
