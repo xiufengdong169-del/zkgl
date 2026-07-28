@@ -50,4 +50,25 @@ describe("domain actions", () => {
       ).toMatchObject({ businessType, businessId: "1" });
     }
   });
+
+  it("accepts only persisted audit outcomes for audit log filters", () => {
+    const admin = { ...user, permissionCodes: ["system.admin"] };
+    for (const outcome of ["SUCCESS", "DENIED", "FAILED"]) {
+      expect(
+        authorizeAndParseAction(admin, "admin.audit.list", {
+          outcome,
+          page: 1,
+          pageSize: 20,
+        }),
+      ).toMatchObject({ outcome });
+    }
+
+    expect(() =>
+      authorizeAndParseAction(admin, "admin.audit.list", {
+        outcome: "FAILURE",
+        page: 1,
+        pageSize: 20,
+      }),
+    ).toThrow();
+  });
 });

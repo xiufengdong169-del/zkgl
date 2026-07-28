@@ -637,7 +637,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         pageSize: z.union([z.literal(20), z.literal(50)]).default(20),
         keyword: z.string().trim().max(100).optional(),
         action: z.string().trim().max(128).optional(),
-        outcome: z.enum(["SUCCESS", "FAILURE"]).optional(),
+        outcome: z.enum(["SUCCESS", "DENIED", "FAILED"]).optional(),
       })
       .default({ page: 1, pageSize: 20 }),
   },
