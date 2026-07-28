@@ -64,6 +64,35 @@ function deniedDownloadConnection() {
   };
 }
 
+function expiredExportDownloadConnection() {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("storage_key storageKey"))
+        return [
+          [
+            {
+              id: "f-export",
+              businessType: "EXPORT_TASK",
+              classification: "INTERNAL",
+              exportExpiresAt: "2000-01-01T00:00:00.000Z",
+              versionId: "v-export",
+              storageKey: "cloud://exports/expired.csv",
+            },
+          ],
+          [],
+        ];
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
 function fileListConnection() {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
@@ -168,6 +197,43 @@ describe("file access scopes", () => {
       call.sql.includes("SENSITIVE_FILE_DENIED"),
     );
     expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-denied"]);
+  });
+
+  it("denies expired export-task file downloads before creating temporary URLs", async () => {
+    const connection = expiredExportDownloadConnection();
+    const executor = new MySqlActionExecutor(
+      { getConnection: async () => connection } as never,
+      async () => {
+        throw new Error("temporary URL must not be created for expired exports");
+      },
+    );
+
+    await expect(
+      executor.execute(
+        "file.download",
+        { fileId: "f-export" },
+        allScopeUser,
+        "api-request-expired-export",
+      ),
+    ).rejects.toMatchObject({
+      code: "EXPORT_FILE_EXPIRED",
+      status: 410,
+    });
+
+    const query = connection.calls.find((call) =>
+      call.sql.includes("storage_key storageKey"),
+    )!;
+    expect(query.sql).toContain("LEFT JOIN sys_export_task");
+    expect(query.sql).toContain("t.expires_at exportExpiresAt");
+    const log = connection.calls.find((call) =>
+      call.sql.includes("EXPORT_FILE_EXPIRED"),
+    );
+    expect(log?.params).toEqual([
+      "f-export",
+      "v-export",
+      "u2",
+      "api-request-expired-export",
+    ]);
   });
 
   it("writes denied file access logs when download scope checks fail for an existing file", async () => {

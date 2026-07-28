@@ -35,6 +35,12 @@ const toCents = (value: unknown) =>
   BigInt(Math.round(Number(value ?? 0) * 100));
 const fromCents = (value: bigint) => (Number(value) / 100).toFixed(2);
 
+function isPastDateTime(value: unknown, now = new Date()) {
+  if (value == null) return false;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return !Number.isNaN(date.getTime()) && date.getTime() < now.getTime();
+}
+
 async function loadNumberParameter(
   connection: PoolConnection,
   paramKey: string,
@@ -1556,7 +1562,7 @@ export class MySqlActionExecutor {
             );
           const fileAccess = buildFileAccessScope(user),
             [rows] = await connection.execute<RowDataPacket[]>(
-              `SELECT f.id,f.classification,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (${fileAccess.sql})`,
+              `SELECT f.id,f.business_type businessType,f.classification,t.expires_at exportExpiresAt,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) LEFT JOIN sys_export_task t ON t.file_id=f.id WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (${fileAccess.sql})`,
               [
                 input.versionId ?? null,
                 input.versionId ?? null,
@@ -1595,6 +1601,16 @@ export class MySqlActionExecutor {
               [file.id, file.versionId, user.id, requestId],
             );
             throw new AppError("SENSITIVE_FILE_DENIED", "无权下载该文件", 403);
+          }
+          if (
+            file.businessType === "EXPORT_TASK" &&
+            isPastDateTime(file.exportExpiresAt)
+          ) {
+            await connection.execute(
+              `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,denial_code,request_id) VALUES(?,?,?,'DOWNLOAD','DENIED','EXPORT_FILE_EXPIRED',?)`,
+              [file.id, file.versionId, user.id, requestId],
+            );
+            throw new AppError("EXPORT_FILE_EXPIRED", "导出文件已过期", 410);
           }
           const url = await this.createTemporaryUrl(
             file.storageKey,
