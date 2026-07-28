@@ -261,6 +261,23 @@ describe("empty database initialization schema", () => {
     }
   });
 
+  it("系统管理权限仅由系统管理员角色默认获得", () => {
+    const rolePermissionSeeds = [
+      ...schema.matchAll(
+        /INSERT IGNORE INTO iam_role_permission[\s\S]*?(?=\nINSERT|\n$)/g,
+      ),
+    ].map((match) => match[0]!);
+    const systemAdminSeeds = rolePermissionSeeds.filter((seed) =>
+      seed.includes("system.admin"),
+    );
+
+    expect(rolePermissionSeeds.length).toBeGreaterThan(0);
+    expect(systemAdminSeeds).toEqual([]);
+    expect(schema).toContain(
+      "SELECT r.id,p.id FROM iam_role r CROSS JOIN iam_permission p WHERE r.code='ADMIN'",
+    );
+  });
+
   it("所有接口权限码均存在初始化权限种子", () => {
     const actionPermissions = extractPermissionCodes(actions);
     const actionDefinitions = extractActionDefinitions(actions);
