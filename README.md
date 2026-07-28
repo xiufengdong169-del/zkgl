@@ -64,3 +64,13 @@ https://github.com/xiufengdong169-del/zkgl
 ```
 
 每个可验证改动应在通过测试与构建后提交并推送到 `main`。
+
+## GitHub sync verification
+
+After pushing delivery changes, run:
+
+```powershell
+npm run verify:github-sync
+```
+
+This verifies that the current branch is `main`, `origin` points to `https://github.com/xiufengdong169-del/zkgl`, the working tree is clean, and local `main` matches the latest `origin/main`.

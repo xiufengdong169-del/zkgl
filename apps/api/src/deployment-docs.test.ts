@@ -69,6 +69,10 @@ const cloudbaseFunctionPackageVerifier = readFileSync(
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
+const githubSyncScript = readFileSync(
+  new URL("../../../scripts/verify-github-sync.mjs", import.meta.url),
+  "utf8",
+);
 const cloudbaseConfig = JSON.parse(
   readFileSync(new URL("../../../cloudbaserc.json", import.meta.url), "utf8"),
 ) as {
@@ -268,6 +272,17 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:acceptance"]).toBe(
       "npm run verify && npm audit --omit=dev",
     );
+    expect(packageJson.scripts["verify:github-sync"]).toBe(
+      "node scripts/verify-github-sync.mjs",
+    );
+    expect(githubSyncScript).toContain(
+      "https://github.com/xiufengdong169-del/zkgl.git",
+    );
+    expect(githubSyncScript).toContain("fetch");
+    expect(githubSyncScript).toContain("origin/main");
+    expect(readme).toContain("npm run verify:github-sync");
+    expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
+    expect(finalAcceptanceChecklist).toContain("npm run verify:github-sync");
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );

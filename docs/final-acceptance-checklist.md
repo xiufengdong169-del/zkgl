@@ -95,3 +95,7 @@
 ## 10. 上线判定
 
 仅当以上检查均完成，且现场性能、生产部署、备份恢复演练和验收材料归档均有明确记录后，方可判定系统具备正式上线验收条件。
+
+## GitHub sync verification
+
+- [ ] After pushing delivery changes, run `npm run verify:github-sync` and confirm local `main` matches `origin/main`.

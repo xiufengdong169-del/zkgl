@@ -67,3 +67,13 @@ npm audit --omit=dev
 - 不存在持久化层额外暴露、但未在动作定义中授权校验的动作。
 
 当前基线已执行该类检查；如后续新增动作，应同步补充动作定义、持久化实现、权限种子和测试。
+
+## GitHub sync verification
+
+After pushing to GitHub, run:
+
+```powershell
+npm run verify:github-sync
+```
+
+The command verifies that local `main` tracks `origin/main`, the working tree is clean, and the remote repository is `https://github.com/xiufengdong169-del/zkgl`.
