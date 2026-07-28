@@ -197,6 +197,8 @@ describe("file access scopes", () => {
       call.sql.includes("SENSITIVE_FILE_DENIED"),
     );
     expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-denied"]);
+    expect(connection.calls.map((call) => call.sql)).not.toContain("ROLLBACK");
+    expect(connection.calls.map((call) => call.sql)).not.toContain("BEGIN");
   });
 
   it("denies expired export-task file downloads before creating temporary URLs", async () => {
@@ -234,6 +236,8 @@ describe("file access scopes", () => {
       "u2",
       "api-request-expired-export",
     ]);
+    expect(connection.calls.map((call) => call.sql)).not.toContain("ROLLBACK");
+    expect(connection.calls.map((call) => call.sql)).not.toContain("BEGIN");
   });
 
   it("writes denied file access logs when download scope checks fail for an existing file", async () => {
@@ -270,6 +274,8 @@ describe("file access scopes", () => {
       "u2",
       "api-request-business-denied",
     ]);
+    expect(connection.calls.map((call) => call.sql)).not.toContain("ROLLBACK");
+    expect(connection.calls.map((call) => call.sql)).not.toContain("BEGIN");
   });
 
   it("filters sensitive files out of attachment lists unless the user has sensitive read permission", async () => {

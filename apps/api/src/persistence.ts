@@ -637,7 +637,7 @@ export class MySqlActionExecutor {
     requestId: string = crypto.randomUUID(),
   ): Promise<unknown> {
     const input = value as Record<string, any>;
-    return withTransaction(this.pool, async (connection) => {
+    const work = async (connection: PoolConnection) => {
       switch (action) {
         case "message.list": {
           const page = input.page as number,
@@ -5273,6 +5273,15 @@ export class MySqlActionExecutor {
             501,
           );
       }
-    });
+    };
+    if (action === "file.download") {
+      const connection = await this.pool.getConnection();
+      try {
+        return await work(connection);
+      } finally {
+        connection.release();
+      }
+    }
+    return withTransaction(this.pool, work);
   }
 }
