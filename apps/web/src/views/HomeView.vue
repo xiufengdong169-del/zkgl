@@ -24,6 +24,7 @@ interface ExportTask {
   createdAt: string;
   completedAt: string | null;
   expiresAt: string | null;
+  isExpired: 0 | 1 | boolean;
   logicalName: string | null;
   sizeBytes: number | null;
 }
@@ -125,7 +126,7 @@ async function exportProjects() {
 }
 
 async function downloadExportTask(task: ExportTask) {
-  if (!task.fileId) return;
+  if (!task.fileId || task.isExpired) return;
   error.value = null;
   try {
     const result = await callApi<{ url: string }>("file.download", { fileId: task.fileId });
@@ -226,11 +227,12 @@ async function markRead(message: Message) {
             {{ task.estimatedRows }} &#34892; &middot; {{ task.completedAt || task.createdAt }}
             <span v-if="task.expiresAt"> &middot; &#36807;&#26399;&#26102;&#38388; {{ task.expiresAt }}</span>
           </p>
+          <p v-if="task.isExpired" class="error">&#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;</p>
           <p v-if="task.failureReason" class="error">{{ task.failureReason }}</p>
         </div>
         <button
           class="secondary-button"
-          :disabled="task.status !== 'COMPLETED' || !task.fileId"
+          :disabled="task.status !== 'COMPLETED' || !task.fileId || Boolean(task.isExpired)"
           @click="downloadExportTask(task)"
         >
           &#19979;&#36733;&#25991;&#20214;

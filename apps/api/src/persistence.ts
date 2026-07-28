@@ -767,7 +767,7 @@ export class MySqlActionExecutor {
           const page = input.page as number,
             pageSize = input.pageSize as number;
           const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT CAST(t.id AS CHAR) id,t.task_code taskCode,t.export_type exportType,t.estimated_rows estimatedRows,t.status,t.failure_reason failureReason,CAST(t.file_id AS CHAR) fileId,t.created_at createdAt,t.started_at startedAt,t.completed_at completedAt,t.expires_at expiresAt,f.logical_name logicalName,v.size_bytes sizeBytes
+            `SELECT CAST(t.id AS CHAR) id,t.task_code taskCode,t.export_type exportType,t.estimated_rows estimatedRows,t.status,t.failure_reason failureReason,CAST(t.file_id AS CHAR) fileId,t.created_at createdAt,t.started_at startedAt,t.completed_at completedAt,t.expires_at expiresAt,CASE WHEN t.expires_at IS NOT NULL AND t.expires_at<NOW(3) THEN 1 ELSE 0 END isExpired,f.logical_name logicalName,v.size_bytes sizeBytes
                FROM sys_export_task t
                LEFT JOIN file_object f ON f.id=t.file_id AND f.status='ACTIVE' AND f.is_deleted=0
                LEFT JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version AND v.status='ACTIVE'

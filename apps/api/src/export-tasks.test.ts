@@ -59,9 +59,12 @@ describe("export task persistence", () => {
       status: "COMPLETED",
       fileId: "88",
     });
-    expect(
-      connection.calls.find((sql) => sql.includes("LEFT JOIN file_object f")),
-    ).toContain("f.is_deleted=0");
+    const query = connection.calls.find((sql) =>
+      sql.includes("LEFT JOIN file_object f"),
+    )!;
+    expect(query).toContain("f.is_deleted=0");
+    expect(query).toContain("t.expires_at<NOW(3)");
+    expect(query).toContain("isExpired");
   });
 
   it("creates a background export task instead of rejecting 1000-row project exports", async () => {

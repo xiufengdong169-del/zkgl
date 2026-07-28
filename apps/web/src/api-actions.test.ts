@@ -201,4 +201,16 @@ describe("frontend API action usage", () => {
     expect(homeView).not.toContain("new Blob");
     expect(homeView).not.toContain("buildCsv");
   });
+
+  it("disables expired background export downloads in the dashboard", () => {
+    const homeView = readFileSync(
+      join(webSourceDir, "views", "HomeView.vue"),
+      "utf8",
+    );
+
+    expect(homeView).toContain("isExpired");
+    expect(homeView).toContain("Boolean(task.isExpired)");
+    expect(homeView).toContain("&#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;");
+    expect(homeView).toContain("!task.fileId || task.isExpired");
+  });
 });
