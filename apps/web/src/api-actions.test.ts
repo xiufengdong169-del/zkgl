@@ -175,4 +175,15 @@ describe("frontend API action usage", () => {
       "['PENDING_SIGNATURE', 'PERFORMING', 'COMPLETED'].includes",
     );
   });
+  it("keeps audit outcome filter options aligned with persisted backend values", () => {
+    const adminView = readFileSync(
+      join(webSourceDir, "views", "AdminView.vue"),
+      "utf8",
+    );
+
+    expect(adminView).toContain('<option value="SUCCESS">');
+    expect(adminView).toContain('<option value="DENIED">');
+    expect(adminView).toContain('<option value="FAILED">');
+    expect(adminView).not.toContain('<option value="FAILURE">');
+  });
 });

@@ -1320,7 +1320,8 @@ onMounted(load);
             >结果<select v-model="auditOutcome">
               <option value="">全部</option>
               <option value="SUCCESS">成功</option>
-              <option value="FAILURE">失败</option>
+              <option value="DENIED">拒绝</option>
+              <option value="FAILED">失败</option>
             </select></label
           ><button>查询</button>
         </form>
