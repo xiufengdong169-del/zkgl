@@ -11,7 +11,7 @@ describe('metrics and query controls', () => {
     expect(normalizePage({})).toEqual({page:1,pageSize:20,offset:0})
     expect(() => normalizePage({page:1,pageSize:100})).toThrow()
   })
-  it('1000条及以上导出转后台任务', () => {
-    expect(chooseExportMode(999)).toBe('SYNCHRONOUS'); expect(chooseExportMode(1000)).toBe('BACKGROUND')
+  it('项目经营导出统一转后台任务', () => {
+    expect(chooseExportMode(0)).toBe('BACKGROUND'); expect(chooseExportMode(999)).toBe('BACKGROUND'); expect(chooseExportMode(1000)).toBe('BACKGROUND')
   })
 })

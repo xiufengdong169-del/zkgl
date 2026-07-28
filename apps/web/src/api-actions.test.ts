@@ -186,4 +186,19 @@ describe("frontend API action usage", () => {
     expect(adminView).toContain('<option value="FAILED">');
     expect(adminView).not.toContain('<option value="FAILURE">');
   });
+
+  it("keeps project exports on the background file download path", () => {
+    const homeView = readFileSync(
+      join(webSourceDir, "views", "HomeView.vue"),
+      "utf8",
+    );
+
+    expect(homeView).toContain('"report.project.export"');
+    expect(homeView).toContain('"file.download"');
+    expect(homeView).toContain("openTrustedDownloadUrl");
+    expect(homeView).not.toContain('mode: "SYNCHRONOUS"');
+    expect(homeView).not.toContain("URL.createObjectURL");
+    expect(homeView).not.toContain("new Blob");
+    expect(homeView).not.toContain("buildCsv");
+  });
 });

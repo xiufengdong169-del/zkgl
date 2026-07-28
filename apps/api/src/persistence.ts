@@ -718,53 +718,43 @@ export class MySqlActionExecutor {
             projectScope.params,
           );
           const estimatedRows = Number(countRows[0]?.count ?? 0);
-          if (chooseExportMode(estimatedRows) === "BACKGROUND") {
-            const [temporaryGrants] = await connection.execute<RowDataPacket[]>(
-              `SELECT CAST(project_id AS CHAR) projectId FROM iam_project_grant WHERE employee_id=? AND status='ENABLED' AND starts_on<=CURDATE() AND (ends_on IS NULL OR ends_on>=CURDATE())`,
-              [user.employeeId],
-            );
-            const code = await allocateNumber(connection, "EXPORT_TASK");
-            const [task] = await connection.execute<ResultSetHeader>(
-              `INSERT INTO sys_export_task(task_code,requester_id,export_type,filter_snapshot,permission_snapshot,estimated_rows,status) VALUES(?,?,?,?,?,?,'PENDING')`,
-              [
-                code,
-                user.id,
-                "PROJECT_OPERATING",
-                JSON.stringify({}),
-                JSON.stringify({
-                  employeeId: user.employeeId,
-                  dataScopes: user.dataScopes,
-                  permissionCodes: user.permissionCodes.filter((code) =>
-                    [
-                      "project.export",
-                      "project.read",
-                      "report.financial.read",
-                    ].includes(code),
-                  ),
-                  temporaryProjectIds: temporaryGrants.map((row) =>
-                    String(row.projectId),
-                  ),
-                }),
-                estimatedRows,
-              ],
-            );
-            return {
-              mode: "BACKGROUND",
-              taskId: String(task.insertId),
-              taskCode: code,
-              status: "PENDING",
+          chooseExportMode(estimatedRows);
+          const [temporaryGrants] = await connection.execute<RowDataPacket[]>(
+            `SELECT CAST(project_id AS CHAR) projectId FROM iam_project_grant WHERE employee_id=? AND status='ENABLED' AND starts_on<=CURDATE() AND (ends_on IS NULL OR ends_on>=CURDATE())`,
+            [user.employeeId],
+          );
+          const code = await allocateNumber(connection, "EXPORT_TASK");
+          const [task] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO sys_export_task(task_code,requester_id,export_type,filter_snapshot,permission_snapshot,estimated_rows,status) VALUES(?,?,?,?,?,?,'PENDING')`,
+            [
+              code,
+              user.id,
+              "PROJECT_OPERATING",
+              JSON.stringify({}),
+              JSON.stringify({
+                employeeId: user.employeeId,
+                dataScopes: user.dataScopes,
+                permissionCodes: user.permissionCodes.filter((code) =>
+                  [
+                    "project.export",
+                    "project.read",
+                    "report.financial.read",
+                  ].includes(code),
+                ),
+                temporaryProjectIds: temporaryGrants.map((row) =>
+                  String(row.projectId),
+                ),
+              }),
               estimatedRows,
-              message: `\u5bfc\u51fa\u6570\u636e\u7ea6 ${estimatedRows} \u6761\uff0c\u5df2\u8f6c\u5165\u540e\u53f0\u4efb\u52a1 ${code}`,
-            };
-          }
-          const [rows] = await connection.execute<RowDataPacket[]>(
-            `SELECT p.project_code projectCode,p.project_name projectName,c.name customerName,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,(SELECT COALESCE(SUM(x.tax_exclusive_amount),0) FROM con_contract x WHERE x.project_id=p.id AND x.contract_type='INCOME' AND x.amount_status='CONFIRMED' AND x.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND x.is_deleted=0) confirmedIncome,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE' AND r.is_deleted=0) receivedAmount FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 1000`,
-            projectScope.params,
+            ],
           );
           return {
-            mode: "SYNCHRONOUS",
-            rows,
-            disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
+            mode: "BACKGROUND",
+            taskId: String(task.insertId),
+            taskCode: code,
+            status: "PENDING",
+            estimatedRows,
+            message: `\u5bfc\u51fa\u6570\u636e\u7ea6 ${estimatedRows} \u6761\uff0c\u5df2\u8f6c\u5165\u540e\u53f0\u4efb\u52a1 ${code}`,
           };
         }
         case "report.exportTasks": {

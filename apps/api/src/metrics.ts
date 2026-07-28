@@ -30,7 +30,7 @@ export function normalizePage(input: PageRequest) {
   return { page, pageSize, offset: (page - 1) * pageSize }
 }
 
-export function chooseExportMode(rowCount: number, synchronousLimit = 1000) {
+export function chooseExportMode(rowCount: number) {
   if (!Number.isInteger(rowCount) || rowCount < 0) throw new AppError('INVALID_EXPORT_COUNT', '导出数量非法')
-  return rowCount >= synchronousLimit ? 'BACKGROUND' as const : 'SYNCHRONOUS' as const
+  return 'BACKGROUND' as const
 }

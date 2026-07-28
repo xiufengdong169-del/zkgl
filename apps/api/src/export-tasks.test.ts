@@ -19,7 +19,7 @@ const user: SessionUser = {
   dataScopes: [{ type: "ALL" }],
 };
 
-function fakeConnection() {
+function fakeConnection(projectCount = 1000) {
   const calls: string[] = [];
   const paramCalls: Array<{ sql: string; params: unknown[] }> = [];
   return {
@@ -32,7 +32,7 @@ function fakeConnection() {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push(sql);
       paramCalls.push({ sql, params });
-      if (sql.includes("COUNT(*) count FROM prj_project")) return [[{ count: 1000 }], []];
+      if (sql.includes("COUNT(*) count FROM prj_project")) return [[{ count: projectCount }], []];
       if (sql.includes("FROM iam_project_grant"))
         return [[{ projectId: "p-temp" }], []];
       if (sql.includes("FROM sys_number_rule"))
@@ -94,6 +94,29 @@ describe("export task persistence", () => {
     });
     expect(connection.calls.some((sql) => sql.includes("project_code projectCode"))).toBe(false);
     expect(connection.calls).toContain("COMMIT");
+  });
+
+  it("creates a background export task even for small project exports", async () => {
+    const connection = fakeConnection(3);
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    const result = await executor.execute("report.project.export", {}, user);
+
+    expect(result).toMatchObject({
+      mode: "BACKGROUND",
+      taskId: "42",
+      estimatedRows: 3,
+    });
+    expect(
+      connection.calls.some((sql) => sql.startsWith("INSERT INTO sys_export_task")),
+    ).toBe(true);
+    expect(
+      connection.calls.some((sql) =>
+        sql.includes("project_code projectCode"),
+      ),
+    ).toBe(false);
   });
 
   it("uses explicit project and department scopes when estimating export size", async () => {

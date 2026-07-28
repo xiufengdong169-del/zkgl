@@ -2,7 +2,6 @@
 import { onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { callApi, openTrustedDownloadUrl } from "../api";
-import { buildCsv } from "../csv";
 
 interface Message {
   id: string;
@@ -109,40 +108,15 @@ async function exportProjects() {
   notice.value = null;
   try {
     const data = await callApi<
-      | {
-          mode: "SYNCHRONOUS";
-          rows: Record<string, unknown>[];
-          disclaimer: string;
-        }
-      | {
-          mode: "BACKGROUND";
-          taskCode: string;
-          estimatedRows: number;
-          message: string;
-        }
+      {
+        mode: "BACKGROUND";
+        taskCode: string;
+        estimatedRows: number;
+        message: string;
+      }
     >("report.project.export", {});
-    if (data.mode === "BACKGROUND") {
-      notice.value = data.message;
-      await loadExportTasks();
-      return;
-    }
-    const headers: Array<[string, string]> = [
-      ["projectCode", "\u9879\u76ee\u7f16\u53f7"],
-      ["projectName", "\u9879\u76ee\u540d\u79f0"],
-      ["customerName", "\u5ba2\u6237"],
-      ["status", "\u72b6\u6001"],
-      ["estimatedRevenue", "\u9884\u8ba1\u6536\u5165"],
-      ["estimatedCost", "\u9884\u8ba1\u6210\u672c"],
-      ["confirmedIncome", "\u5df2\u786e\u8ba4\u5408\u540c\u6536\u5165"],
-      ["receivedAmount", "\u5df2\u6536\u6b3e"],
-    ];
-    const csv = buildCsv(headers, data.rows, data.disclaimer);
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `\u9879\u76ee\u7ecf\u8425\u6570\u636e-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    notice.value = data.message;
+    await loadExportTasks();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u5931\u8d25";
   } finally {
