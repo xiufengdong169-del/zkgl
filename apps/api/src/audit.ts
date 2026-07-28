@@ -20,11 +20,26 @@ export interface AuditWriter {
 export function sanitizeAuditDetails(
   details: Record<string, unknown>,
 ): Record<string, unknown> {
-  const blocked = /password|secret|token|api.?key|authorization|cookie/i;
+  return sanitizeAuditObject(details);
+}
+
+const blockedAuditDetailKey =
+  /password|secret|token|api.?key|authorization|cookie|bank.?account|receiving.?account|paying.?account|payer.?account|buyer.?information/i;
+
+function sanitizeAuditValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeAuditValue(item));
+  if (!value || typeof value !== "object") return value;
+  if (Object.prototype.toString.call(value) !== "[object Object]") return value;
+  return sanitizeAuditObject(value as Record<string, unknown>);
+}
+
+function sanitizeAuditObject(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(details).map(([key, value]) => [
+    Object.entries(value).map(([key, item]) => [
       key,
-      blocked.test(key) ? "[REDACTED]" : value,
+      blockedAuditDetailKey.test(key) ? "[REDACTED]" : sanitizeAuditValue(item),
     ]),
   );
 }

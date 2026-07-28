@@ -9,6 +9,21 @@ describe('audit sanitization', () => {
       projectId: 'p-1'
     })
   })
+
+  it('递归遮蔽嵌套敏感字段和银行账号', () => {
+    expect(
+      sanitizeAuditDetails({
+        actor: { authorization: 'Bearer token', nested: { apiKey: 'k1' } },
+        payments: [{ receivingAccount: '6222020202021234' }],
+        projectId: 'p-1'
+      })
+    ).toEqual({
+      actor: { authorization: '[REDACTED]', nested: { apiKey: '[REDACTED]' } },
+      payments: [{ receivingAccount: '[REDACTED]' }],
+      projectId: 'p-1'
+    })
+  })
+
   it('记录系统管理动作的资源 ID', () => {
     expect(deriveAuditResourceId({ roleId: 'r-admin' })).toBe('r-admin')
     expect(deriveAuditResourceId({ nodeId: 'wf-node-1' })).toBe('wf-node-1')
