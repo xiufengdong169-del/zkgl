@@ -71,10 +71,26 @@ describe("auth store", () => {
     );
 
     expect(authMocks.callApi).not.toHaveBeenCalled();
+    expect(authMocks.signOut).not.toHaveBeenCalled();
     expect(auth.loading).toBe(false);
     expect(auth.authenticated).toBe(false);
     expect(auth.user).toBeNull();
     expect(auth.error).toBe("账号或密码错误");
+  });
+
+  it("CloudBase 登录成功但业务会话初始化失败时主动退出平台会话", async () => {
+    authMocks.signInWithPassword.mockResolvedValue({ error: null });
+    authMocks.signOut.mockResolvedValue(undefined);
+    authMocks.callApi.mockRejectedValue(new Error("内部账号已停用"));
+
+    const auth = useAuthStore();
+    await expect(auth.signIn("alice", "secret")).rejects.toThrow("内部账号已停用");
+
+    expect(authMocks.signOut).toHaveBeenCalledTimes(1);
+    expect(auth.loading).toBe(false);
+    expect(auth.authenticated).toBe(false);
+    expect(auth.user).toBeNull();
+    expect(auth.error).toBe("内部账号已停用");
   });
 
   it("已有认证用户时复用本地会话", async () => {

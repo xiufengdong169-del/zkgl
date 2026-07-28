@@ -17,13 +17,17 @@ export const useAuthStore = defineStore('auth', {
     async signIn(username: string, password: string) {
       this.loading = true
       this.error = null
+      let cloudbaseSignedIn = false
       try {
         const { error } = await cloudbaseAuth.signInWithPassword({ username, password })
         if (error) throw error
+        cloudbaseSignedIn = true
         this.user = await callApi<SessionUser>('session.get')
         this.authenticated = true
       } catch (error) {
+        if (cloudbaseSignedIn) await cloudbaseAuth.signOut().catch(() => undefined)
         this.authenticated = false
+        this.user = null
         this.error = error instanceof Error ? error.message : '登录失败'
         throw error
       } finally {
