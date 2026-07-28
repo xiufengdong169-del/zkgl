@@ -3,11 +3,23 @@ import { cloudbaseAuth } from './cloudbase'
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
-export async function callApi<T>(action: string, payload?: unknown): Promise<T> {
+function trustedApiBaseUrl() {
   if (!baseUrl) throw new Error('缺少 VITE_API_BASE_URL')
+  let url: URL
+  try {
+    url = new URL(baseUrl)
+  } catch {
+    throw new Error('API 地址无效')
+  }
+  if (url.protocol !== 'https:') throw new Error('API 地址协议不受信任')
+  return url.toString()
+}
+
+export async function callApi<T>(action: string, payload?: unknown): Promise<T> {
+  const apiUrl = trustedApiBaseUrl()
   const { accessToken } = await cloudbaseAuth.getAccessToken()
   if (!accessToken) throw new Error('登录状态已失效')
-  const response = await fetch(baseUrl, {
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, payload, requestId: crypto.randomUUID() })

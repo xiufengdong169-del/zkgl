@@ -16,7 +16,7 @@
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
 - [ ] API 测试通过，当前基线为 66 个测试文件 / 321 条测试。
-- [ ] Web 测试通过，当前基线为 8 个测试文件 / 36 条测试。
+- [ ] Web 测试通过，当前基线为 8 个测试文件 / 37 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
@@ -45,10 +45,10 @@
 - [ ] 登录安全策略已设置：首次登录强制修改初始密码，连续失败 5 次后锁定 15 分钟。
 - [ ] 邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口。
 - [ ] 云函数环境变量已配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`，且未提交到 Git。
-- [ ] 仅 `zkgl-api` 配置客户端 HTTP 访问路径，并写入前端 `VITE_API_BASE_URL`。
+- [ ] 仅 `zkgl-api` 配置客户端 HTTP 访问路径，并将完整 HTTPS 地址写入前端 `VITE_API_BASE_URL`。
 - [ ] `zkgl-reminder` 和 `zkgl-export-worker` 不配置客户端 HTTP 访问路径。
 - [ ] 定时触发器名称分别为 `zkglDailyReminder` 和 `zkglExportWorker`。
-- [ ] 前端在 `VITE_API_BASE_URL` 设置为 `zkgl-api` HTTP 访问路径后重新构建。
+- [ ] 前端在 `VITE_API_BASE_URL` 设置为 `zkgl-api` HTTPS 访问地址后重新构建。
 - [ ] `apps/web/dist` 已发布到 CloudBase 静态网站托管，且 HTTPS、Web 安全域名、登录跳转和 `session.get` API 请求验证成功。
 
 ## 6. 账号、权限与审计

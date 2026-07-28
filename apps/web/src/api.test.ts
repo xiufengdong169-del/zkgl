@@ -84,6 +84,25 @@ describe("callApi", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("拒绝非 HTTPS 或非法 API 地址且不读取登录令牌", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const baseUrl of [
+      "http://api.example.com/zkgl",
+      "javascript:alert(1)",
+      "not a url",
+    ]) {
+      vi.resetModules();
+      cloudbaseMocks.getAccessToken.mockReset();
+
+      const { callApi } = await loadApi(baseUrl);
+      await expect(callApi("project.detail", { projectId: "p-1" })).rejects.toThrow();
+      expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("后端返回业务错误时抛出错误消息", async () => {
     cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
     vi.stubGlobal(

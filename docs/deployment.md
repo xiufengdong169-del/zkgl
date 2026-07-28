@@ -63,11 +63,11 @@ tcb fn deploy zkgl-reminder --yes
 tcb fn deploy zkgl-export-worker --yes
 ```
 
-只为 `zkgl-api` 配置 HTTP 访问路径，并将完整地址写入前端构建变量 `VITE_API_BASE_URL`。不要为 `zkgl-reminder` 和 `zkgl-export-worker` 配置客户端 HTTP 访问路径。
+只为 `zkgl-api` 配置客户端 HTTP 访问路径，并将完整 HTTPS 地址写入前端构建变量 `VITE_API_BASE_URL`。不要为 `zkgl-reminder` 和 `zkgl-export-worker` 配置客户端 HTTP 访问路径。
 
 ## 前端发布
 
-前端必须在 `zkgl-api` HTTP 访问路径确认后重新构建，避免浏览器产物中缺少 API 地址。
+前端必须在 `zkgl-api` HTTPS 访问地址确认后重新构建，避免浏览器产物中缺少 API 地址或使用不受信任协议。
 
 ```powershell
 $env:VITE_CLOUDBASE_ENV_ID="cloudbase-d7gc2b32cd4196059"
