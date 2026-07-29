@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS crm_visit (
 CREATE TABLE IF NOT EXISTS crm_visit_participant (
   visit_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (visit_id, employee_id),
   CONSTRAINT fk_visit_participant_visit FOREIGN KEY (visit_id) REFERENCES crm_visit(id),
   CONSTRAINT fk_visit_participant_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id)
@@ -259,6 +260,7 @@ CREATE TABLE IF NOT EXISTS mkt_lead (
 CREATE TABLE IF NOT EXISTS mkt_lead_collaborator (
   lead_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (lead_id, employee_id),
   CONSTRAINT fk_lead_collaborator_lead FOREIGN KEY (lead_id) REFERENCES mkt_lead(id),
   CONSTRAINT fk_lead_collaborator_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id)
@@ -432,6 +434,7 @@ CREATE TABLE IF NOT EXISTS prj_application_member_suggestion (
   application_id BIGINT UNSIGNED NOT NULL,
   employee_id BIGINT UNSIGNED NOT NULL,
   proposed_role VARCHAR(64) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (application_id, employee_id),
   CONSTRAINT fk_suggestion_application FOREIGN KEY (application_id) REFERENCES prj_project_application(id),
   CONSTRAINT fk_suggestion_employee FOREIGN KEY (employee_id) REFERENCES org_employee(id)

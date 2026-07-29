@@ -277,6 +277,24 @@ describe("empty database initialization schema", () => {
     expect(schema).toContain("granted_by BIGINT UNSIGNED NOT NULL");
   });
 
+  it("人员关系与建议成员明细保留创建时间便于追溯", () => {
+    const columnsByTable = extractTableColumns(schema);
+    for (const table of [
+      "crm_visit_participant",
+      "mkt_lead_collaborator",
+      "prj_application_member_suggestion",
+    ]) {
+      expect(columnsByTable.get(table), `${table} missing created_at`).toContain(
+        "created_at",
+      );
+      expect(schema).toMatch(
+        new RegExp(
+          `CREATE TABLE IF NOT EXISTS ${table}[\\s\\S]*?created_at DATETIME\\(3\\) NOT NULL DEFAULT CURRENT_TIMESTAMP\\(3\\)`,
+        ),
+      );
+    }
+  });
+
   it("系统管理员默认不获得敏感经营字段查看授权", () => {
     expect(schema).toContain(
       "管理员默认不授予利润、合作分成或银行账户等敏感字段查看权",
