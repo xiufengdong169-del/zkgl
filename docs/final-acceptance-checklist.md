@@ -21,6 +21,7 @@
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
+- [ ] `npm run verify:deployment-config` 通过，CloudBase 环境、前后端环境变量、函数部署配置和 CI Node 版本一致性校验通过。
 - [ ] CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 

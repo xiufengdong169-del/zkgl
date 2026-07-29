@@ -40,6 +40,7 @@ npm run test
 npm run build
 node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
+npm run verify:deployment-config
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev

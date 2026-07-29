@@ -51,6 +51,7 @@ npm run verify:acceptance
 
 上述目录是构建产物，不纳入版本管理。
 
+`npm run verify:deployment-config` 会校验 CloudBase 环境 ID、地域、前后端环境变量、函数部署配置和 GitHub Actions Node 版本一致性。
 `node scripts/verify-cloudbase-function-packages.mjs` 会同时校验三套函数包和 `cloudbaserc.json` 中的函数名、目录、`index.main` handler、Nodejs18.15 runtime、超时时间、内存规格、依赖安装开关和定时触发器配置。
 
 ## 云函数部署

@@ -66,6 +66,10 @@ const cloudbaseFunctionPackageVerifier = readFileSync(
   new URL("../../../scripts/verify-cloudbase-function-packages.mjs", import.meta.url),
   "utf8",
 );
+const deploymentConfigVerifier = readFileSync(
+  new URL("../../../scripts/verify-deployment-config.mjs", import.meta.url),
+  "utf8",
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -100,6 +104,7 @@ const verificationCommands = [
   "npm run build",
   "node scripts/verify-source-secret-hygiene.mjs",
   "node scripts/verify-web-dist-security.mjs",
+  "npm run verify:deployment-config",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
   "npm audit --omit=dev",
@@ -211,6 +216,7 @@ const finalAcceptanceChecklistFragments = [
   "66 个测试文件 / 330 条测试",
   "9 个测试文件 / 43 条测试",
   "npm audit --omit=dev",
+  "npm run verify:deployment-config",
   "git status --short --branch",
   "origin/main",
   "GitHub Actions",
@@ -285,6 +291,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:github-sync"]).toBe(
       "node scripts/verify-github-sync.mjs",
     );
+    expect(packageJson.scripts["verify:deployment-config"]).toBe(
+      "node scripts/verify-deployment-config.mjs",
+    );
     expect(githubVerifyWorkflow).toContain("npm ci");
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
@@ -303,8 +312,17 @@ describe("deployment documentation", () => {
     );
     expect(finalAcceptanceChecklist).toContain("npm run verify:github-sync");
     expect(packageJson.scripts.verify).toContain(
+      "npm run verify:deployment-config",
+    );
+    expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
+    expect(deploymentConfigVerifier).toContain(expectedCloudbaseEnvId);
+    expect(deploymentConfigVerifier).toContain(expectedCloudbaseRegion);
+    expect(deploymentConfigVerifier).toContain("VITE_API_BASE_URL");
+    expect(deploymentConfigVerifier).toContain("DB_PASSWORD");
+    expect(deploymentConfigVerifier).toContain("zkglDailyReminder");
+    expect(deploymentConfigVerifier).toContain("zkglExportWorker");
     expect(sourceSecretHygieneScript).toContain('"docs"');
     expect(cloudbaseFunctionPackageVerifier).toContain("unexpected root entries");
     expect(cloudbaseFunctionPackageVerifier).toContain("non-JavaScript dist artifact");
