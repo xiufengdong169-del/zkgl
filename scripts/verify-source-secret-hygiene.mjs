@@ -1,11 +1,11 @@
 import { readFile, readdir } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { resolve, relative } from "node:path";
+import { join, resolve, relative } from "node:path";
 import { promisify } from "node:util";
 
-const root = resolve(import.meta.dirname, "..");
+const defaultRoot = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
-const scannedRoots = [
+export const scannedRoots = [
   ".env.example",
   "需求评审修订基线_V2.2.md",
   "apps",
@@ -19,10 +19,10 @@ const scannedRoots = [
   "package-lock.json",
   "README.md",
 ];
-const scannedDocxFiles = [
+export const scannedDocxFiles = [
   "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
 ];
-const ignoredPathFragments = [
+export const ignoredPathFragments = [
   "node_modules",
   "apps\\web\\dist",
   "apps/web/dist",
@@ -30,9 +30,9 @@ const ignoredPathFragments = [
   "scripts\\verify-source-secret-hygiene.mjs",
   "scripts/verify-source-secret-hygiene.mjs",
 ];
-const textFilePattern =
+export const textFilePattern =
   /\.(?:cjs|css|html|js|json|md|mjs|sql|ts|tsx|vue|yaml|yml)$/i;
-const forbiddenPatterns = [
+export const forbiddenPatterns = [
   {
     name: "non-empty database or secret environment assignment",
     pattern:
@@ -56,7 +56,7 @@ const forbiddenPatterns = [
   },
 ];
 
-async function collectFiles(entry) {
+export async function collectFiles(entry, root = defaultRoot) {
   const absolute = resolve(root, entry);
   const relativePath = relative(root, absolute);
   if (
@@ -74,12 +74,12 @@ async function collectFiles(entry) {
 
   const files = [];
   for (const child of children) {
-    files.push(...(await collectFiles(resolve(relativePath, child.name))));
+    files.push(...(await collectFiles(join(relativePath, child.name), root)));
   }
   return files;
 }
 
-async function extractDocxDocumentXml(entry) {
+export async function extractDocxDocumentXml(entry, root = defaultRoot) {
   const absolute = resolve(root, entry);
   try {
     const { stdout } = await execFileAsync(
@@ -96,7 +96,7 @@ async function extractDocxDocumentXml(entry) {
   }
 }
 
-function verifyContent(relativePath, content) {
+export function verifyContent(relativePath, content) {
   for (const { name, pattern } of forbiddenPatterns) {
     if (pattern.test(content)) {
       throw new Error(
@@ -106,18 +106,29 @@ function verifyContent(relativePath, content) {
   }
 }
 
-const files = [];
-for (const entry of scannedRoots) files.push(...(await collectFiles(entry)));
+export async function verifySourceSecretHygiene({
+  root = defaultRoot,
+  roots = scannedRoots,
+  docxFiles = scannedDocxFiles,
+  extractDocx = extractDocxDocumentXml,
+} = {}) {
+  const files = [];
+  for (const entry of roots) files.push(...(await collectFiles(entry, root)));
 
-for (const file of files) {
-  const relativePath = relative(root, file);
-  const content = await readFile(file, "utf8").catch(() => null);
-  if (content == null) continue;
-  verifyContent(relativePath, content);
+  for (const file of files) {
+    const relativePath = relative(root, file);
+    const content = await readFile(file, "utf8").catch(() => null);
+    if (content == null) continue;
+    verifyContent(relativePath, content);
+  }
+
+  for (const entry of docxFiles) {
+    verifyContent(`${entry}:word/document.xml`, await extractDocx(entry, root));
+  }
+
+  return "Source secret hygiene verified";
 }
 
-for (const entry of scannedDocxFiles) {
-  verifyContent(`${entry}:word/document.xml`, await extractDocxDocumentXml(entry));
+if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
+  console.log(await verifySourceSecretHygiene());
 }
-
-console.log("Source secret hygiene verified");
