@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
+import { resolveLoginRedirectTarget } from '../login-redirect'
 
 const username = ref('')
 const password = ref('')
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 
 async function submit() {
   await auth.signIn(username.value.trim(), password.value)
-  await router.push('/')
+  await router.push(resolveLoginRedirectTarget(route.query.redirect))
 }
 </script>
 
