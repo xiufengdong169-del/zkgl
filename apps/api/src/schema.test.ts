@@ -9,6 +9,7 @@ const schema = readFileSync(
   "utf8",
 );
 const actions = readFileSync(new URL("./actions.ts", import.meta.url), "utf8");
+const finance = readFileSync(new URL("./finance.ts", import.meta.url), "utf8");
 const persistence = readFileSync(
   new URL("./persistence.ts", import.meta.url),
   "utf8",
@@ -192,6 +193,23 @@ const extractSeededNumberRuleCodes = (source: string) =>
       ].map((match) => match[1]!),
     ),
   ].sort();
+
+const extractFinancePaymentSourceTypes = (source: string) => {
+  const block = /sourceType:\s*z\.enum\(\[([\s\S]*?)\]\)/.exec(source)?.[1] ?? "";
+  return [...block.matchAll(/"([A-Z_]+)"/g)]
+    .map((match) => match[1]!)
+    .sort();
+};
+
+const extractPaymentSourceQueryMaps = (source: string) =>
+  [
+    ...source.matchAll(/const (?:paymentSourceQueries|sourceSql) = \{([\s\S]*?)\}(?:;|\[)/g),
+  ].map(
+    (match) =>
+      [...match[1]!.matchAll(/^\s*([A-Z_]+):\s*`/gm)]
+        .map((sourceType) => sourceType[1]!)
+        .sort(),
+  );
 
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
@@ -426,6 +444,38 @@ describe("empty database initialization schema", () => {
     expect(schema).toMatch(
       /CREATE TABLE IF NOT EXISTS fin_daily_purchase[\s\S]*?purchase_code VARCHAR\(64\) NOT NULL UNIQUE/,
     );
+  });
+
+  it("payment source types stay aligned across validation, persistence queries, and status writeback", () => {
+    const financeSourceTypes = extractFinancePaymentSourceTypes(finance);
+    const queryMaps = extractPaymentSourceQueryMaps(persistence);
+
+    expect(financeSourceTypes).toEqual([
+      "DEPOSIT",
+      "EXPENSE_CONTRACT",
+      "PARTNER_SETTLEMENT",
+      "PURCHASE",
+      "REIMBURSEMENT",
+    ]);
+    expect(queryMaps.length).toBe(2);
+    for (const queryMap of queryMaps) expect(queryMap).toEqual(financeSourceTypes);
+    for (const sourceType of financeSourceTypes) {
+      expect(
+        persistence,
+        `missing duplicate-source guard for ${sourceType}`,
+      ).toContain(`pa.source_type='${sourceType}'`);
+    }
+    for (const sourceType of [
+      "DEPOSIT",
+      "PARTNER_SETTLEMENT",
+      "PURCHASE",
+      "REIMBURSEMENT",
+    ]) {
+      expect(
+        persistence,
+        `missing payment status writeback for ${sourceType}`,
+      ).toContain(`payment.sourceType === "${sourceType}"`);
+    }
   });
 
   it("approval business types are configured and written back", () => {
