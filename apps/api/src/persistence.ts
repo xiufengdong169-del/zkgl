@@ -226,7 +226,7 @@ async function assertInvoiceApplicationCapacityForSubmit(
   if (!application)
     throw new AppError(
       "INVOICE_APPLICATION_NOT_FOUND",
-      "寮€绁ㄧ敵璇蜂笉瀛樺湪",
+      "开票申请不存在",
       404,
     );
   const [contracts] = await connection.execute<RowDataPacket[]>(
@@ -238,7 +238,7 @@ async function assertInvoiceApplicationCapacityForSubmit(
     !contract ||
     !["PENDING_SIGNATURE", "PERFORMING", "COMPLETED"].includes(contract.status)
   )
-    throw new AppError("INCOME_CONTRACT_INVALID", "鏀跺叆鍚堝悓鏃犳晥", 409);
+    throw new AppError("INCOME_CONTRACT_INVALID", "收入合同无效", 409);
   const [usedRows] = await connection.execute<RowDataPacket[]>(
     `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0`,
     [application.contractId],
@@ -253,7 +253,7 @@ async function assertInvoiceApplicationCapacityForSubmit(
   if (Number(application.requestedAmount) > available)
     throw new AppError(
       "INVOICE_CAPACITY_EXCEEDED",
-      "鐢宠寮€绁ㄩ噾棰濊秴杩囧悎鍚屽彲寮€绁ㄤ綑棰?",
+      "申请开票金额超过合同可开票余额",
       409,
     );
 }
@@ -270,7 +270,7 @@ async function assertPaymentApplicationSourceForSubmit(
   if (!application)
     throw new AppError(
       "PAYMENT_APPLICATION_NOT_FOUND",
-      "浠樻鐢宠涓嶅瓨鍦?",
+      "付款申请不存在",
       404,
     );
   const sourceType = String(application.sourceType) as
@@ -291,7 +291,7 @@ async function assertPaymentApplicationSourceForSubmit(
   if (!sourceSql)
     throw new AppError(
       "PAYMENT_SOURCE_NOT_FOUND",
-      "浠樻鏉ユ簮涓嶅瓨鍦?",
+      "付款来源不存在",
       404,
     );
   const [sources] = await connection.execute<RowDataPacket[]>(sourceSql, [
@@ -301,7 +301,7 @@ async function assertPaymentApplicationSourceForSubmit(
   if (!source)
     throw new AppError(
       "PAYMENT_SOURCE_NOT_FOUND",
-      "浠樻鏉ユ簮涓嶅瓨鍦?",
+      "付款来源不存在",
       404,
     );
   const [existingPayments] = await connection.execute<RowDataPacket[]>(

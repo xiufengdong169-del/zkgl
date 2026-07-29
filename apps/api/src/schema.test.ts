@@ -24,6 +24,7 @@ const webNavigation = readFileSync(
 const migrationDir = fileURLToPath(
   new URL("../../../database/migrations", import.meta.url),
 );
+const apiSourceDir = fileURLToPath(new URL("./", import.meta.url));
 const webSourceDir = fileURLToPath(new URL("../../web/src", import.meta.url));
 const statements = schema
   .split(";")
@@ -75,6 +76,15 @@ function listWebSourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const fullPath = join(directory, entry.name);
     if (entry.isDirectory()) return listWebSourceFiles(fullPath);
+    if (entry.name.endsWith(".test.ts")) return [];
+    return [".ts", ".vue"].includes(extname(entry.name)) ? [fullPath] : [];
+  });
+}
+
+function listCodeSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(directory, entry.name);
+    if (entry.isDirectory()) return listCodeSourceFiles(fullPath);
     if (entry.name.endsWith(".test.ts")) return [];
     return [".ts", ".vue"].includes(extname(entry.name)) ? [fullPath] : [];
   });
@@ -172,6 +182,30 @@ describe("empty database initialization schema", () => {
         statement.slice(0, 120),
       ).not.toThrow();
     }
+  });
+
+  it("用户可见源码文案不包含常见 UTF-8 误解码残留", () => {
+    const forbiddenMojibakeFragments = [
+      "寮€",
+      "鏀跺叆",
+      "鐢宠",
+      "浠樻",
+      "鍚堝悓鍙樻洿锛?",
+      "\uFFFD",
+    ];
+    const hits = [
+      ...listCodeSourceFiles(apiSourceDir),
+      ...listCodeSourceFiles(webSourceDir),
+    ]
+      .flatMap((file) => {
+        const source = readFileSync(file, "utf8");
+        return forbiddenMojibakeFragments
+          .filter((fragment) => source.includes(fragment))
+          .map((fragment) => `${file}:${fragment}`);
+      })
+      .sort();
+
+    expect(hits).toEqual([]);
   });
 
   it("表名唯一且外键目标表全部存在", () => {

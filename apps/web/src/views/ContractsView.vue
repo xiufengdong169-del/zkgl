@@ -503,7 +503,7 @@ onMounted(load);
             submitApproval(
               'CONTRACT_CHANGE',
               change.id,
-              `鍚堝悓鍙樻洿锛?{selected.contractName}`,
+              `合同变更：${selected.contractName}`,
               Number(change.newTaxInclusiveAmount),
             )
           "
