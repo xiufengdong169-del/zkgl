@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 type Run = (command: string, args: string[]) => string;
 type GithubSyncModule = {
-  verifyGithubSync(run?: Run): string;
+  verifyGithubSync(
+    run?: Run,
+    fetchRemoteMain?: () => Promise<{ sha: string; tree: string }>,
+  ): Promise<string>;
 };
 
 async function loadGithubSyncModule() {
@@ -37,7 +40,7 @@ describe("github sync verifier script", () => {
     const { verifyGithubSync } = await loadGithubSyncModule();
     const calls: string[] = [];
 
-    const message = verifyGithubSync(fakeRun({}, calls));
+    const message = await verifyGithubSync(fakeRun({}, calls));
 
     expect(message).toContain("GitHub sync verified");
     expect(calls).toEqual([
@@ -48,6 +51,36 @@ describe("github sync verifier script", () => {
       "git rev-parse main",
       "git rev-parse origin/main",
     ]);
+  });
+
+  it("Git fetch 不可用但本地树与远端 main 树一致时使用 GitHub API 兜底校验", async () => {
+    const { verifyGithubSync } = await loadGithubSyncModule();
+    const calls: string[] = [];
+    const run: Run = (command, args) => {
+      const key = [command, ...args].join(" ");
+      calls.push(key);
+      if (key === "git fetch --quiet origin main")
+        throw new Error("Failed to connect to github.com port 443");
+      const responses: Record<string, string> = {
+        "git rev-parse --abbrev-ref HEAD": "main",
+        "git remote get-url origin": "https://github.com/xiufengdong169-del/zkgl.git",
+        "git status --porcelain": "",
+        "git rev-parse main": "local-head",
+        "git show -s --format=%T main": "tree-1",
+      };
+      if (!(key in responses)) throw new Error(`unexpected command: ${key}`);
+      return responses[key]!;
+    };
+
+    const message = await verifyGithubSync(run, async () => ({
+      sha: "remote-head",
+      tree: "tree-1",
+    }));
+
+    expect(message).toContain("GitHub sync verified via API fallback");
+    expect(calls).toContain("git fetch --quiet origin main");
+    expect(calls).toContain("git status --porcelain");
+    expect(calls).toContain("git show -s --format=%T main");
   });
 
   it("fails closed for branch, remote, working tree and head mismatches", async () => {
@@ -67,19 +100,27 @@ describe("github sync verifier script", () => {
       {
         overrides: {
           "git status --short --branch": "## main...origin/main\n M README.md",
+          "git status --porcelain": " M README.md",
         },
         message: "Working tree is not clean",
       },
       {
-        overrides: { "git rev-parse origin/main": "remote-head" },
-        message: "does not match origin/main",
+        overrides: {
+          "git rev-parse origin/main": "remote-head",
+          "git status --porcelain": "",
+          "git show -s --format=%T main": "local-tree",
+        },
+        message: "does not match remote main",
       },
     ];
 
     for (const testCase of cases) {
-      expect(() => verifyGithubSync(fakeRun(testCase.overrides))).toThrow(
-        testCase.message,
-      );
+      await expect(
+        verifyGithubSync(fakeRun(testCase.overrides), async () => ({
+          sha: "remote-head",
+          tree: "remote-tree",
+        })),
+      ).rejects.toThrow(testCase.message);
     }
   });
 });
