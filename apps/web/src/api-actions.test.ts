@@ -77,6 +77,61 @@ function extractAllFrontendActions() {
   ].sort();
 }
 
+function extractFrontendCallApiPayloadProperties(
+  filePath: string,
+  guardedActions: Set<string>,
+) {
+  const source = scriptSource(filePath);
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const calls: Array<{
+    filePath: string;
+    action: string;
+    properties: Map<string, string>;
+  }> = [];
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "callApi"
+    ) {
+      const action = node.arguments[0];
+      const payload = node.arguments[1];
+      if (
+        action &&
+        ts.isStringLiteral(action) &&
+        guardedActions.has(action.text)
+      ) {
+        const properties = new Map<string, string>();
+        if (payload && ts.isObjectLiteralExpression(payload)) {
+          for (const property of payload.properties) {
+            if (
+              ts.isPropertyAssignment(property) &&
+              ts.isIdentifier(property.name)
+            ) {
+              properties.set(
+                property.name.text,
+                property.initializer.getText(sourceFile),
+              );
+            }
+          }
+        }
+        calls.push({ filePath, action: action.text, properties });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return calls;
+}
+
 function extractFrontendPageSizes(filePath: string) {
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -224,5 +279,31 @@ describe("frontend API action usage", () => {
     expect(homeView).toContain("EXPORT_PERMISSION_SNAPSHOT_INVALID");
     expect(homeView).toContain("EXPORT_TASK_PROCESS_FAILED");
     expect(homeView).not.toContain("{{ task.failureReason }}");
+  });
+
+  it("requires frontend idempotency keys for approval and payment mutation actions", () => {
+    const requiredKeysByAction = new Map([
+      ["approval.instance.submit", "actionKey"],
+      ["approval.task.action", "actionKey"],
+      ["approval.instance.withdraw", "actionKey"],
+      ["payment.detail.create", "idempotencyKey"],
+      ["deposit.event.create", "idempotencyKey"],
+    ]);
+    const calls = listSourceFiles(webSourceDir).flatMap((file) =>
+      extractFrontendCallApiPayloadProperties(
+        file,
+        new Set(requiredKeysByAction.keys()),
+      ),
+    );
+
+    expect(calls.length).toBeGreaterThan(15);
+    expect(
+      calls
+        .filter(({ action, properties }) => {
+          const key = requiredKeysByAction.get(action)!;
+          return properties.get(key) !== "crypto.randomUUID()";
+        })
+        .map(({ filePath, action }) => `${filePath}:${action}`),
+    ).toEqual([]);
   });
 });
