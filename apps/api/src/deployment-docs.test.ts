@@ -288,6 +288,8 @@ describe("deployment documentation", () => {
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
     expect(githubVerifyWorkflow).toContain("pull_request:");
+    expect(githubVerifyWorkflow).toContain("permissions:");
+    expect(githubVerifyWorkflow).toContain("contents: read");
     expect(githubSyncScript).toContain(
       "https://github.com/xiufengdong169-del/zkgl.git",
     );
