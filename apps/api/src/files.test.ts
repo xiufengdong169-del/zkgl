@@ -75,6 +75,16 @@ describe("private files", () => {
       expect(() => extractSafeExtension(name)).toThrow();
   });
 
+  it("拒绝包含脚本或可执行片段的双扩展伪装文件名", () => {
+    for (const name of [
+      "contract.exe.pdf",
+      "报价单.ps1.xlsx",
+      "archive.sh.zip",
+      "image.js.png",
+    ])
+      expect(() => extractSafeExtension(name)).toThrow("不允许上传");
+  });
+
   it("拒绝危险或与扩展名不匹配的 MIME 类型", () => {
     for (const mimeType of [
       "application/javascript",

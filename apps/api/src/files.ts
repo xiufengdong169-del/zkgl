@@ -148,11 +148,15 @@ export interface FileAccessDependencies {
 }
 
 export function extractSafeExtension(name: string): string {
-  const extension = name.includes(".")
-    ? name.split(".").pop()!.toLowerCase()
-    : "";
+  const segments = name
+    .toLowerCase()
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const extension = segments.length >= 2 ? segments.at(-1)! : "";
   if (
     !extension ||
+    segments.slice(0, -1).some((segment) => blockedExtensions.has(segment)) ||
     blockedExtensions.has(extension) ||
     !allowedExtensions.has(extension)
   ) {
