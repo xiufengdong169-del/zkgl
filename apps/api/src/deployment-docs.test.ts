@@ -91,6 +91,7 @@ const cloudbaseConfig = JSON.parse(
 
 const expectedCloudbaseEnvId = "cloudbase-d7gc2b32cd4196059";
 const expectedCloudbaseRegion = "ap-guangzhou";
+const expectedAcceptanceReviewDate = "2026-07-29";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -297,6 +298,9 @@ describe("deployment documentation", () => {
     expect(githubSyncScript).toContain("origin/main");
     expect(readme).toContain("npm run verify:github-sync");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
+    expect(acceptanceTraceabilityDoc).toContain(
+      `最后复核日期：${expectedAcceptanceReviewDate}`,
+    );
     expect(finalAcceptanceChecklist).toContain("npm run verify:github-sync");
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
