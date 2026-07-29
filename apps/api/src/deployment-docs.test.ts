@@ -324,6 +324,11 @@ describe("deployment documentation", () => {
     expect(deploymentConfigVerifier).toContain("zkglDailyReminder");
     expect(deploymentConfigVerifier).toContain("zkglExportWorker");
     expect(sourceSecretHygieneScript).toContain('"docs"');
+    expect(sourceSecretHygieneScript).toContain("需求评审修订基线_V2.2.md");
+    expect(sourceSecretHygieneScript).toContain(
+      "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+    );
+    expect(sourceSecretHygieneScript).toContain("word/document.xml");
     expect(cloudbaseFunctionPackageVerifier).toContain("unexpected root entries");
     expect(cloudbaseFunctionPackageVerifier).toContain("non-JavaScript dist artifact");
     expect(cloudbaseFunctionPackageVerifier).toContain("sourceMappingURL");
