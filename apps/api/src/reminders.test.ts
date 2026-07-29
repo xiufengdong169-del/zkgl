@@ -73,6 +73,7 @@ describe("scheduled reminders", () => {
     expect(sql).toContain("'DEPOSIT_OVERDUE'");
     expect(sql).toContain("'DEPOSIT_PAYMENT_OVERDUE'");
     expect(sql).toContain("'EARLY_START_CONTRACT_MISSING'");
+    expect(sql).toContain("'EARLY_START_CONTRACT_OVERDUE'");
     expect(sql).toContain("'CLOSE_OPEN_ITEM_OVERDUE'");
     expect(sql).toContain("'RISK_DUE'");
     expect(sql).toContain("g.is_deleted=0");
@@ -95,5 +96,19 @@ describe("scheduled reminders", () => {
       expect(sql).toContain("m.business_id=");
       expect(sql).toContain("m.created_at>=DATE_SUB(NOW(),INTERVAL");
     }
+  });
+
+  it("marks early-start projects as abnormal after the expected signing date", () => {
+    const overdueSql = reminderStatements.find((sql) =>
+      sql.includes("'EARLY_START_CONTRACT_OVERDUE'"),
+    );
+
+    expect(overdueSql).toBeTruthy();
+    expect(overdueSql).toContain("s.start_type='EARLY'");
+    expect(overdueSql).toContain("s.status='APPROVED'");
+    expect(overdueSql).toContain("s.contract_reminder_active=1");
+    expect(overdueSql).toContain("s.expected_signing_on<CURDATE()");
+    expect(overdueSql).toContain("补签合同");
+    expect(overdueSql).toContain("风险处置结论");
   });
 });
