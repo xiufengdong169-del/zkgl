@@ -173,6 +173,26 @@ const extractSingleTableUpdateColumnRefs = (source: string) =>
     );
   });
 
+const extractAllocatedNumberRuleCodes = (source: string) =>
+  [
+    ...new Set(
+      [...source.matchAll(/allocateNumber\([^,]+,\s*"([A-Z_]+)"\)/g)].map(
+        (match) => match[1]!,
+      ),
+    ),
+  ].sort();
+
+const extractSeededNumberRuleCodes = (source: string) =>
+  [
+    ...new Set(
+      [
+        ...source.matchAll(
+          /\('([A-Z_]+)',\s*'[^']+',\s*YEAR\(CURRENT_DATE\),\s*0\)/g,
+        ),
+      ].map((match) => match[1]!),
+    ),
+  ].sort();
+
 describe("empty database initialization schema", () => {
   it("所有语句均可按 MySQL 方言解析", () => {
     const parser = new Parser();
@@ -394,6 +414,18 @@ describe("empty database initialization schema", () => {
         schema,
         `missing inline frontend permission seed ${permission}`,
       ).toContain(`('${permission}'`);
+  });
+
+  it("runtime-generated business number rules are seeded in the empty database baseline", () => {
+    const allocatedRuleCodes = extractAllocatedNumberRuleCodes(persistence);
+    const seededRuleCodes = extractSeededNumberRuleCodes(schema);
+
+    expect(allocatedRuleCodes.length).toBeGreaterThan(15);
+    expect(seededRuleCodes).toEqual(allocatedRuleCodes);
+    expect(schema).toContain("('DAILY_PURCHASE', 'CG', YEAR(CURRENT_DATE), 0)");
+    expect(schema).toMatch(
+      /CREATE TABLE IF NOT EXISTS fin_daily_purchase[\s\S]*?purchase_code VARCHAR\(64\) NOT NULL UNIQUE/,
+    );
   });
 
   it("approval business types are configured and written back", () => {
