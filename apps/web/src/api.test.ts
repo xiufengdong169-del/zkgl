@@ -141,6 +141,35 @@ describe("callApi", () => {
       "请求失败：502",
     );
   });
+  it("后端错误响应缺少标准 error.message 时返回稳定状态错误", async () => {
+    cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          ok: false,
+          requestId: "server-request-id",
+        }),
+      }),
+    );
+
+    const { callApi } = await loadApi();
+    await expect(callApi("project.detail", { projectId: "p-2" })).rejects.toThrow(
+      "请求失败：503",
+    );
+  });
+
+  it("网络异常时不暴露浏览器内部英文错误", async () => {
+    cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    const { callApi } = await loadApi();
+    await expect(callApi("project.detail", { projectId: "p-2" })).rejects.toThrow(
+      "网络请求失败，请检查网络后重试",
+    );
+  });
 });
 
 describe("openTrustedDownloadUrl", () => {
