@@ -1443,7 +1443,7 @@ export class MySqlActionExecutor {
             if (file.projectId == null) {
               throw new AppError(
                 "FILE_BUSINESS_ACCESS_DENIED",
-                "No write access to this file",
+                "无权维护该文件",
                 403,
               );
             }
@@ -1546,7 +1546,7 @@ export class MySqlActionExecutor {
             access[0].classification === "SENSITIVE" &&
             !user.permissionCodes.includes("file.sensitive.read")
           )
-            throw new AppError("SENSITIVE_FILE_DENIED", "No access to sensitive file", 403);
+            throw new AppError("SENSITIVE_FILE_DENIED", "无权查看敏感附件", 403);
           const [versions] = await connection.execute<RowDataPacket[]>(
             `SELECT CAST(id AS CHAR) id,version_number versionNumber,original_name originalName,mime_type mimeType,size_bytes sizeBytes,sha256,uploaded_at uploadedAt,status FROM file_version WHERE file_id=? AND status='ACTIVE' ORDER BY version_number DESC`,
             [input.fileId],
@@ -2873,7 +2873,7 @@ export class MySqlActionExecutor {
           if (!contract)
             throw new AppError(
               "RECEIPT_CONTRACT_NOT_FOUND",
-              "Income contract not found in the same project",
+              "同一项目下未找到收入合同",
               404,
             );
           if (
@@ -2883,7 +2883,7 @@ export class MySqlActionExecutor {
           )
             throw new AppError(
               "RECEIPT_CUSTOMER_CONTRACT_MISMATCH",
-              "Receipt customer must match the income contract party",
+              "收款客户必须与收入合同甲乙方一致",
               409,
             );
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
@@ -2894,7 +2894,7 @@ export class MySqlActionExecutor {
           if (!customers[0])
             throw new AppError(
               "RECEIPT_CUSTOMER_NOT_FOUND",
-              "Customer not found or access denied",
+              "客户不存在或无权访问",
               404,
             );
           const code = await allocateNumber(connection, "RECEIPT");
@@ -3270,7 +3270,7 @@ export class MySqlActionExecutor {
             if (!suppliers[0])
               throw new AppError(
                 "PURCHASE_SUPPLIER_NOT_FOUND",
-                "Supplier not found or access denied",
+                "供应商不存在或无权访问",
                 404,
               );
           }
@@ -3343,7 +3343,7 @@ export class MySqlActionExecutor {
           if (!purchase || purchase.status !== "APPROVED")
             throw new AppError(
               "PURCHASE_NOT_COMPLETABLE",
-              "Only approved daily purchase can be completed",
+              "只有已审批通过的日常采购可以完成",
               409,
             );
           if (Number(purchase.contractRelated) === 1 && purchase.projectId == null)
@@ -3408,7 +3408,7 @@ export class MySqlActionExecutor {
           if (!counterparties[0])
             throw new AppError(
               "COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           const [result] = await connection.execute<ResultSetHeader>(
@@ -3444,7 +3444,7 @@ export class MySqlActionExecutor {
           if (!counterparties[0])
             throw new AppError(
               "COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           if (input.contactId) {
@@ -3520,7 +3520,7 @@ export class MySqlActionExecutor {
           if (!customers[0])
             throw new AppError(
               "LEAD_CUSTOMER_NOT_FOUND",
-              "Customer not found or access denied",
+              "客户不存在或无权访问",
               404,
             );
           if (input.sourceVisitId) {
@@ -3537,7 +3537,7 @@ export class MySqlActionExecutor {
             if (!visits[0])
               throw new AppError(
                 "LEAD_SOURCE_VISIT_NOT_FOUND",
-                "Source visit not found or access denied",
+                "来源拜访不存在或无权访问",
                 404,
               );
           }
@@ -3636,7 +3636,7 @@ export class MySqlActionExecutor {
           if (!customers[0])
             throw new AppError(
               "PROJECT_APPLICATION_CUSTOMER_NOT_FOUND",
-              "Customer not found or access denied",
+              "客户不存在或无权访问",
               404,
             );
           if (input.sourceLeadId) {
@@ -3653,7 +3653,7 @@ export class MySqlActionExecutor {
             if (!sourceLeads[0])
               throw new AppError(
                 "PROJECT_APPLICATION_SOURCE_LEAD_NOT_FOUND",
-                "Source lead not found or access denied",
+                "来源线索不存在或无权访问",
                 404,
               );
           }
@@ -3729,7 +3729,7 @@ export class MySqlActionExecutor {
           if (!customers[0])
             throw new AppError(
               "PROJECT_APPLICATION_CUSTOMER_NOT_FOUND",
-              "Customer not found or access denied",
+              "客户不存在或无权访问",
               404,
             );
           if (data.sourceLeadId) {
@@ -3746,7 +3746,7 @@ export class MySqlActionExecutor {
             if (!sourceLeads[0])
               throw new AppError(
                 "PROJECT_APPLICATION_SOURCE_LEAD_NOT_FOUND",
-                "Source lead not found or access denied",
+                "来源线索不存在或无权访问",
                 404,
               );
           }
@@ -3809,7 +3809,7 @@ export class MySqlActionExecutor {
           if (counterparties.length !== counterpartyIds.length)
             throw new AppError(
               "BID_COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           const code = await allocateNumber(connection, "BID");
@@ -4034,13 +4034,13 @@ export class MySqlActionExecutor {
             if (!leads[0])
               throw new AppError(
                 "BID_PARTNER_LEAD_NOT_FOUND",
-                "Lead not found or access denied",
+                "线索不存在或无权访问",
                 404,
               );
             if (String(leads[0].customerId) !== String(input.finalCustomerId))
               throw new AppError(
                 "BID_PARTNER_LEAD_CUSTOMER_MISMATCH",
-                "Final customer must match the source lead customer",
+                "最终客户必须与来源线索客户一致",
                 409,
               );
           }
@@ -4054,7 +4054,7 @@ export class MySqlActionExecutor {
           if (counterparties.length !== counterpartyIds.length)
             throw new AppError(
               "BID_PARTNER_COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           const [result] = await connection.execute<ResultSetHeader>(
@@ -4089,7 +4089,7 @@ export class MySqlActionExecutor {
           if (parties.length !== partyIds.length)
             throw new AppError(
               "CONTRACT_COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           if (input.parentContractId) {
@@ -4100,7 +4100,7 @@ export class MySqlActionExecutor {
             if (!parents[0])
               throw new AppError(
                 "CONTRACT_PARENT_NOT_FOUND",
-                "Parent contract not found in the same project",
+                "同一项目下未找到原合同",
                 404,
               );
           }
@@ -4259,7 +4259,7 @@ export class MySqlActionExecutor {
           if (!partners[0])
             throw new AppError(
               "PARTNER_PLAN_COUNTERPARTY_NOT_FOUND",
-              "Partner not found or access denied",
+              "合作方不存在或无权访问",
               404,
             );
           if (input.settlementMethod === "RATIO") {
@@ -4511,7 +4511,7 @@ export class MySqlActionExecutor {
           if (!counterparties[0])
             throw new AppError(
               "DEPOSIT_COUNTERPARTY_NOT_FOUND",
-              "Counterparty not found or access denied",
+              "往来单位不存在或无权访问",
               404,
             );
           if (input.bidId) {
@@ -4522,7 +4522,7 @@ export class MySqlActionExecutor {
             if (!bids[0])
               throw new AppError(
                 "DEPOSIT_BID_NOT_FOUND",
-                "Bid not found in the same project",
+                "同一项目下未找到投标申请",
                 404,
               );
           }
@@ -4534,7 +4534,7 @@ export class MySqlActionExecutor {
             if (!contracts[0])
               throw new AppError(
                 "DEPOSIT_CONTRACT_NOT_FOUND",
-                "Contract not found in the same project",
+                "同一项目下未找到合同",
                 404,
               );
           }
@@ -5178,7 +5178,7 @@ export class MySqlActionExecutor {
             if (!contracts[0])
               throw new AppError(
                 "ACCEPTANCE_CONTRACT_NOT_FOUND",
-                "Contract not found in the same project",
+                "同一项目下未找到合同",
                 404,
               );
           }

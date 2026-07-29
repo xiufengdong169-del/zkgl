@@ -208,6 +208,29 @@ describe("empty database initialization schema", () => {
     expect(hits).toEqual([]);
   });
 
+  it("AppError 用户文案不使用英文占位错误", () => {
+    const forbiddenEnglishErrorFragments = [
+      "not found or access denied",
+      "not found in the same project",
+      "No access",
+      "No write access",
+      "Only approved",
+      "must match",
+    ];
+    const appErrorMessages = [
+      ...persistence.matchAll(/new AppError\(\s*"[^"]+"\s*,\s*"([^"]+)"/g),
+    ].map((match) => match[1]!);
+    const hits = appErrorMessages
+      .filter((message) =>
+        forbiddenEnglishErrorFragments.some((fragment) =>
+          message.includes(fragment),
+        ),
+      )
+      .sort();
+
+    expect(hits).toEqual([]);
+  });
+
   it("表名唯一且外键目标表全部存在", () => {
     const tables = [
       ...schema.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)/gi),
