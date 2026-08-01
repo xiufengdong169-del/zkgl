@@ -34,6 +34,10 @@ const performanceAcceptanceTemplate = readFileSync(
   new URL("../../../docs/performance-acceptance-template.md", import.meta.url),
   "utf8",
 );
+const backupRecoveryAcceptanceTemplate = readFileSync(
+  new URL("../../../docs/backup-recovery-acceptance-template.md", import.meta.url),
+  "utf8",
+);
 const finalAcceptanceChecklist = readFileSync(
   new URL("../../../docs/final-acceptance-checklist.md", import.meta.url),
   "utf8",
@@ -205,6 +209,7 @@ const deliveryEntryFragments = [
   "docs/deployment.md",
   "docs/operations-acceptance.md",
   "docs/performance-acceptance-template.md",
+  "docs/backup-recovery-acceptance-template.md",
   "docs/acceptance-traceability.md",
   "docs/final-acceptance-checklist.md",
   "V2.2 结果型验收用例",
@@ -213,7 +218,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 352 条测试",
+  "71 个测试文件 / 353 条测试",
   "9 个测试文件 / 43 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -242,6 +247,7 @@ const finalAcceptanceChecklistFragments = [
   "AC-14",
   "30 用户",
   "docs/performance-acceptance-template.md",
+  "docs/backup-recovery-acceptance-template.md",
   "P95 统计",
   "CloudBase 函数日志",
   "数据库慢查询记录",
@@ -268,6 +274,26 @@ const performanceAcceptanceTemplateFragments = [
   "数据库慢查询记录",
   "验收会议纪要或签字页",
   "是否通过 AC-14",
+];
+const backupRecoveryAcceptanceTemplateFragments = [
+  "备份恢复验收记录模板",
+  "cloudbase-d7gc2b32cd4196059",
+  "生产环境是否被覆盖",
+  "每日自动备份，至少保留 30 天",
+  "关键发布前手工备份",
+  "附件恢复点与数据库恢复点可对应同一业务时间窗口",
+  "不得为节省额度关闭审计日志、安全配置或备份恢复能力",
+  "MySQL 数据库",
+  "项目附件对象存储",
+  "后台导出文件",
+  "至少 3 个项目",
+  "至少 3 份合同",
+  "审批记录、待办状态和审计日志可追溯",
+  "至少 3 个项目附件可生成 HTTPS 临时地址并下载",
+  "未授权账号下载被拒绝并留下访问日志",
+  "过期导出文件被拒绝",
+  "CloudBase MySQL 自动备份配置截图",
+  "是否通过备份恢复验收",
 ];
 
 describe("deployment documentation", () => {
@@ -549,6 +575,21 @@ describe("deployment documentation", () => {
       expect(
         operationsAcceptanceDoc,
         `operations acceptance docs missing ${fragment}`,
+      ).toContain(fragment);
+    }
+    expect(operationsAcceptanceDoc).toContain(
+      "docs/backup-recovery-acceptance-template.md",
+    );
+    expect(finalAcceptanceChecklist).toContain(
+      "docs/backup-recovery-acceptance-template.md",
+    );
+  });
+
+  it("provides a fillable backup and recovery acceptance record template", () => {
+    for (const fragment of backupRecoveryAcceptanceTemplateFragments) {
+      expect(
+        backupRecoveryAcceptanceTemplate,
+        `backup recovery acceptance template missing ${fragment}`,
       ).toContain(fragment);
     }
   });

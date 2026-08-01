@@ -10,12 +10,13 @@
 - [ ] CloudBase 部署、空库初始化、账号开通和上线初始化资料清单见 `docs/deployment.md`。
 - [ ] 操作手册、主流程验收、现场性能验收和备份恢复验收见 `docs/operations-acceptance.md`。
 - [ ] AC-14 现场性能验收记录模板见 `docs/performance-acceptance-template.md`。
+- [ ] 备份恢复验收记录模板见 `docs/backup-recovery-acceptance-template.md`。
 - [ ] V2.2 结果型验收用例与自动化测试映射见 `docs/acceptance-traceability.md`。
 
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 71 个测试文件 / 352 条测试。
+- [ ] API 测试通过，当前基线为 71 个测试文件 / 353 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 43 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -90,7 +91,7 @@
 - [ ] CloudBase MySQL 每日自动备份，至少保留 30 天。
 - [ ] 关键发布、初始化脚本重建或生产配置变更前执行手工备份。
 - [ ] 项目附件启用平台保护能力或定期备份。
-- [ ] 上线前完成一次数据库和附件恢复演练，并归档恢复记录。
+- [ ] 上线前完成一次数据库和附件恢复演练，并按 `docs/backup-recovery-acceptance-template.md` 归档恢复记录。
 - [ ] 上线后至少每半年执行一次恢复验证。
 - [ ] 不为节省免费额度而关闭安全、审计日志或备份恢复能力。
 
