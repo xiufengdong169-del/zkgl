@@ -194,6 +194,34 @@ const extractSeededNumberRuleCodes = (source: string) =>
     ),
   ].sort();
 
+const extractRuntimeSystemParameterKeys = (source: string) =>
+  [
+    ...new Set(
+      [
+        ...source.matchAll(/param_key\s*=\s*'([^']+)'/g),
+        ...[...source.matchAll(/param_key IN\s*\(([^)]*)\)/g)].flatMap(
+          (match) => [...match[1]!.matchAll(/'([a-z]+\.[a-z0-9_.]+)'/g)],
+        ),
+        ...source.matchAll(/loadNumberParameter\(\s*[^,]+,\s*"([^"]+)"/g),
+      ]
+        .map((match) => match[1]!)
+        .filter((key) => key.includes(".")),
+    ),
+  ].sort();
+
+const extractSeededSystemParameterKeys = (source: string) =>
+  [
+    ...new Set(
+      [
+        ...(
+          /INSERT INTO sys_parameter\([^)]*\)\s*VALUES\s*([\s\S]*?);/i.exec(
+            source,
+          )?.[1] ?? ""
+        ).matchAll(/\('([a-z]+\.[a-z0-9_.]+)',/g),
+      ].map((match) => match[1]!),
+    ),
+  ].sort();
+
 const extractFinancePaymentSourceTypes = (source: string) => {
   const block = /sourceType:\s*z\.enum\(\[([\s\S]*?)\]\)/.exec(source)?.[1] ?? "";
   return [...block.matchAll(/"([A-Z_]+)"/g)]
@@ -329,6 +357,28 @@ describe("empty database initialization schema", () => {
     expect(schema).toContain("param_key VARCHAR(128) NOT NULL UNIQUE");
     expect(schema).toContain("version INT UNSIGNED NOT NULL DEFAULT 0");
     expect(schema).toContain("('export.retention_days'");
+  });
+
+  it("runtime system parameters are seeded in the empty database baseline", () => {
+    const runtimeParameterKeys = extractRuntimeSystemParameterKeys(
+      [
+        persistence,
+        readFileSync(new URL("./reminders.ts", import.meta.url), "utf8"),
+        readFileSync(new URL("./export-tasks.ts", import.meta.url), "utf8"),
+      ].join("\n"),
+    );
+    const seededParameterKeys = extractSeededSystemParameterKeys(schema);
+
+    expect(runtimeParameterKeys).toEqual([
+      "export.retention_days",
+      "reminder.bid_deadline_days",
+      "reminder.contract_expiry_days",
+    ]);
+    for (const parameterKey of runtimeParameterKeys)
+      expect(
+        seededParameterKeys,
+        `missing system parameter seed ${parameterKey}`,
+      ).toContain(parameterKey);
   });
 
   it("临时项目授权记录起止时间和授权人", () => {
