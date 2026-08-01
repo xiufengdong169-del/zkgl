@@ -95,7 +95,7 @@ const cloudbaseConfig = JSON.parse(
 
 const expectedCloudbaseEnvId = "cloudbase-d7gc2b32cd4196059";
 const expectedCloudbaseRegion = "ap-guangzhou";
-const expectedAcceptanceReviewDate = "2026-07-29";
+const expectedAcceptanceReviewDate = "2026-08-01";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
