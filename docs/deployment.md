@@ -96,7 +96,7 @@ tcb hosting deploy apps/web/dist / --yes
 2. 连续 5 次失败后锁定 15 分钟。
 3. 内部账号停用后，旧会话无法访问业务 API。
 4. CloudBase 身份账号停用后，无法建立新会话。
-5. `zkgl-reminder` 能生成合同、投标、保证金、先开工、结项未清事项和风险提醒。
+5. `zkgl-reminder` 能生成合同、投标、保证金、先开工待签约、先开工签约逾期异常、结项未清事项和风险提醒。
 6. `zkgl-export-worker` 能处理后台导出任务并生成私有文件。
 7. `node scripts/verify-web-dist-security.mjs` 通过，前端构建产物不包含数据库变量、SecretKey、API Secret 或私钥标记。
 8. 浏览器访问前端域名后，登录、工作台加载和一次 `session.get` API 请求均成功。

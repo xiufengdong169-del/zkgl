@@ -213,7 +213,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 350 条测试",
+  "71 个测试文件 / 351 条测试",
   "9 个测试文件 / 43 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -509,6 +509,20 @@ describe("deployment documentation", () => {
       );
       expect(fn.handler, `${fn.name} handler`).toBe("index.main");
       expect(fn.runtime, `${fn.name} runtime`).toBe("Nodejs18.15");
+    }
+  });
+
+  it("documents overdue abnormal reminders for approved early-start projects", () => {
+    for (const fragment of [
+      "先开工签约逾期异常",
+      "超过预计签约日后持续生成异常提醒",
+      "先开工项目超过预计签约日后标记异常并持续提醒补签或风险处置",
+    ]) {
+      const docs = [deploymentDoc, finalAcceptanceChecklist, operationsAcceptanceDoc];
+      expect(
+        docs.some((doc) => doc.includes(fragment)),
+        `delivery docs missing early-start overdue reminder fragment ${fragment}`,
+      ).toBe(true);
     }
   });
 
