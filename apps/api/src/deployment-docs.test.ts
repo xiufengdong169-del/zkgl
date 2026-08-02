@@ -144,6 +144,16 @@ const generatedBuildOutputs = [
   "apps/web/dist",
   ...generatedFunctionPackages.map((directory) => directory.replace(/\/$/, "")),
 ];
+const ignoredLocalAndSecretPatterns = [
+  ".codex/",
+  "~$*.docx",
+  "node_modules/",
+  "dist/",
+  "*.tsbuildinfo",
+  ".env",
+  ".env.*",
+  "!.env.example",
+];
 const frontendDeploymentFragments = [
   "前端发布",
   "VITE_API_BASE_URL",
@@ -543,6 +553,9 @@ describe("deployment documentation", () => {
 
   it("documents and ignores generated build output directories", () => {
     expect(gitignore).toContain("dist/");
+    for (const pattern of ignoredLocalAndSecretPatterns) {
+      expect(gitignore, `.gitignore missing ${pattern}`).toContain(pattern);
+    }
     for (const directory of generatedFunctionPackages) {
       expect(gitignore, `.gitignore missing generated package ${directory}`).toContain(
         directory,
