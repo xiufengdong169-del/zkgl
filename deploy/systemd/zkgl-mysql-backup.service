@@ -1,0 +1,11 @@
+[Unit]
+Description=ZKGL MySQL backup
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/zkgl/current
+EnvironmentFile=/etc/zkgl/zkgl-api.env
+ExecStart=/usr/bin/node scripts/create-mysql-backup.mjs
+User=zkgl
+Group=zkgl

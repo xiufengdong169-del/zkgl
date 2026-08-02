@@ -57,6 +57,8 @@ export const serverVariables = [
   "API_PORT",
   "API_ALLOWED_ORIGINS",
   "AUTH_TRUSTED_PROXY",
+  "BACKUP_MYSQL_DIR",
+  "BACKUP_RETENTION_DAYS",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -191,6 +193,12 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "AUTH_TRUSTED_PROXY") !== "false") {
     fail(".env.example AUTH_TRUSTED_PROXY must default to false");
+  }
+  if (envValue(envExample, "BACKUP_MYSQL_DIR") !== "/var/backups/zkgl/mysql") {
+    fail(".env.example BACKUP_MYSQL_DIR mismatch");
+  }
+  if (envValue(envExample, "BACKUP_RETENTION_DAYS") !== "30") {
+    fail(".env.example BACKUP_RETENTION_DAYS mismatch");
   }
   includesAll(
     deploymentDoc,

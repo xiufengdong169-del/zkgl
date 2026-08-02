@@ -142,6 +142,8 @@ API_HOST=127.0.0.1
 API_PORT=3000
 API_ALLOWED_ORIGINS=https://正式域名
 AUTH_TRUSTED_PROXY=false
+BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql
+BACKUP_RETENTION_DAYS=30
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=zkgl
@@ -174,6 +176,8 @@ mysql -u root -p zkgl < database/init/schema.sql
 - `deploy/systemd/zkgl-reminder.timer`：每日 08:00 触发提醒刷新。
 - `deploy/systemd/zkgl-export-worker.service`：后台导出一次性任务。
 - `deploy/systemd/zkgl-export-worker.timer`：每 5 分钟触发后台导出 worker。
+- `deploy/systemd/zkgl-mysql-backup.service`：MySQL 8.0 备份一次性任务，执行 `scripts/create-mysql-backup.mjs`。
+- `deploy/systemd/zkgl-mysql-backup.timer`：每日 02:30 触发 MySQL 备份，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
 
 API 常驻服务模板如下：
 
@@ -203,9 +207,21 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now zkgl-api
 sudo systemctl enable --now zkgl-reminder.timer
 sudo systemctl enable --now zkgl-export-worker.timer
+sudo systemctl enable --now zkgl-mysql-backup.timer
 sudo systemctl status zkgl-api
 systemctl list-timers 'zkgl-*'
 curl http://127.0.0.1:3000/healthz
+```
+
+### MySQL 备份
+
+服务器本地备份脚本为 `scripts/create-mysql-backup.mjs`，默认输出目录为 `/var/backups/zkgl/mysql`，默认保留 30 天。脚本读取 `/etc/zkgl/zkgl-api.env` 中的数据库连接变量，通过 `mysqldump --single-transaction --routines --triggers --events` 生成一致性备份文件；真实数据库密码不得写入命令行、Git 仓库或文档示例。
+
+手工发布前备份命令：
+
+```bash
+node scripts/create-mysql-backup.mjs
+node scripts/verify-backup-assets.mjs
 ```
 
 ### Nginx HTTPS 反向代理

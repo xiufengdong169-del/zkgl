@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ZKGL MySQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+Unit=zkgl-mysql-backup.service
+
+[Install]
+WantedBy=timers.target

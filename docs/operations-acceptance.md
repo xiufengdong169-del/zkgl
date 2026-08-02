@@ -123,8 +123,8 @@ AC-14 需要在生产级 CloudBase 资源、正常企业网络和基准数据量
 
 验收前配置：
 
-1. CloudBase MySQL 开启每日自动备份，备份至少保留 30 天。
-2. 每次关键发布、初始化脚本重建或生产配置变更前，先执行一次手工备份。
+1. 腾讯云轻量服务器 MySQL 8.0 启用 `deploy/systemd/zkgl-mysql-backup.service` 与 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，备份至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
+2. 每次关键发布、初始化脚本重建或生产配置变更前，先执行一次 `scripts/create-mysql-backup.mjs` 手工备份，并执行 `node scripts/verify-backup-assets.mjs` 复核备份资产。
 3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口。
 4. 明确备份责任人、恢复责任人、备份保留策略、恢复目标环境和恢复演练记录保存位置。
 
@@ -159,6 +159,7 @@ node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
+node scripts/verify-backup-assets.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev

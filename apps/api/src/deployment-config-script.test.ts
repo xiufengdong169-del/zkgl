@@ -62,6 +62,8 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     `API_PORT=${expected.apiPort}`,
     "API_ALLOWED_ORIGINS=",
     "AUTH_TRUSTED_PROXY=false",
+    "BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql",
+    "BACKUP_RETENTION_DAYS=30",
     "DB_HOST=",
     "DB_PORT=",
     "DB_NAME=",

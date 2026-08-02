@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 73 个测试文件 / 369 条测试。
+- [ ] API 测试通过，当前基线为 75 个测试文件 / 375 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 44 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -24,6 +24,7 @@
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - [ ] `npm run verify:deployment-config` 通过，CloudBase 环境、前后端环境变量、函数部署配置和 CI Node 版本一致性校验通过。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
+- [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
 - [ ] CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 
@@ -89,8 +90,8 @@
 
 ## 9. 备份恢复与运维
 
-- [ ] CloudBase MySQL 每日自动备份，至少保留 30 天。
-- [ ] 关键发布、初始化脚本重建或生产配置变更前执行手工备份。
+- [ ] 腾讯云轻量服务器 MySQL 8.0 通过 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，计划时间为 02:30，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
+- [ ] 关键发布、初始化脚本重建或生产配置变更前执行 `scripts/create-mysql-backup.mjs` 手工备份，并运行 `node scripts/verify-backup-assets.mjs`。
 - [ ] 项目附件启用平台保护能力或定期备份。
 - [ ] 上线前完成一次数据库和附件恢复演练，并按 `docs/backup-recovery-acceptance-template.md` 归档恢复记录。
 - [ ] 上线后至少每半年执行一次恢复验证。
@@ -110,7 +111,7 @@
 - [ ] 操作系统为 Ubuntu 24.04，数据库为服务器本机 MySQL 8.0。
 - [ ] API 使用 `npm run start -w @zkgl/api` 启动，由 systemd 托管，监听 `127.0.0.1:3000`。
 - [ ] Nginx 提供 HTTPS、静态前端托管和 `/api` 反向代理。
-- [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-reminder.service`、`deploy/systemd/zkgl-reminder.timer`、`deploy/systemd/zkgl-export-worker.service`、`deploy/systemd/zkgl-export-worker.timer`、`deploy/nginx/zkgl.conf` 作为上线基线。
+- [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-reminder.service`、`deploy/systemd/zkgl-reminder.timer`、`deploy/systemd/zkgl-export-worker.service`、`deploy/systemd/zkgl-export-worker.timer`、`deploy/systemd/zkgl-mysql-backup.service`、`deploy/systemd/zkgl-mysql-backup.timer`、`deploy/nginx/zkgl.conf` 作为上线基线。
 - [ ] `VITE_API_BASE_URL` 已配置为生产 HTTPS API 地址后重新构建前端。
 - [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库。
 - [ ] 上线前已接入受信任认证适配层，校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。

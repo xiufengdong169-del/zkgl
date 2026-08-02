@@ -85,6 +85,10 @@ const serverDeploymentAssetVerifier = readFileSync(
   new URL("../../../scripts/verify-server-deployment-assets.mjs", import.meta.url),
   "utf8",
 );
+const backupAssetVerifier = readFileSync(
+  new URL("../../../scripts/verify-backup-assets.mjs", import.meta.url),
+  "utf8",
+);
 const standaloneServerSource = readFileSync(
   new URL("./server.ts", import.meta.url),
   "utf8",
@@ -136,6 +140,7 @@ const verificationCommands = [
   "node scripts/verify-web-dist-security.mjs",
   "npm run verify:deployment-config",
   "node scripts/verify-server-deployment-assets.mjs",
+  "node scripts/verify-backup-assets.mjs",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
   "npm audit --omit=dev",
@@ -155,6 +160,8 @@ const serverEnvironmentVariables = [
   "API_PORT",
   "API_ALLOWED_ORIGINS",
   "AUTH_TRUSTED_PROXY",
+  "BACKUP_MYSQL_DIR",
+  "BACKUP_RETENTION_DAYS",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -263,7 +270,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "73 个测试文件 / 369 条测试",
+  "75 个测试文件 / 375 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -349,7 +356,9 @@ const backupRecoveryAcceptanceTemplateFragments = [
   "备份恢复验收记录模板",
   "cloudbase-d7gc2b32cd4196059",
   "生产环境是否被覆盖",
-  "每日自动备份，至少保留 30 天",
+  "deploy/systemd/zkgl-mysql-backup.timer",
+  "scripts/create-mysql-backup.mjs",
+  "BACKUP_RETENTION_DAYS",
   "关键发布前手工备份",
   "附件恢复点与数据库恢复点可对应同一业务时间窗口",
   "不得为节省额度关闭审计日志、安全配置或备份恢复能力",
@@ -362,7 +371,8 @@ const backupRecoveryAcceptanceTemplateFragments = [
   "至少 3 个项目附件可生成 HTTPS 临时地址并下载",
   "未授权账号下载被拒绝并留下访问日志",
   "过期导出文件被拒绝",
-  "CloudBase MySQL 自动备份配置截图",
+  "systemctl status zkgl-mysql-backup.timer",
+  "node scripts/verify-backup-assets.mjs",
   "是否通过备份恢复验收",
 ];
 
@@ -501,7 +511,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(73);
+    expect(actualApiTestFiles).toBe(75);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -595,6 +605,16 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-server-deployment-assets.mjs",
     );
+    expect(packageJson.scripts.verify).toContain(
+      "node scripts/verify-backup-assets.mjs",
+    );
+    expect(deploymentDoc).toContain("deploy/systemd/zkgl-mysql-backup.timer");
+    expect(deploymentDoc).toContain("scripts/create-mysql-backup.mjs");
+    expect(finalAcceptanceChecklist).toContain(
+      "deploy/systemd/zkgl-mysql-backup.timer",
+    );
+    expect(backupAssetVerifier).toContain("mysqldump");
+    expect(backupAssetVerifier).toContain("OnCalendar=*-*-* 02:30:00");
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {

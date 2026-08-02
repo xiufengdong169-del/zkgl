@@ -34,7 +34,7 @@ export const ignoredPathFragments = [
   "scripts/verify-source-secret-hygiene.mjs",
 ];
 export const textFilePattern =
-  /\.(?:cjs|css|html|js|json|md|mjs|sql|ts|tsx|vue|yaml|yml)$/i;
+  /\.(?:cjs|conf|css|html|js|json|md|mjs|service|sql|timer|ts|tsx|vue|yaml|yml)$/i;
 export const forbiddenPatterns = [
   {
     name: "non-empty database or secret environment assignment",

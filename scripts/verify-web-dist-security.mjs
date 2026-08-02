@@ -16,6 +16,8 @@ export const forbiddenPatterns = [
   /\bAPI_PORT\b/,
   /\bAPI_ALLOWED_ORIGINS\b/,
   /\bAUTH_TRUSTED_PROXY\b/,
+  /\bBACKUP_MYSQL_DIR\b/,
+  /\bBACKUP_RETENTION_DAYS\b/,
   /\bDB_HOST\b/,
   /\bDB_PORT\b/,
   /\bDB_NAME\b/,

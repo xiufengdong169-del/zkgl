@@ -19,7 +19,7 @@
 
 | 检查项 | 要求 | 实际结果 | 结论 |
 | --- | --- | --- | --- |
-| CloudBase MySQL 自动备份 | 每日自动备份，至少保留 30 天 |  |  |
+| 腾讯云轻量 MySQL 8.0 自动备份 | `deploy/systemd/zkgl-mysql-backup.service` 与 `deploy/systemd/zkgl-mysql-backup.timer` 每日 02:30 执行 `scripts/create-mysql-backup.mjs`，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制 |  |  |
 | 关键发布前手工备份 | 发布、初始化脚本重建或生产配置变更前执行 |  |  |
 | 附件备份或平台保护能力 | 附件恢复点与数据库恢复点可对应同一业务时间窗口 |  |  |
 | 审计日志和安全能力 | 不得为节省额度关闭审计日志、安全配置或备份恢复能力 |  |  |
@@ -58,7 +58,9 @@
 
 ## 7. 归档材料
 
-- [ ] CloudBase MySQL 自动备份配置截图。
+- [ ] `systemctl status zkgl-mysql-backup.timer` 与 `systemctl list-timers 'zkgl-*'` 截图。
+- [ ] `scripts/create-mysql-backup.mjs` 手工备份执行记录。
+- [ ] `node scripts/verify-backup-assets.mjs` 执行结果。
 - [ ] 手工备份记录截图。
 - [ ] 数据库恢复任务截图或平台记录。
 - [ ] 附件或对象存储恢复记录。
