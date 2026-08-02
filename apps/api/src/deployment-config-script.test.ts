@@ -155,4 +155,22 @@ describe("deployment config verifier script", () => {
       `GitHub workflow must use Node.js ${expected.nodeVersion}`,
     );
   });
+
+  it("rejects deployment commands and secret references in the verification workflow", async () => {
+    const { verifyDeploymentConfigInputs, expected } =
+      await loadDeploymentConfigModule();
+
+    for (const fragment of [
+      "tcb fn deploy zkgl-api --yes",
+      "cloudbase login",
+      "deploy",
+      "secrets.CLOUDBASE_SECRET",
+    ]) {
+      const inputs = makeValidInputs(expected);
+      inputs.workflow += `\n- run: ${fragment}`;
+      expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
+        "must not include deployment or secret fragment",
+      );
+    }
+  });
 });

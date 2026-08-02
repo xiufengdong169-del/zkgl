@@ -50,6 +50,13 @@ export const serverVariables = [
   "DB_PASSWORD",
   "CLOUDBASE_ENV_ID",
 ];
+export const forbiddenWorkflowFragments = [
+  "tcb ",
+  "cloudbase",
+  "deploy",
+  "secrets.",
+  "contents: write",
+];
 
 const fail = (message) => {
   throw new Error(`Deployment config verification failed: ${message}`);
@@ -189,6 +196,11 @@ export function verifyDeploymentConfigInputs({
   }
   if (!workflow.includes("permissions:") || !workflow.includes("contents: read")) {
     fail("GitHub workflow must use read-only contents permission");
+  }
+  for (const fragment of forbiddenWorkflowFragments) {
+    if (workflow.includes(fragment)) {
+      fail(`GitHub workflow must not include deployment or secret fragment ${fragment}`);
+    }
   }
   if (packageJson.scripts?.["verify:deployment-config"] !== "node scripts/verify-deployment-config.mjs") {
     fail("package.json missing verify:deployment-config script");
