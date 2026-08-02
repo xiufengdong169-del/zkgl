@@ -158,6 +158,7 @@ npm run build
 node scripts/verify-source-secret-hygiene.mjs
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
+node scripts/verify-server-deployment-assets.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev

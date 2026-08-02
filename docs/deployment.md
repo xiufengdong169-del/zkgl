@@ -128,6 +128,7 @@ npm run verify:acceptance
 npm run build -w @zkgl/api
 npm run build -w @zkgl/web
 node scripts/verify-web-dist-security.mjs
+node scripts/verify-server-deployment-assets.mjs
 ```
 
 5. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：
@@ -166,7 +167,7 @@ mysql -u root -p zkgl < database/init/schema.sql
 
 ### systemd 服务
 
-推荐创建 `/etc/systemd/system/zkgl-api.service`：
+推荐以仓库模板 `deploy/systemd/zkgl-api.service` 创建 `/etc/systemd/system/zkgl-api.service`：
 
 ```ini
 [Unit]
@@ -198,7 +199,7 @@ curl http://127.0.0.1:3000/healthz
 
 ### Nginx HTTPS 反向代理
 
-Nginx 必须：
+推荐以仓库模板 `deploy/nginx/zkgl.conf` 创建站点配置。Nginx 必须：
 
 - 只通过 HTTPS 暴露业务站点；
 - 将 `/api` 代理到 `http://127.0.0.1:3000/api`；

@@ -81,12 +81,20 @@ const deploymentConfigVerifier = readFileSync(
   new URL("../../../scripts/verify-deployment-config.mjs", import.meta.url),
   "utf8",
 );
+const serverDeploymentAssetVerifier = readFileSync(
+  new URL("../../../scripts/verify-server-deployment-assets.mjs", import.meta.url),
+  "utf8",
+);
 const standaloneServerSource = readFileSync(
   new URL("./server.ts", import.meta.url),
   "utf8",
 );
 const standaloneServerAuthSource = readFileSync(
   new URL("./server-auth.ts", import.meta.url),
+  "utf8",
+);
+const nginxDeploymentTemplate = readFileSync(
+  new URL("../../../deploy/nginx/zkgl.conf", import.meta.url),
   "utf8",
 );
 const packageJson = JSON.parse(
@@ -127,6 +135,7 @@ const verificationCommands = [
   "node scripts/verify-source-secret-hygiene.mjs",
   "node scripts/verify-web-dist-security.mjs",
   "npm run verify:deployment-config",
+  "node scripts/verify-server-deployment-assets.mjs",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
   "npm audit --omit=dev",
@@ -254,7 +263,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "72 个测试文件 / 365 条测试",
+  "73 个测试文件 / 368 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -411,6 +420,7 @@ describe("deployment documentation", () => {
     expect(deploymentConfigVerifier).toContain("zkglDailyReminder");
     expect(deploymentConfigVerifier).toContain("zkglExportWorker");
     expect(sourceSecretHygieneScript).toContain('"docs"');
+    expect(sourceSecretHygieneScript).toContain('"deploy"');
     expect(sourceSecretHygieneScript).toContain("需求评审修订基线_V2.2.md");
     expect(sourceSecretHygieneScript).toContain(
       "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
@@ -491,7 +501,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(72);
+    expect(actualApiTestFiles).toBe(73);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -569,6 +579,18 @@ describe("deployment documentation", () => {
     expect(standaloneServerSource).toContain("/healthz");
     expect(standaloneServerSource).toContain("maxBodyBytes");
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
+    expect(deploymentDoc).toContain("deploy/systemd/zkgl-api.service");
+    expect(deploymentDoc).toContain("deploy/nginx/zkgl.conf");
+    expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-api.service");
+    expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
+    expect(nginxDeploymentTemplate).toContain("auth_request /_zkgl_auth");
+    expect(nginxDeploymentTemplate).toContain(
+      "proxy_set_header X-ZKGL-CloudBase-UID \"\"",
+    );
+    expect(serverDeploymentAssetVerifier).toContain("auth_request /_zkgl_auth");
+    expect(packageJson.scripts.verify).toContain(
+      "node scripts/verify-server-deployment-assets.mjs",
+    );
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {

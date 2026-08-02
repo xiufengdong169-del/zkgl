@@ -16,13 +16,14 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 72 个测试文件 / 365 条测试。
+- [ ] API 测试通过，当前基线为 73 个测试文件 / 368 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 44 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - [ ] `npm run verify:deployment-config` 通过，CloudBase 环境、前后端环境变量、函数部署配置和 CI Node 版本一致性校验通过。
+- [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，`deploy/systemd/zkgl-api.service` 和 `deploy/nginx/zkgl.conf` 与独立服务器上线要求一致。
 - [ ] CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 
@@ -109,6 +110,7 @@
 - [ ] 操作系统为 Ubuntu 24.04，数据库为服务器本机 MySQL 8.0。
 - [ ] API 使用 `npm run start -w @zkgl/api` 启动，由 systemd 托管，监听 `127.0.0.1:3000`。
 - [ ] Nginx 提供 HTTPS、静态前端托管和 `/api` 反向代理。
+- [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/nginx/zkgl.conf` 作为上线基线。
 - [ ] `VITE_API_BASE_URL` 已配置为生产 HTTPS API 地址后重新构建前端。
 - [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库。
 - [ ] 上线前已接入受信任认证适配层，校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。

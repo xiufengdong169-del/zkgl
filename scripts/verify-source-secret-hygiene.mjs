@@ -12,6 +12,7 @@ export const scannedRoots = [
   "packages",
   "scripts",
   "database",
+  "deploy",
   "docs",
   ".github",
   "cloudbaserc.json",

@@ -1,0 +1,16 @@
+[Unit]
+Description=ZKGL API
+After=network.target mysql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zkgl/current
+EnvironmentFile=/etc/zkgl/zkgl-api.env
+ExecStart=/usr/bin/npm run start -w @zkgl/api
+Restart=always
+RestartSec=5
+User=zkgl
+Group=zkgl
+
+[Install]
+WantedBy=multi-user.target
