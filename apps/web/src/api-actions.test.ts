@@ -257,6 +257,19 @@ describe("frontend API action usage", () => {
     expect(homeView).not.toContain("buildCsv");
   });
 
+  it("keeps file center downloads on the trusted temporary HTTPS URL path", () => {
+    const filesView = readFileSync(
+      join(webSourceDir, "views", "FilesView.vue"),
+      "utf8",
+    );
+
+    expect(filesView).toContain('"file.download"');
+    expect(filesView).toContain("openTrustedDownloadUrl");
+    expect(filesView).not.toContain("URL.createObjectURL");
+    expect(filesView).not.toContain("new Blob");
+    expect(filesView).not.toContain("window.open");
+  });
+
   it("disables expired background export downloads in the dashboard", () => {
     const homeView = readFileSync(
       join(webSourceDir, "views", "HomeView.vue"),
