@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -222,7 +222,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 354 条测试",
+  "71 个测试文件 / 355 条测试",
   "9 个测试文件 / 43 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -283,6 +283,11 @@ const performanceAcceptanceTemplateFragments = [
 const extractAcceptanceCaseCodes = (source: string) =>
   [...new Set([...source.matchAll(/\bAC-\d{2}\b/g)].map((match) => match[0]!))]
     .sort();
+
+const extractBacktickedPaths = (source: string) =>
+  [...new Set([...source.matchAll(/`([^`]+\.(?:test\.ts|md))`/g)].map(
+    (match) => match[1]!,
+  ))].sort();
 const backupRecoveryAcceptanceTemplateFragments = [
   "备份恢复验收记录模板",
   "cloudbase-d7gc2b32cd4196059",
@@ -419,6 +424,18 @@ describe("deployment documentation", () => {
         acceptanceTraceabilityDoc,
         `acceptance traceability missing ${caseCode}`,
       ).toMatch(new RegExp(`\\| ${caseCode} \\|[\\s\\S]*?\\|`));
+    }
+  });
+
+  it("keeps acceptance traceability references pointed at existing artifacts", () => {
+    const referencedPaths = extractBacktickedPaths(acceptanceTraceabilityDoc);
+
+    expect(referencedPaths.length).toBeGreaterThan(5);
+    for (const referencedPath of referencedPaths) {
+      expect(
+        existsSync(new URL(`../../../${referencedPath}`, import.meta.url)),
+        `acceptance traceability references missing artifact ${referencedPath}`,
+      ).toBe(true);
     }
   });
 
