@@ -162,6 +162,9 @@ const serverEnvironmentVariables = [
   "AUTH_TRUSTED_PROXY",
   "BACKUP_MYSQL_DIR",
   "BACKUP_RETENTION_DAYS",
+  "RESTORE_BACKUP_FILE",
+  "RESTORE_DB_NAME",
+  "RESTORE_CONFIRM",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -270,7 +273,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "75 个测试文件 / 375 条测试",
+  "76 个测试文件 / 378 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -358,7 +361,9 @@ const backupRecoveryAcceptanceTemplateFragments = [
   "生产环境是否被覆盖",
   "deploy/systemd/zkgl-mysql-backup.timer",
   "scripts/create-mysql-backup.mjs",
+  "scripts/restore-mysql-backup.mjs",
   "BACKUP_RETENTION_DAYS",
+  "RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION",
   "关键发布前手工备份",
   "附件恢复点与数据库恢复点可对应同一业务时间窗口",
   "不得为节省额度关闭审计日志、安全配置或备份恢复能力",
@@ -373,6 +378,7 @@ const backupRecoveryAcceptanceTemplateFragments = [
   "过期导出文件被拒绝",
   "systemctl status zkgl-mysql-backup.timer",
   "node scripts/verify-backup-assets.mjs",
+  "scripts/restore-mysql-backup.mjs",
   "是否通过备份恢复验收",
 ];
 
@@ -511,7 +517,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(75);
+    expect(actualApiTestFiles).toBe(76);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);

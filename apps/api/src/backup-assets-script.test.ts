@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 type BackupAssetsModule = {
   verifyBackupAssetInputs(inputs: {
     backupScript: string;
+    restoreScript: string;
     backupService: string;
     backupTimer: string;
     deploymentDoc: string;
@@ -21,6 +22,7 @@ async function loadBackupAssetsModule() {
 function validInputs() {
   const docs = [
     "scripts/create-mysql-backup.mjs",
+    "scripts/restore-mysql-backup.mjs",
     "deploy/systemd/zkgl-mysql-backup.service",
     "deploy/systemd/zkgl-mysql-backup.timer",
     "BACKUP_RETENTION_DAYS",
@@ -36,6 +38,17 @@ function validInputs() {
       "BACKUP_RETENTION_DAYS",
       "/var/backups/zkgl/mysql",
       "MYSQL_PWD",
+    ].join("\n"),
+    restoreScript: [
+      "mysqlRestoreConfig",
+      "RESTORE_DB_NAME",
+      "RESTORE_BACKUP_FILE",
+      "RESTORE_CONFIRM",
+      "I_UNDERSTAND_THIS_IS_NOT_PRODUCTION",
+      "RESTORE_DB_NAME must not equal production DB_NAME",
+      "createReadStream",
+      "MYSQL_PWD",
+      "mysql",
     ].join("\n"),
     backupService: [
       "Type=oneshot",

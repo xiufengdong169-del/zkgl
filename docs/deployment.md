@@ -144,6 +144,9 @@ API_ALLOWED_ORIGINS=https://正式域名
 AUTH_TRUSTED_PROXY=false
 BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql
 BACKUP_RETENTION_DAYS=30
+RESTORE_BACKUP_FILE=
+RESTORE_DB_NAME=
+RESTORE_CONFIRM=
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=zkgl
@@ -222,6 +225,15 @@ curl http://127.0.0.1:3000/healthz
 ```bash
 node scripts/create-mysql-backup.mjs
 node scripts/verify-backup-assets.mjs
+```
+
+恢复演练必须恢复到独立验证库，`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`。演练时在服务器本地临时设置：
+
+```bash
+RESTORE_BACKUP_FILE=/var/backups/zkgl/mysql/某次备份.sql
+RESTORE_DB_NAME=zkgl_restore_verify
+RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION
+node scripts/restore-mysql-backup.mjs
 ```
 
 ### Nginx HTTPS 反向代理

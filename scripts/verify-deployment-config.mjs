@@ -59,6 +59,9 @@ export const serverVariables = [
   "AUTH_TRUSTED_PROXY",
   "BACKUP_MYSQL_DIR",
   "BACKUP_RETENTION_DAYS",
+  "RESTORE_BACKUP_FILE",
+  "RESTORE_DB_NAME",
+  "RESTORE_CONFIRM",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -199,6 +202,15 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "BACKUP_RETENTION_DAYS") !== "30") {
     fail(".env.example BACKUP_RETENTION_DAYS mismatch");
+  }
+  for (const restoreVariable of [
+    "RESTORE_BACKUP_FILE",
+    "RESTORE_DB_NAME",
+    "RESTORE_CONFIRM",
+  ]) {
+    if (envValue(envExample, restoreVariable)) {
+      fail(`.env.example ${restoreVariable} must stay blank`);
+    }
   }
   includesAll(
     deploymentDoc,
