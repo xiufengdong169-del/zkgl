@@ -32,6 +32,7 @@ node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+node scripts/verify-server-preflight.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev
@@ -90,7 +91,7 @@ Current production target is Tencent Cloud Lighthouse instead of CloudBase prima
 - Database: MySQL 8.0 already installed on the server.
 - API: Node.js standalone service, `npm run start -w @zkgl/api`, managed by systemd on `127.0.0.1:3000`.
 - Web: `apps/web/dist` served by Nginx over HTTPS.
-- Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs` and `node scripts/verify-backup-assets.mjs`.
+- Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.
 - Backup and restore drills use `scripts/create-mysql-backup.mjs` and `scripts/restore-mysql-backup.mjs`; restore drills must target a non-production database.
 - Database initialization remains empty-database initialization through `database/init/schema.sql`; there is still no database migration.
 

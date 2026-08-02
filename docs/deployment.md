@@ -129,6 +129,7 @@ npm run build -w @zkgl/api
 npm run build -w @zkgl/web
 node scripts/verify-web-dist-security.mjs
 node scripts/verify-server-deployment-assets.mjs
+node scripts/verify-server-preflight.mjs
 ```
 
 5. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：

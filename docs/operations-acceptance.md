@@ -160,6 +160,7 @@ node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+node scripts/verify-server-preflight.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev

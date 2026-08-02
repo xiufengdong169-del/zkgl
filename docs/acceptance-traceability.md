@@ -4,6 +4,9 @@
 
 最后复核日期：2026-08-02。
 
+## 2026-08-02 部署目标口径
+
+当前生产部署目标为 Tencent Cloud Lighthouse 独立服务器：公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。API 由 systemd 托管，Nginx 提供 HTTPS、静态前端和 `/api` 反向代理；上线前必须确认 `AUTH_TRUSTED_PROXY` 只在受信任认证适配层完成后启用。备份恢复使用 `scripts/create-mysql-backup.mjs` 与 `scripts/restore-mysql-backup.mjs`，并通过 `node scripts/verify-server-preflight.mjs` 完成上线资产预检。
 ## 自动化与现场验收覆盖
 
 | 验收项 | 验收重点 | 主要自动化覆盖 |
@@ -43,6 +46,7 @@ node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+node scripts/verify-server-preflight.mjs
 npm run build:function
 node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev
@@ -53,12 +57,13 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 76 个测试文件 / 378 条测试通过；Web 9 个测试文件 / 44 条测试通过。
+- `npm run test`：API 77 个测试文件 / 381 条测试通过；Web 9 个测试文件 / 44 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `node scripts/verify-server-deployment-assets.mjs`：独立服务器 systemd 与 Nginx 部署模板通过。
 - `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer 和备份恢复验收文档通过。
+- `node scripts/verify-server-preflight.mjs`：Tencent Cloud Lighthouse 上线预检资产通过。
 - `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
 - `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置校验通过。
 - `npm audit --omit=dev`：生产依赖无已知漏洞。
@@ -82,3 +87,4 @@ npm run verify:github-sync
 ```
 
 The command verifies that local `main` tracks `origin/main`, the working tree is clean, and the remote repository is `https://github.com/xiufengdong169-del/zkgl`.
+

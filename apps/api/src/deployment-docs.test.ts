@@ -89,6 +89,10 @@ const backupAssetVerifier = readFileSync(
   new URL("../../../scripts/verify-backup-assets.mjs", import.meta.url),
   "utf8",
 );
+const serverPreflightVerifier = readFileSync(
+  new URL("../../../scripts/verify-server-preflight.mjs", import.meta.url),
+  "utf8",
+);
 const standaloneServerSource = readFileSync(
   new URL("./server.ts", import.meta.url),
   "utf8",
@@ -141,6 +145,7 @@ const verificationCommands = [
   "npm run verify:deployment-config",
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
+  "node scripts/verify-server-preflight.mjs",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
   "npm audit --omit=dev",
@@ -273,7 +278,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "76 个测试文件 / 378 条测试",
+  "77 个测试文件 / 381 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -517,7 +522,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(76);
+    expect(actualApiTestFiles).toBe(77);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -614,6 +619,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-backup-assets.mjs",
     );
+    expect(packageJson.scripts.verify).toContain(
+      "node scripts/verify-server-preflight.mjs",
+    );
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-mysql-backup.timer");
     expect(deploymentDoc).toContain("scripts/create-mysql-backup.mjs");
     expect(finalAcceptanceChecklist).toContain(
@@ -621,6 +629,11 @@ describe("deployment documentation", () => {
     );
     expect(backupAssetVerifier).toContain("mysqldump");
     expect(backupAssetVerifier).toContain("OnCalendar=*-*-* 02:30:00");
+    expect(serverPreflightVerifier).toContain(expectedServerPublicIp);
+    expect(serverPreflightVerifier).toContain("Tencent Cloud Lighthouse");
+    expect(serverPreflightVerifier).toContain(
+      "node scripts/verify-server-preflight.mjs",
+    );
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {
