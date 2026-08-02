@@ -8,6 +8,13 @@ const root = resolve(import.meta.dirname, "..");
 const defaultDist = resolve(root, "apps/web/dist");
 
 export const forbiddenPatterns = [
+  /\bDEPLOY_TARGET_HOST\b/,
+  /\bDEPLOY_TARGET_REGION\b/,
+  /\bDEPLOY_TARGET_OS\b/,
+  /\bDEPLOY_TARGET_MYSQL\b/,
+  /\bAPI_HOST\b/,
+  /\bAPI_PORT\b/,
+  /\bAPI_ALLOWED_ORIGINS\b/,
   /\bDB_HOST\b/,
   /\bDB_PORT\b/,
   /\bDB_NAME\b/,

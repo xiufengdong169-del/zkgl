@@ -171,3 +171,13 @@ npm audit --omit=dev
 - 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - 三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置正确。
 - 生产依赖审计 `npm audit --omit=dev` 无已知漏洞。
+## 2026-08-02 独立服务器运维补充
+
+当前正式部署目标为 Tencent Cloud Lighthouse 独立服务器：`193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。现场运维验收除原业务流程外，还必须确认：
+
+1. `zkgl-api` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 返回健康状态。
+2. Nginx 已通过 HTTPS 托管前端，并将 `/api` 反向代理到本机 API。
+3. 前端生产包使用正式 HTTPS `VITE_API_BASE_URL` 重新构建。
+4. 服务器环境文件仅保存在 `/etc/zkgl/zkgl-api.env`，真实数据库密码不进入 Git、文档示例或浏览器构建产物。
+5. MySQL 8.0 以空库执行 `database/init/schema.sql` 初始化；本项目仍不存在数据库迁移。
+6. 上线前必须完成受信任认证适配层，校验 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`。

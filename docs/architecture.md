@@ -35,3 +35,17 @@
 ## 数据初始化
 
 当前阶段不维护数据库迁移。开发、测试和首次上线环境均从空库执行 `database/init/schema.sql`。正式投产后如需结构变更，应先评审变更影响，再建立生产变更机制。
+
+## 2026-08-02 部署架构调整
+
+当前正式部署目标调整为 Tencent Cloud Lighthouse 独立服务器：`193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，服务器本机 MySQL 8.0。
+
+调整后的运行形态：
+
+- 前端仍为 Vue 3 + TypeScript + Vite，构建产物 `apps/web/dist` 由 Nginx HTTPS 静态托管。
+- API 新增独立服务器入口 `apps/api/src/server.ts`，构建后通过 `npm run start -w @zkgl/api` 启动，由 systemd 托管并监听 `127.0.0.1:3000`。
+- Nginx 将 `/api` 反向代理到本机 API；公网只暴露 HTTPS。
+- MySQL 仍使用 `database/init/schema.sql` 做空库初始化，不引入数据库迁移。
+- 独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传入的 UID；上线前必须由受信任认证适配层校验 `Authorization: Bearer ...` 后注入 `X-ZKGL-CloudBase-UID`。
+
+CloudBase 函数配置和函数包脚本保留为历史交付包与可回退适配；当前上线验收口径以独立服务器部署为准。

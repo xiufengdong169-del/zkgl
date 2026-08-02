@@ -32,6 +32,12 @@ type DeploymentConfigModule = {
   expected: {
     cloudbaseEnvId: string;
     cloudbaseRegion: string;
+    serverPublicIp: string;
+    serverRegion: string;
+    serverOs: string;
+    serverMysql: string;
+    apiHost: string;
+    apiPort: string;
     nodeVersion: string;
     functions: DeploymentInputs["cloudbaseConfig"]["functions"];
   };
@@ -48,6 +54,13 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     `VITE_CLOUDBASE_REGION=${expected.cloudbaseRegion}`,
     "VITE_CLOUDBASE_PUBLISHABLE_KEY=",
     "VITE_API_BASE_URL=",
+    `DEPLOY_TARGET_HOST=${expected.serverPublicIp}`,
+    `DEPLOY_TARGET_REGION=${expected.serverRegion}`,
+    `DEPLOY_TARGET_OS=${expected.serverOs}`,
+    `DEPLOY_TARGET_MYSQL=${expected.serverMysql}`,
+    `API_HOST=${expected.apiHost}`,
+    `API_PORT=${expected.apiPort}`,
+    "API_ALLOWED_ORIGINS=",
     "DB_HOST=",
     "DB_PORT=",
     "DB_NAME=",
@@ -87,8 +100,25 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       },
     },
     workflow: `permissions:\n  contents: read\nnode-version: "${expected.nodeVersion}"`,
-    deploymentDoc: `${expected.cloudbaseEnvId}\n${expected.cloudbaseRegion}`,
-    finalChecklist: expected.cloudbaseEnvId,
+    deploymentDoc: [
+      expected.cloudbaseEnvId,
+      expected.cloudbaseRegion,
+      expected.serverPublicIp,
+      expected.serverOs,
+      `MySQL ${expected.serverMysql}`,
+      "Tencent Cloud Lighthouse",
+      "systemd",
+      "Nginx",
+      "npm run start -w @zkgl/api",
+    ].join("\n"),
+    finalChecklist: [
+      expected.cloudbaseEnvId,
+      expected.serverPublicIp,
+      expected.serverOs,
+      `MySQL ${expected.serverMysql}`,
+      "systemd",
+      "Nginx",
+    ].join("\n"),
   };
 }
 

@@ -93,3 +93,6 @@
 | 复验日期 |  |
 | 业务验收人签字 |  |
 | 技术负责人签字 |  |
+## 2026-08-02 服务器环境记录补充
+
+AC-14 当前生产级环境按 Tencent Cloud Lighthouse 独立服务器记录：公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。压测归档材料需同时保存 Nginx 访问日志、`zkgl-api` systemd/journal 日志和 MySQL 慢查询记录。

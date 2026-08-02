@@ -127,9 +127,16 @@ export async function verifyCloudbaseFunctionPackages({
       fail(`${pkg.target}/package.json must use ESM`);
     if (manifest.main !== "index.js")
       fail(`${pkg.target}/package.json main must be index.js`);
+    if (manifest.scripts)
+      fail(`${pkg.target}/package.json must not include lifecycle scripts`);
+    if (manifest.devDependencies)
+      fail(`${pkg.target}/package.json must not include devDependencies`);
     for (const dependency of ["@cloudbase/node-sdk", "mysql2", "zod"]) {
       if (!manifest.dependencies?.[dependency])
         fail(`${pkg.target}/package.json missing dependency ${dependency}`);
+    }
+    if (manifest.overrides?.["@cloudbase/node-sdk"]?.axios !== "^1.12.2") {
+      fail(`${pkg.target}/package.json missing CloudBase axios security override`);
     }
 
     for (const file of await listFiles(resolve(target, "dist"))) {

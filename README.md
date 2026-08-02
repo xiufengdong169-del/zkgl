@@ -78,3 +78,16 @@ npm run verify:github-sync
 ```
 
 This verifies that the current branch is `main`, `origin` points to `https://github.com/xiufengdong169-del/zkgl`, the working tree is clean, and local `main` matches the latest `origin/main`.
+
+## 2026-08-02 deployment target update
+
+Current production target is Tencent Cloud Lighthouse instead of CloudBase primary hosting:
+
+- Server: `193.112.79.220`, Guangzhou, 4C4G.
+- OS: Ubuntu 24.04.
+- Database: MySQL 8.0 already installed on the server.
+- API: Node.js standalone service, `npm run start -w @zkgl/api`, managed by systemd on `127.0.0.1:3000`.
+- Web: `apps/web/dist` served by Nginx over HTTPS.
+- Database initialization remains empty-database initialization through `database/init/schema.sql`; there is still no database migration.
+
+See `docs/deployment.md` for the authoritative server deployment checklist. The CloudBase function package scripts remain in the repository as historical delivery artifacts and fallback adapters, not as the current primary deployment target.

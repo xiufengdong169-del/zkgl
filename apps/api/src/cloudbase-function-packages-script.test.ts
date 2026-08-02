@@ -85,6 +85,7 @@ async function writePackageFixture(root: string, source = "export const main = (
           mysql2: "^3.15.3",
           zod: "^4.4.3",
         },
+        overrides: { "@cloudbase/node-sdk": { axios: "^1.12.2" } },
       },
       null,
       2,
@@ -155,6 +156,43 @@ describe("cloudbase function package verifier script", () => {
           cloudbaseConfig: driftedConfig,
         }),
       ).rejects.toThrow("trigger config mismatch");
+    });
+  });
+
+  it("rejects dev-only package metadata from deployment manifests", async () => {
+    const { verifyCloudbaseFunctionPackages } =
+      await loadCloudbaseFunctionPackagesModule();
+
+    await withTempRoot(async (root) => {
+      await writePackageFixture(root);
+      await writeFile(
+        join(root, packageFixture.target, "package.json"),
+        JSON.stringify(
+          {
+            name: packageFixture.name,
+            type: "module",
+            main: "index.js",
+            scripts: { test: "vitest" },
+            dependencies: {
+              "@cloudbase/node-sdk": "^4.0.3",
+              mysql2: "^3.15.3",
+              zod: "^4.4.3",
+            },
+            devDependencies: { vitest: "^4.1.0" },
+            overrides: { "@cloudbase/node-sdk": { axios: "^1.12.2" } },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await expect(
+        verifyCloudbaseFunctionPackages({
+          root,
+          expectedPackages: [packageFixture],
+          cloudbaseConfig: validConfig,
+        }),
+      ).rejects.toThrow("must not include lifecycle scripts");
     });
   });
 });

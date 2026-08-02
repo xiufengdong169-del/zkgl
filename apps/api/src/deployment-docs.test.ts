@@ -81,6 +81,10 @@ const deploymentConfigVerifier = readFileSync(
   new URL("../../../scripts/verify-deployment-config.mjs", import.meta.url),
   "utf8",
 );
+const standaloneServerSource = readFileSync(
+  new URL("./server.ts", import.meta.url),
+  "utf8",
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -106,6 +110,9 @@ const cloudbaseConfig = JSON.parse(
 
 const expectedCloudbaseEnvId = "cloudbase-d7gc2b32cd4196059";
 const expectedCloudbaseRegion = "ap-guangzhou";
+const expectedServerPublicIp = "193.112.79.220";
+const expectedServerOs = "Ubuntu 24.04";
+const expectedServerMysql = "MySQL 8.0";
 const expectedAcceptanceReviewDate = "2026-08-02";
 const verificationCommands = [
   "npm run verify:acceptance",
@@ -127,6 +134,13 @@ const browserEnvironmentVariables = [
   "VITE_API_BASE_URL",
 ];
 const serverEnvironmentVariables = [
+  "DEPLOY_TARGET_HOST",
+  "DEPLOY_TARGET_REGION",
+  "DEPLOY_TARGET_OS",
+  "DEPLOY_TARGET_MYSQL",
+  "API_HOST",
+  "API_PORT",
+  "API_ALLOWED_ORIGINS",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -235,7 +249,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 359 条测试",
+  "71 个测试文件 / 361 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -517,6 +531,36 @@ describe("deployment documentation", () => {
       ).toContain(variable);
     }
     expect(deploymentDoc).toContain("VITE_API_BASE_URL");
+  });
+
+  it("documents and implements Tencent Cloud Lighthouse standalone server deployment", () => {
+    for (const fragment of [
+      expectedServerPublicIp,
+      expectedServerOs,
+      expectedServerMysql,
+      "Tencent Cloud Lighthouse",
+      "systemd",
+      "Nginx",
+      "npm run start -w @zkgl/api",
+      "127.0.0.1:3000",
+      "X-ZKGL-CloudBase-UID",
+      "Authorization: Bearer",
+    ]) {
+      expect(deploymentDoc).toContain(fragment);
+      expect(finalAcceptanceChecklist).toContain(fragment);
+    }
+    expect(envExample).toContain(`DEPLOY_TARGET_HOST=${expectedServerPublicIp}`);
+    expect(envExample).toContain(`DEPLOY_TARGET_OS=${expectedServerOs}`);
+    expect(envExample).toContain("DEPLOY_TARGET_MYSQL=8.0");
+    expect(deploymentConfigVerifier).toContain(expectedServerPublicIp);
+    expect(deploymentConfigVerifier).toContain(expectedServerOs);
+    expect(deploymentConfigVerifier).toContain("serverMysql");
+    expect(packageJson.scripts.verify).toContain("npm run verify:deployment-config");
+    expect(standaloneServerSource).toContain("createServer");
+    expect(standaloneServerSource).toContain("x-zkgl-cloudbase-uid");
+    expect(standaloneServerSource).toContain("/healthz");
+    expect(standaloneServerSource).toContain("maxBodyBytes");
+    expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {

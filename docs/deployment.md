@@ -100,3 +100,126 @@ tcb hosting deploy apps/web/dist / --yes
 6. `zkgl-export-worker` 能处理后台导出任务并生成私有文件。
 7. `node scripts/verify-web-dist-security.mjs` 通过，前端构建产物不包含数据库变量、SecretKey、API Secret 或私钥标记。
 8. 浏览器访问前端域名后，登录、工作台加载和一次 `session.get` API 请求均成功。
+
+## 2026-08-02 部署环境变更：腾讯云轻量服务器
+
+正式部署目标已从 CloudBase 主部署调整为独立服务器部署：
+
+- 云资源：Tencent Cloud Lighthouse，4 核 4G，广州。
+- 公网 IP：`193.112.79.220`。
+- 操作系统：Ubuntu 24.04。
+- 数据库：服务器已安装 MySQL 8.0。
+- API 运行方式：Node.js 进程监听 `127.0.0.1:3000`，由 systemd 托管。
+- 入口代理：Nginx 对外提供 HTTPS，并将 `/api` 反向代理到本机 API。
+- 前端发布：`apps/web/dist` 由 Nginx 静态站点托管；`VITE_API_BASE_URL` 必须配置为正式 HTTPS API 地址。
+
+CloudBase 不再作为主部署平台。现有 `cloudbaserc.json`、`functions/zkgl-api`、`functions/zkgl-reminder`、`functions/zkgl-export-worker` 仅作为历史 CloudBase 交付包和可回退适配保留；后续正式上线验收以本节轻量服务器部署为准。
+
+### Ubuntu 24.04 初始化步骤
+
+1. 使用非 root 运维账号登录服务器，并确认安全组仅开放 `22`、`80`、`443`。
+2. 安装 Node.js 22.12.0 或更高版本、Nginx、Git、PM2 可选工具；生产托管以 systemd 为准。
+3. 拉取 GitHub 仓库 `https://github.com/xiufengdong169-del/zkgl.git` 到 `/opt/zkgl/current`。
+4. 在项目根目录执行：
+
+```bash
+npm ci
+npm run verify:acceptance
+npm run build -w @zkgl/api
+npm run build -w @zkgl/web
+node scripts/verify-web-dist-security.mjs
+```
+
+5. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：
+
+```ini
+DEPLOY_TARGET_HOST=193.112.79.220
+DEPLOY_TARGET_REGION=guangzhou
+DEPLOY_TARGET_OS=Ubuntu 24.04
+DEPLOY_TARGET_MYSQL=8.0
+API_HOST=127.0.0.1
+API_PORT=3000
+API_ALLOWED_ORIGINS=https://正式域名
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=zkgl
+DB_USER=zkgl_app
+DB_PASSWORD （在服务器本地填写，不写入文档）
+CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
+```
+
+`DB_PASSWORD` 必须在服务器环境文件中填写，禁止写入 Git 仓库、前端构建变量或文档示例。
+
+### MySQL 8.0 空库初始化
+
+本项目是全新开发程序，不存在数据库迁移步骤。首次上线使用空库初始化：
+
+```bash
+mysql -u root -p -e "CREATE DATABASE zkgl CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+mysql -u root -p -e "CREATE USER 'zkgl_app'@'127.0.0.1' IDENTIFIED BY '请在服务器本地设置强密码';"
+mysql -u root -p -e "GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE ON zkgl.* TO 'zkgl_app'@'127.0.0.1'; FLUSH PRIVILEGES;"
+mysql -u root -p zkgl < database/init/schema.sql
+```
+
+初始化后必须完成上线初始化资料清单，包括部门清单、人员清单、CloudBase 身份清单、CloudBase UID、角色分配、系统管理员、公司负责人、项目经理、财务资金、审批岗位任职、审批金额阈值、编号规则确认、系统参数确认、验收演示账号和无权访问用户。
+
+### systemd 服务
+
+推荐创建 `/etc/systemd/system/zkgl-api.service`：
+
+```ini
+[Unit]
+Description=ZKGL API
+After=network.target mysql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zkgl/current
+EnvironmentFile=/etc/zkgl/zkgl-api.env
+ExecStart=/usr/bin/npm run start -w @zkgl/api
+Restart=always
+RestartSec=5
+User=zkgl
+Group=zkgl
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启停命令：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now zkgl-api
+sudo systemctl status zkgl-api
+curl http://127.0.0.1:3000/healthz
+```
+
+### Nginx HTTPS 反向代理
+
+Nginx 必须：
+
+- 只通过 HTTPS 暴露业务站点；
+- 将 `/api` 代理到 `http://127.0.0.1:3000/api`；
+- 对外部请求清除 `X-ZKGL-CloudBase-UID`，该头只能由受信任认证适配层注入；
+- 设置静态资源缓存，但不得缓存 `/api` 响应；
+- 生产域名确定后，将前端 `VITE_API_BASE_URL` 设置为 `https://正式域名/api` 后重新构建。
+
+示例片段：
+
+```nginx
+location /api {
+  proxy_set_header Host $host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-ZKGL-CloudBase-UID "";
+  proxy_pass http://127.0.0.1:3000/api;
+}
+
+location / {
+  root /opt/zkgl/current/apps/web/dist;
+  try_files $uri $uri/ /index.html;
+}
+```
+
+注意：独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传来的 UID。上线前必须接入受信任认证适配层，校验前端 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`。未完成该适配前，`/api` 只能在内网自测，不得直接开放给公网用户。

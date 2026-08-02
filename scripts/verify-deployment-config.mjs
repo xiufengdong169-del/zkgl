@@ -6,6 +6,12 @@ const defaultRoot = resolve(import.meta.dirname, "..");
 export const expected = {
   cloudbaseEnvId: "cloudbase-d7gc2b32cd4196059",
   cloudbaseRegion: "ap-guangzhou",
+  serverPublicIp: "193.112.79.220",
+  serverRegion: "guangzhou",
+  serverOs: "Ubuntu 24.04",
+  serverMysql: "8.0",
+  apiHost: "127.0.0.1",
+  apiPort: "3000",
   nodeVersion: "22.12.0",
   functions: [
     {
@@ -43,6 +49,13 @@ export const browserVariables = [
   "VITE_API_BASE_URL",
 ];
 export const serverVariables = [
+  "DEPLOY_TARGET_HOST",
+  "DEPLOY_TARGET_REGION",
+  "DEPLOY_TARGET_OS",
+  "DEPLOY_TARGET_MYSQL",
+  "API_HOST",
+  "API_PORT",
+  "API_ALLOWED_ORIGINS",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -157,6 +170,48 @@ export function verifyDeploymentConfigInputs({
   if (envValue(envExample, "VITE_API_BASE_URL")) {
     fail(".env.example VITE_API_BASE_URL must stay blank until the deployed API URL is known");
   }
+  if (envValue(envExample, "DEPLOY_TARGET_HOST") !== expectedConfig.serverPublicIp) {
+    fail(".env.example DEPLOY_TARGET_HOST mismatch");
+  }
+  if (envValue(envExample, "DEPLOY_TARGET_REGION") !== expectedConfig.serverRegion) {
+    fail(".env.example DEPLOY_TARGET_REGION mismatch");
+  }
+  if (envValue(envExample, "DEPLOY_TARGET_OS") !== expectedConfig.serverOs) {
+    fail(".env.example DEPLOY_TARGET_OS mismatch");
+  }
+  if (envValue(envExample, "DEPLOY_TARGET_MYSQL") !== expectedConfig.serverMysql) {
+    fail(".env.example DEPLOY_TARGET_MYSQL mismatch");
+  }
+  if (envValue(envExample, "API_HOST") !== expectedConfig.apiHost) {
+    fail(".env.example API_HOST mismatch");
+  }
+  if (envValue(envExample, "API_PORT") !== expectedConfig.apiPort) {
+    fail(".env.example API_PORT mismatch");
+  }
+  includesAll(
+    deploymentDoc,
+    [
+      expectedConfig.serverPublicIp,
+      expectedConfig.serverOs,
+      `MySQL ${expectedConfig.serverMysql}`,
+      "Tencent Cloud Lighthouse",
+      "systemd",
+      "Nginx",
+      "npm run start -w @zkgl/api",
+    ],
+    "docs/deployment.md",
+  );
+  includesAll(
+    finalChecklist,
+    [
+      expectedConfig.serverPublicIp,
+      expectedConfig.serverOs,
+      `MySQL ${expectedConfig.serverMysql}`,
+      "systemd",
+      "Nginx",
+    ],
+    "docs/final-acceptance-checklist.md",
+  );
 
   if (cloudbaseConfig.functionRoot !== "./functions") {
     fail("cloudbaserc.json functionRoot must be ./functions");
