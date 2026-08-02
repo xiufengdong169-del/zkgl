@@ -167,7 +167,15 @@ mysql -u root -p zkgl < database/init/schema.sql
 
 ### systemd 服务
 
-推荐以仓库模板 `deploy/systemd/zkgl-api.service` 创建 `/etc/systemd/system/zkgl-api.service`：
+推荐以仓库模板创建 systemd 服务和定时器：
+
+- `deploy/systemd/zkgl-api.service`：API 常驻服务。
+- `deploy/systemd/zkgl-reminder.service`：提醒刷新一次性任务。
+- `deploy/systemd/zkgl-reminder.timer`：每日 08:00 触发提醒刷新。
+- `deploy/systemd/zkgl-export-worker.service`：后台导出一次性任务。
+- `deploy/systemd/zkgl-export-worker.timer`：每 5 分钟触发后台导出 worker。
+
+API 常驻服务模板如下：
 
 ```ini
 [Unit]
@@ -193,7 +201,10 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now zkgl-api
+sudo systemctl enable --now zkgl-reminder.timer
+sudo systemctl enable --now zkgl-export-worker.timer
 sudo systemctl status zkgl-api
+systemctl list-timers 'zkgl-*'
 curl http://127.0.0.1:3000/healthz
 ```
 

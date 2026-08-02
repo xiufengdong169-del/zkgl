@@ -10,14 +10,35 @@ const fail = (message) => {
 
 export async function readServerDeploymentAssets(root = defaultRoot) {
   const readText = (path) => readFile(resolve(root, path), "utf8");
-  const [systemdService, nginxConfig, deploymentDoc, finalChecklist] =
-    await Promise.all([
-      readText("deploy/systemd/zkgl-api.service"),
-      readText("deploy/nginx/zkgl.conf"),
-      readText("docs/deployment.md"),
-      readText("docs/final-acceptance-checklist.md"),
-    ]);
-  return { systemdService, nginxConfig, deploymentDoc, finalChecklist };
+  const [
+    apiService,
+    reminderService,
+    reminderTimer,
+    exportWorkerService,
+    exportWorkerTimer,
+    nginxConfig,
+    deploymentDoc,
+    finalChecklist,
+  ] = await Promise.all([
+    readText("deploy/systemd/zkgl-api.service"),
+    readText("deploy/systemd/zkgl-reminder.service"),
+    readText("deploy/systemd/zkgl-reminder.timer"),
+    readText("deploy/systemd/zkgl-export-worker.service"),
+    readText("deploy/systemd/zkgl-export-worker.timer"),
+    readText("deploy/nginx/zkgl.conf"),
+    readText("docs/deployment.md"),
+    readText("docs/final-acceptance-checklist.md"),
+  ]);
+  return {
+    apiService,
+    reminderService,
+    reminderTimer,
+    exportWorkerService,
+    exportWorkerTimer,
+    nginxConfig,
+    deploymentDoc,
+    finalChecklist,
+  };
 }
 
 const includesAll = (source, fragments, context) => {
@@ -27,13 +48,17 @@ const includesAll = (source, fragments, context) => {
 };
 
 export function verifyServerDeploymentAssetInputs({
-  systemdService,
+  apiService,
+  reminderService,
+  reminderTimer,
+  exportWorkerService,
+  exportWorkerTimer,
   nginxConfig,
   deploymentDoc,
   finalChecklist,
 } = {}) {
   includesAll(
-    systemdService,
+    apiService,
     [
       "WorkingDirectory=/opt/zkgl/current",
       "EnvironmentFile=/etc/zkgl/zkgl-api.env",
@@ -43,6 +68,51 @@ export function verifyServerDeploymentAssetInputs({
       "After=network.target mysql.service",
     ],
     "deploy/systemd/zkgl-api.service",
+  );
+  includesAll(
+    reminderService,
+    [
+      "WorkingDirectory=/opt/zkgl/current",
+      "EnvironmentFile=/etc/zkgl/zkgl-api.env",
+      "ExecStart=/usr/bin/node apps/api/dist/scheduled-reminder-cli.js",
+      "Type=oneshot",
+      "User=zkgl",
+      "After=network.target mysql.service",
+    ],
+    "deploy/systemd/zkgl-reminder.service",
+  );
+  includesAll(
+    reminderTimer,
+    [
+      "OnCalendar=*-*-* 08:00:00",
+      "Persistent=true",
+      "Unit=zkgl-reminder.service",
+      "WantedBy=timers.target",
+    ],
+    "deploy/systemd/zkgl-reminder.timer",
+  );
+  includesAll(
+    exportWorkerService,
+    [
+      "WorkingDirectory=/opt/zkgl/current",
+      "EnvironmentFile=/etc/zkgl/zkgl-api.env",
+      "ExecStart=/usr/bin/node apps/api/dist/scheduled-export-cli.js",
+      "Type=oneshot",
+      "User=zkgl",
+      "After=network.target mysql.service",
+    ],
+    "deploy/systemd/zkgl-export-worker.service",
+  );
+  includesAll(
+    exportWorkerTimer,
+    [
+      "OnBootSec=1min",
+      "OnUnitActiveSec=5min",
+      "Persistent=true",
+      "Unit=zkgl-export-worker.service",
+      "WantedBy=timers.target",
+    ],
+    "deploy/systemd/zkgl-export-worker.timer",
   );
   includesAll(
     nginxConfig,
@@ -65,6 +135,10 @@ export function verifyServerDeploymentAssetInputs({
     deploymentDoc,
     [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-reminder.service",
+      "deploy/systemd/zkgl-reminder.timer",
+      "deploy/systemd/zkgl-export-worker.service",
+      "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
@@ -74,6 +148,10 @@ export function verifyServerDeploymentAssetInputs({
     finalChecklist,
     [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-reminder.service",
+      "deploy/systemd/zkgl-reminder.timer",
+      "deploy/systemd/zkgl-export-worker.service",
+      "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "node scripts/verify-server-deployment-assets.mjs",
     ],

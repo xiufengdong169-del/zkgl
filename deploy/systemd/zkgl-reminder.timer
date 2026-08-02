@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ZKGL scheduled reminder refresh daily
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=zkgl-reminder.service
+
+[Install]
+WantedBy=timers.target

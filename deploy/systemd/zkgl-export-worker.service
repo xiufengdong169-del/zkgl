@@ -1,0 +1,11 @@
+[Unit]
+Description=ZKGL scheduled export worker
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/zkgl/current
+EnvironmentFile=/etc/zkgl/zkgl-api.env
+ExecStart=/usr/bin/node apps/api/dist/scheduled-export-cli.js
+User=zkgl
+Group=zkgl

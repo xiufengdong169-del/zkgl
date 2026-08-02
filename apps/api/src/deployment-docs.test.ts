@@ -263,7 +263,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "73 个测试文件 / 368 条测试",
+  "73 个测试文件 / 369 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -580,8 +580,12 @@ describe("deployment documentation", () => {
     expect(standaloneServerSource).toContain("maxBodyBytes");
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-api.service");
+    expect(deploymentDoc).toContain("deploy/systemd/zkgl-reminder.timer");
+    expect(deploymentDoc).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(deploymentDoc).toContain("deploy/nginx/zkgl.conf");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-api.service");
+    expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-reminder.timer");
+    expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
     expect(nginxDeploymentTemplate).toContain("auth_request /_zkgl_auth");
     expect(nginxDeploymentTemplate).toContain(
