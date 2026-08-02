@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -50,6 +51,8 @@ const acceptanceTraceabilityDoc = readFileSync(
   new URL("../../../docs/acceptance-traceability.md", import.meta.url),
   "utf8",
 );
+const apiSourceDir = fileURLToPath(new URL("./", import.meta.url));
+const webSourceDir = fileURLToPath(new URL("../../web/src", import.meta.url));
 const envExample = readFileSync(
   new URL("../../../.env.example", import.meta.url),
   "utf8",
@@ -222,7 +225,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 357 条测试",
+  "71 个测试文件 / 358 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -288,6 +291,22 @@ const extractBacktickedPaths = (source: string) =>
   [...new Set([...source.matchAll(/`([^`]+\.(?:test\.ts|md))`/g)].map(
     (match) => match[1]!,
   ))].sort();
+
+function countTestFiles(directory: string): number {
+  return readdirSync(directory, { withFileTypes: true }).reduce(
+    (count, entry) => {
+      const fullPath = join(directory, entry.name);
+      if (entry.isDirectory()) return count + countTestFiles(fullPath);
+      return count + (entry.name.endsWith(".test.ts") ? 1 : 0);
+    },
+    0,
+  );
+}
+
+function documentedTestFileCount(source: string, label: "API" | "Web") {
+  const match = new RegExp(`${label}[^\\n\\d]*(\\d+) 个测试文件`).exec(source);
+  return match ? Number(match[1]) : null;
+}
 const backupRecoveryAcceptanceTemplateFragments = [
   "备份恢复验收记录模板",
   "cloudbase-d7gc2b32cd4196059",
@@ -436,6 +455,18 @@ describe("deployment documentation", () => {
         existsSync(new URL(`../../../${referencedPath}`, import.meta.url)),
         `acceptance traceability references missing artifact ${referencedPath}`,
       ).toBe(true);
+    }
+  });
+
+  it("keeps documented test file baselines aligned with the workspace", () => {
+    const actualApiTestFiles = countTestFiles(apiSourceDir);
+    const actualWebTestFiles = countTestFiles(webSourceDir);
+
+    expect(actualApiTestFiles).toBe(71);
+    expect(actualWebTestFiles).toBe(9);
+    for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
+      expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
+      expect(documentedTestFileCount(doc, "Web")).toBe(actualWebTestFiles);
     }
   });
 
