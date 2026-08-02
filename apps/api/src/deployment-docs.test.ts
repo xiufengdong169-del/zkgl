@@ -15,6 +15,10 @@ const architectureDoc = readFileSync(
   new URL("../../../docs/architecture.md", import.meta.url),
   "utf8",
 );
+const requirementBaselineDoc = readFileSync(
+  new URL("../../../需求评审修订基线_V2.2.md", import.meta.url),
+  "utf8",
+);
 const requirementDocxPath = fileURLToPath(
   new URL(
     "../../../众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
@@ -99,7 +103,7 @@ const cloudbaseConfig = JSON.parse(
 
 const expectedCloudbaseEnvId = "cloudbase-d7gc2b32cd4196059";
 const expectedCloudbaseRegion = "ap-guangzhou";
-const expectedAcceptanceReviewDate = "2026-08-01";
+const expectedAcceptanceReviewDate = "2026-08-02";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -218,7 +222,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 353 条测试",
+  "71 个测试文件 / 354 条测试",
   "9 个测试文件 / 43 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -275,6 +279,10 @@ const performanceAcceptanceTemplateFragments = [
   "验收会议纪要或签字页",
   "是否通过 AC-14",
 ];
+
+const extractAcceptanceCaseCodes = (source: string) =>
+  [...new Set([...source.matchAll(/\bAC-\d{2}\b/g)].map((match) => match[0]!))]
+    .sort();
 const backupRecoveryAcceptanceTemplateFragments = [
   "备份恢复验收记录模板",
   "cloudbase-d7gc2b32cd4196059",
@@ -389,6 +397,28 @@ describe("deployment documentation", () => {
       expect(readme, `README missing delivery entry ${fragment}`).toContain(
         fragment,
       );
+    }
+  });
+
+  it("keeps acceptance traceability aligned with requirement baseline AC cases", () => {
+    const expectedCaseCodes = Array.from({ length: 15 }, (_, index) =>
+      `AC-${String(index + 1).padStart(2, "0")}`,
+    );
+    const requirementCaseCodes =
+      extractAcceptanceCaseCodes(requirementBaselineDoc);
+    const traceabilityCaseCodes =
+      extractAcceptanceCaseCodes(acceptanceTraceabilityDoc);
+    const finalChecklistCaseCodes =
+      extractAcceptanceCaseCodes(finalAcceptanceChecklist);
+
+    expect(requirementCaseCodes).toEqual(expectedCaseCodes);
+    expect(traceabilityCaseCodes).toEqual(expectedCaseCodes);
+    expect(finalChecklistCaseCodes).toEqual(["AC-01", "AC-14", "AC-15"]);
+    for (const caseCode of expectedCaseCodes) {
+      expect(
+        acceptanceTraceabilityDoc,
+        `acceptance traceability missing ${caseCode}`,
+      ).toMatch(new RegExp(`\\| ${caseCode} \\|[\\s\\S]*?\\|`));
     }
   });
 
