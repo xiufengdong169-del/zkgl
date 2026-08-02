@@ -46,6 +46,6 @@
 - API 新增独立服务器入口 `apps/api/src/server.ts`，构建后通过 `npm run start -w @zkgl/api` 启动，由 systemd 托管并监听 `127.0.0.1:3000`。
 - Nginx 将 `/api` 反向代理到本机 API；公网只暴露 HTTPS。
 - MySQL 仍使用 `database/init/schema.sql` 做空库初始化，不引入数据库迁移。
-- 独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传入的 UID；上线前必须由受信任认证适配层校验 `Authorization: Bearer ...` 后注入 `X-ZKGL-CloudBase-UID`。
+- 独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传入的 UID；`AUTH_TRUSTED_PROXY` 默认关闭。上线前必须由受信任认证适配层校验 `Authorization: Bearer ...` 后注入 `X-ZKGL-CloudBase-UID`，完成该适配后才允许在服务器本地环境文件启用 `AUTH_TRUSTED_PROXY=true`。
 
 CloudBase 函数配置和函数包脚本保留为历史交付包与可回退适配；当前上线验收口径以独立服务器部署为准。

@@ -5,10 +5,10 @@ import tcb from "@cloudbase/node-sdk";
 import { findSessionUserByCloudbaseUid, getPool, MySqlAuditWriter } from "./database.js";
 import { handle } from "./handler.js";
 import { MySqlActionExecutor } from "./persistence.js";
+import { resolveServerCloudbaseUid } from "./server-auth.js";
 
 const defaultPort = 3000;
 const maxBodyBytes = 1024 * 1024;
-const trustedUidHeader = "x-zkgl-cloudbase-uid";
 
 function allowedOrigins() {
   return new Set(
@@ -79,19 +79,17 @@ function errorStatus(code?: string) {
   return 400;
 }
 
-function trustedUid(request: IncomingMessage) {
-  const header = request.headers[trustedUidHeader];
-  return Array.isArray(header) ? header[0] : header;
-}
-
 async function serveApi(request: IncomingMessage, response: ServerResponse) {
-  const uid = trustedUid(request);
-  if (!uid) {
+  let uid: string;
+  try {
+    uid = resolveServerCloudbaseUid(request.headers, process.env);
+  } catch (error) {
     jsonResponse(response, 401, {
       ok: false,
       error: {
         code: "UNAUTHORIZED",
-        message: "Missing trusted identity header",
+        message:
+          error instanceof Error ? error.message : "Identity verification failed",
       },
       requestId: request.headers["x-request-id"] || null,
     });

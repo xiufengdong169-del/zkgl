@@ -140,6 +140,7 @@ DEPLOY_TARGET_MYSQL=8.0
 API_HOST=127.0.0.1
 API_PORT=3000
 API_ALLOWED_ORIGINS=https://正式域名
+AUTH_TRUSTED_PROXY=false
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=zkgl
@@ -222,4 +223,4 @@ location / {
 }
 ```
 
-注意：独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传来的 UID。上线前必须接入受信任认证适配层，校验前端 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`。未完成该适配前，`/api` 只能在内网自测，不得直接开放给公网用户。
+注意：独立服务器没有 CloudBase 云函数 context，API 不得信任浏览器传来的 UID。`AUTH_TRUSTED_PROXY` 默认必须为 `false`；上线前必须接入受信任认证适配层，校验前端 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`，并且只有完成这项适配后才能将 `AUTH_TRUSTED_PROXY=true` 写入服务器本地环境文件。未完成该适配前，`/api` 只能在内网自测，不得直接开放给公网用户。

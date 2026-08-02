@@ -15,6 +15,7 @@ export const forbiddenPatterns = [
   /\bAPI_HOST\b/,
   /\bAPI_PORT\b/,
   /\bAPI_ALLOWED_ORIGINS\b/,
+  /\bAUTH_TRUSTED_PROXY\b/,
   /\bDB_HOST\b/,
   /\bDB_PORT\b/,
   /\bDB_NAME\b/,

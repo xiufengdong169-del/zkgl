@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 71 个测试文件 / 361 条测试。
+- [ ] API 测试通过，当前基线为 72 个测试文件 / 365 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 44 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -111,5 +111,5 @@
 - [ ] Nginx 提供 HTTPS、静态前端托管和 `/api` 反向代理。
 - [ ] `VITE_API_BASE_URL` 已配置为生产 HTTPS API 地址后重新构建前端。
 - [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库。
-- [ ] 上线前已接入受信任认证适配层，校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；公网请求不得直接伪造该头。
+- [ ] 上线前已接入受信任认证适配层，校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。
 - [ ] CloudBase 函数包仅作为历史交付包和可回退适配保留，不再作为主部署验收口径。

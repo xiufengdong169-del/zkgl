@@ -56,6 +56,7 @@ export const serverVariables = [
   "API_HOST",
   "API_PORT",
   "API_ALLOWED_ORIGINS",
+  "AUTH_TRUSTED_PROXY",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -187,6 +188,9 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "API_PORT") !== expectedConfig.apiPort) {
     fail(".env.example API_PORT mismatch");
+  }
+  if (envValue(envExample, "AUTH_TRUSTED_PROXY") !== "false") {
+    fail(".env.example AUTH_TRUSTED_PROXY must default to false");
   }
   includesAll(
     deploymentDoc,

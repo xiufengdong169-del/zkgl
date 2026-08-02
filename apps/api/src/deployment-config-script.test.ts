@@ -61,6 +61,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     `API_HOST=${expected.apiHost}`,
     `API_PORT=${expected.apiPort}`,
     "API_ALLOWED_ORIGINS=",
+    "AUTH_TRUSTED_PROXY=false",
     "DB_HOST=",
     "DB_PORT=",
     "DB_NAME=",

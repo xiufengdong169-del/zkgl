@@ -85,6 +85,10 @@ const standaloneServerSource = readFileSync(
   new URL("./server.ts", import.meta.url),
   "utf8",
 );
+const standaloneServerAuthSource = readFileSync(
+  new URL("./server-auth.ts", import.meta.url),
+  "utf8",
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -141,6 +145,7 @@ const serverEnvironmentVariables = [
   "API_HOST",
   "API_PORT",
   "API_ALLOWED_ORIGINS",
+  "AUTH_TRUSTED_PROXY",
   "DB_HOST",
   "DB_PORT",
   "DB_NAME",
@@ -249,7 +254,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "71 个测试文件 / 361 条测试",
+  "72 个测试文件 / 365 条测试",
   "9 个测试文件 / 44 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -486,7 +491,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(71);
+    expect(actualApiTestFiles).toBe(72);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -545,6 +550,7 @@ describe("deployment documentation", () => {
       "127.0.0.1:3000",
       "X-ZKGL-CloudBase-UID",
       "Authorization: Bearer",
+      "AUTH_TRUSTED_PROXY",
     ]) {
       expect(deploymentDoc).toContain(fragment);
       expect(finalAcceptanceChecklist).toContain(fragment);
@@ -557,7 +563,9 @@ describe("deployment documentation", () => {
     expect(deploymentConfigVerifier).toContain("serverMysql");
     expect(packageJson.scripts.verify).toContain("npm run verify:deployment-config");
     expect(standaloneServerSource).toContain("createServer");
-    expect(standaloneServerSource).toContain("x-zkgl-cloudbase-uid");
+    expect(standaloneServerAuthSource).toContain("x-zkgl-cloudbase-uid");
+    expect(standaloneServerAuthSource).toContain("AUTH_TRUSTED_PROXY");
+    expect(standaloneServerSource).toContain("resolveServerCloudbaseUid");
     expect(standaloneServerSource).toContain("/healthz");
     expect(standaloneServerSource).toContain("maxBodyBytes");
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
