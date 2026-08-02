@@ -1,10 +1,13 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 type SourceSecretHygieneModule = {
   collectFiles(entry: string, root?: string): Promise<string[]>;
+  scannedDocxFiles: string[];
   verifyContent(relativePath: string, content: string): void;
   verifySourceSecretHygiene(options?: {
     root?: string;
@@ -19,6 +22,8 @@ async function loadSourceSecretHygieneModule() {
   return (await import("../../../scripts/verify-source-secret-hygiene.mjs")) as SourceSecretHygieneModule;
 }
 
+const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
+
 async function withTempProject<T>(work: (root: string) => Promise<T>) {
   const root = await mkdtemp(join(tmpdir(), "zkgl-secret-hygiene-"));
   try {
@@ -29,6 +34,20 @@ async function withTempProject<T>(work: (root: string) => Promise<T>) {
 }
 
 describe("source secret hygiene verifier script", () => {
+  it("scans every tracked root Word document for embedded secrets", async () => {
+    const { scannedDocxFiles } = await loadSourceSecretHygieneModule();
+    const trackedRootDocxFiles = execFileSync(
+      "git",
+      ["-C", repositoryRoot, "-c", "core.quotePath=false", "ls-files", "*.docx"],
+      { encoding: "utf8" },
+    )
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .sort();
+
+    expect(scannedDocxFiles.sort()).toEqual(trackedRootDocxFiles);
+  });
+
   it("rejects forbidden secrets in regular source text", async () => {
     const { verifyContent } = await loadSourceSecretHygieneModule();
 

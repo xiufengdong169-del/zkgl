@@ -20,7 +20,9 @@ export const scannedRoots = [
   "README.md",
 ];
 export const scannedDocxFiles = [
+  "众肯科技项目全过程管理系统需求说明书_V2.1_CloudBase部署版.docx",
   "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+  "众肯管理系统需求模块.docx",
 ];
 export const ignoredPathFragments = [
   "node_modules",
