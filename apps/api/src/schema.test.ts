@@ -297,6 +297,16 @@ describe("empty database initialization schema", () => {
     expect(hits).toEqual([]);
   });
 
+  it("SQL templates do not directly interpolate action input values", () => {
+    const unsafeInterpolations = [
+      ...persistence.matchAll(
+        /connection\.execute(?:<[^>]+>)?\(\s*`[^`]*\$\{\s*input\.[^}]+}[^`]*`/g,
+      ),
+    ].map((match) => match[0]!.slice(0, 160));
+
+    expect(unsafeInterpolations).toEqual([]);
+  });
+
   it("表名唯一且外键目标表全部存在", () => {
     const tables = [
       ...schema.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)/gi),
