@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 83 个测试文件 / 409 条测试。
+- [ ] API 测试通过，当前基线为 83 个测试文件 / 410 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 48 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -26,6 +26,7 @@
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
 - [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
+- [ ] `npm run verify:local-demo` 通过：demo 模式前端包可在临时 HTTP 服务下打开，主要 SPA 路由均返回众肯系统前端壳。
 - [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 

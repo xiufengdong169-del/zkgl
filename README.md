@@ -33,6 +33,7 @@ npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
+npm run verify:local-demo
 npm audit --omit=dev
 ```
 
@@ -42,7 +43,7 @@ npm audit --omit=dev
 npm run verify:legacy-cloudbase
 ```
 
-如需在没有服务器 SSH 权限时先本地验证可视化演示包，可执行：
+`verify:local-demo` 已纳入主验收链路。如需在没有服务器 SSH 权限时单独验证可视化演示包，也可执行：
 
 ```powershell
 npm run verify:local-demo

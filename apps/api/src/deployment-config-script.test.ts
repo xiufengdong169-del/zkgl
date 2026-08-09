@@ -108,7 +108,8 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     packageJson: {
       engines: { node: `>=${expected.nodeVersion}` },
       scripts: {
-        verify: "npm run typecheck && npm run verify:deployment-config",
+        verify:
+          "npm run typecheck && npm run verify:deployment-config && npm run verify:local-demo",
         "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
         "verify:local-demo": "node scripts/verify-local-demo.mjs",
         "verify:legacy-cloudbase":
@@ -229,6 +230,18 @@ describe("deployment config verifier script", () => {
 
     expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
       "Lighthouse server acceptance path",
+    );
+  });
+
+  it("rejects removing local visual demo verification from the primary command", async () => {
+    const { verifyDeploymentConfigInputs, expected } =
+      await loadDeploymentConfigModule();
+    const inputs = makeValidInputs(expected);
+    inputs.packageJson.scripts!.verify =
+      "npm run typecheck && npm run verify:deployment-config";
+
+    expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
+      "verify must run verify:local-demo",
     );
   });
 });

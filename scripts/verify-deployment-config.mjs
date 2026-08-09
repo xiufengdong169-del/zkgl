@@ -296,6 +296,9 @@ export function verifyDeploymentConfigInputs({
   if (!packageJson.scripts?.verify?.includes("npm run verify:deployment-config")) {
     fail("package.json verify must run verify:deployment-config");
   }
+  if (!packageJson.scripts?.verify?.includes("npm run verify:local-demo")) {
+    fail("package.json verify must run verify:local-demo");
+  }
   if (
     packageJson.scripts?.verify?.includes("npm run build:function") ||
     packageJson.scripts?.verify?.includes("verify-cloudbase-function-packages")

@@ -158,6 +158,7 @@ const verificationCommands = [
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
   "node scripts/verify-server-preflight.mjs",
+  "npm run verify:local-demo",
   "npm audit --omit=dev",
 ];
 const legacyCloudbaseVerificationCommands = [
@@ -297,7 +298,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 409 条测试",
+  "83 个测试文件 / 410 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -470,6 +471,7 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "npm run verify:deployment-config",
     );
+    expect(packageJson.scripts.verify).toContain("npm run verify:local-demo");
     expect(packageJson.scripts.verify).not.toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
