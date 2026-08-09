@@ -1,5 +1,5 @@
 import type { Server } from "node:http";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -35,6 +35,8 @@ async function makeDemoDist() {
     '<!doctype html><html><head><title>众肯项目管理系统</title></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>',
     "utf8",
   );
+  await mkdir(join(dist, "assets"));
+  await writeFile(join(dist, "assets", "index.js"), "console.log('demo');", "utf8");
   return dist;
 }
 

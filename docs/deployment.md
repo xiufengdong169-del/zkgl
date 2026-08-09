@@ -111,7 +111,7 @@ npm run verify:public-demo
 npm run verify:local-demo
 ```
 
-该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 都能返回众肯系统前端壳；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
+该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 都能返回众肯系统前端壳，且前端入口 JS 模块可访问；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
 
 ## 计划任务
 

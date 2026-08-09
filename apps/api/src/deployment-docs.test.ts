@@ -298,7 +298,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 410 条测试",
+  "83 个测试文件 / 411 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -694,6 +694,8 @@ describe("deployment documentation", () => {
     expect(localDemoScript).toContain(".tmp");
     expect(localDemoScript).toContain("createDemoStaticServer");
     expect(localDemoScript).toContain("verifyPublicDemo");
+    expect(publicDemoScript).toContain("extractFrontendModuleEntries");
+    expect(publicDemoScript).toContain("frontend module");
     expect(nginxDeploymentTemplate).toContain("auth_request /_zkgl_auth");
     expect(nginxDeploymentTemplate).toContain(
       "proxy_set_header X-ZKGL-CloudBase-UID \"\"",
