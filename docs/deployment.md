@@ -82,6 +82,16 @@ node scripts/verify-web-dist-security.mjs
 
 构建后的 `apps/web/dist` 由 Nginx 静态站点托管。发布后应核对访问域名、HTTPS 状态、首页加载、登录跳转和 `session.get` API 请求地址。若 API 地址调整，必须重新设置 `VITE_API_BASE_URL` 并重新构建前端。
 
+## 临时可视化演示发布
+
+如尚未完成正式域名、HTTPS 证书、数据库账号和认证 verifier 配置，但需要先通过公网查看界面成果，可在腾讯云轻量应用服务器上执行演示脚本：
+
+```bash
+sudo bash scripts/deploy-lighthouse-demo.sh
+```
+
+该脚本会从 GitHub 拉取 `main`，以 `VITE_DEMO_MODE=true` 构建前端，并使用 `deploy/nginx/zkgl-demo-http.conf` 通过 HTTP 80 发布静态演示页。演示模式不连接生产 MySQL，不启用 `AUTH_TRUSTED_PROXY=true`，也不通过 Nginx 代理 `/api` 到业务服务；它只用于快速查看菜单、页面和样例数据。正式上线仍必须使用 HTTPS、`deploy/nginx/zkgl.conf`、`deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service` 和服务器本地 `/etc/zkgl/zkgl-api.env`。
+
 ## 计划任务
 
 - `zkgl-reminder.timer`：每日 08:00 执行提醒刷新，历史 CloudBase 触发器名称为 `zkglDailyReminder`。
@@ -132,6 +142,7 @@ npm run build -w @zkgl/web
 node scripts/verify-web-dist-security.mjs
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-server-preflight.mjs
+sudo bash scripts/deploy-lighthouse-demo.sh
 ```
 
 5. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：

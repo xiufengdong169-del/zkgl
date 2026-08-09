@@ -9,6 +9,8 @@ type ServerDeploymentAssetsModule = {
     exportWorkerService: string;
     exportWorkerTimer: string;
     nginxConfig: string;
+    demoNginxConfig: string;
+    demoDeployScript: string;
     deploymentDoc: string;
     finalChecklist: string;
   }): string;
@@ -79,6 +81,22 @@ function validInputs() {
       "proxy_set_header Authorization \"\"",
       "try_files $uri $uri/ /index.html",
     ].join("\n"),
+    demoNginxConfig: [
+      "listen 80 default_server",
+      "root /opt/zkgl/current/apps/web/dist",
+      "X-Robots-Tag",
+      "try_files $uri $uri/ /index.html",
+    ].join("\n"),
+    demoDeployScript: [
+      "ZKGL_DEMO_PUBLIC_URL",
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "VITE_DEMO_MODE=true",
+      "npm run build -w @zkgl/web",
+      "node scripts/verify-web-dist-security.mjs",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "nginx -t",
+      "systemctl reload nginx",
+    ].join("\n"),
     deploymentDoc: [
       "deploy/systemd/zkgl-api.service",
       "deploy/systemd/zkgl-auth-adapter.service",
@@ -87,6 +105,8 @@ function validInputs() {
       "deploy/systemd/zkgl-export-worker.service",
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/deploy-lighthouse-demo.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
     finalChecklist: [
@@ -97,6 +117,8 @@ function validInputs() {
       "deploy/systemd/zkgl-export-worker.service",
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/deploy-lighthouse-demo.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
   };
@@ -151,6 +173,28 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "deploy/systemd/zkgl-auth-adapter.service missing ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js",
+    );
+  });
+
+  it("rejects a demo HTTP site that proxies API traffic", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.demoNginxConfig += "\nproxy_pass http://127.0.0.1:3000/api";
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "deploy/nginx/zkgl-demo-http.conf must not proxy API traffic",
+    );
+  });
+
+  it("rejects a demo deploy script that enables production trusted proxy", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.demoDeployScript += "\nAUTH_TRUSTED_PROXY=true";
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "scripts/deploy-lighthouse-demo.sh must not enable trusted proxy",
     );
   });
 

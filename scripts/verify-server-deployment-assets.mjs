@@ -18,6 +18,8 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     exportWorkerService,
     exportWorkerTimer,
     nginxConfig,
+    demoNginxConfig,
+    demoDeployScript,
     deploymentDoc,
     finalChecklist,
   ] = await Promise.all([
@@ -28,6 +30,8 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     readText("deploy/systemd/zkgl-export-worker.service"),
     readText("deploy/systemd/zkgl-export-worker.timer"),
     readText("deploy/nginx/zkgl.conf"),
+    readText("deploy/nginx/zkgl-demo-http.conf"),
+    readText("scripts/deploy-lighthouse-demo.sh"),
     readText("docs/deployment.md"),
     readText("docs/final-acceptance-checklist.md"),
   ]);
@@ -39,6 +43,8 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     exportWorkerService,
     exportWorkerTimer,
     nginxConfig,
+    demoNginxConfig,
+    demoDeployScript,
     deploymentDoc,
     finalChecklist,
   };
@@ -58,6 +64,8 @@ export function verifyServerDeploymentAssetInputs({
   exportWorkerService,
   exportWorkerTimer,
   nginxConfig,
+  demoNginxConfig,
+  demoDeployScript,
   deploymentDoc,
   finalChecklist,
 } = {}) {
@@ -148,6 +156,36 @@ export function verifyServerDeploymentAssetInputs({
     "deploy/nginx/zkgl.conf",
   );
   includesAll(
+    demoNginxConfig,
+    [
+      "listen 80 default_server",
+      "root /opt/zkgl/current/apps/web/dist",
+      "X-Robots-Tag",
+      "try_files $uri $uri/ /index.html",
+    ],
+    "deploy/nginx/zkgl-demo-http.conf",
+  );
+  if (demoNginxConfig.includes("proxy_pass")) {
+    fail("deploy/nginx/zkgl-demo-http.conf must not proxy API traffic");
+  }
+  includesAll(
+    demoDeployScript,
+    [
+      "ZKGL_DEMO_PUBLIC_URL",
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "VITE_DEMO_MODE=true",
+      "npm run build -w @zkgl/web",
+      "node scripts/verify-web-dist-security.mjs",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "nginx -t",
+      "systemctl reload nginx",
+    ],
+    "scripts/deploy-lighthouse-demo.sh",
+  );
+  if (demoDeployScript.includes("AUTH_TRUSTED_PROXY=true")) {
+    fail("scripts/deploy-lighthouse-demo.sh must not enable trusted proxy");
+  }
+  includesAll(
     deploymentDoc,
     [
       "deploy/systemd/zkgl-api.service",
@@ -157,6 +195,8 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/systemd/zkgl-export-worker.service",
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/deploy-lighthouse-demo.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/deployment.md",
@@ -171,6 +211,8 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/systemd/zkgl-export-worker.service",
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
+      "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/deploy-lighthouse-demo.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/final-acceptance-checklist.md",
