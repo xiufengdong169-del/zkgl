@@ -57,7 +57,7 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 79 个测试文件 / 393 条测试通过；Web 9 个测试文件 / 46 条测试通过。
+- `npm run test`：API 79 个测试文件 / 394 条测试通过；Web 9 个测试文件 / 46 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。

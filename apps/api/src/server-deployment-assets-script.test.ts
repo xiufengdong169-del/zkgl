@@ -12,6 +12,7 @@ type ServerDeploymentAssetsModule = {
     demoNginxConfig: string;
     demoDeployScript: string;
     productionDeployScript: string;
+    gitAttributes: string;
     deploymentDoc: string;
     finalChecklist: string;
   }): string;
@@ -100,8 +101,13 @@ function validInputs() {
     ].join("\n"),
     productionDeployScript: [
       "ZKGL_REQUIRE_ENV",
+      "ZKGL_API_BASE_URL",
+      "ZKGL_TLS_CERT",
+      "ZKGL_TLS_KEY",
       "https://github.com/xiufengdong169-del/zkgl.git",
       "npm run verify:acceptance",
+      "VITE_API_BASE_URL",
+      "VITE_CLOUDBASE_ENV_ID",
       "deploy/systemd/zkgl-api.service",
       "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/nginx/zkgl.conf",
@@ -113,6 +119,16 @@ function validInputs() {
       "curl -fsS http://127.0.0.1:3010/healthz",
       "curl -fsS http://127.0.0.1:3000/healthz",
       "systemctl list-timers 'zkgl-*'",
+      "API_ALLOWED_ORIGINS still contains the placeholder",
+      "TLS certificate files are missing",
+      "ssl_certificate ${ZKGL_TLS_CERT}",
+      "ssl_certificate_key ${ZKGL_TLS_KEY}",
+    ].join("\n"),
+    gitAttributes: [
+      "*.sh text eol=lf",
+      "*.service text eol=lf",
+      "*.timer text eol=lf",
+      "*.conf text eol=lf",
     ].join("\n"),
     deploymentDoc: [
       "deploy/systemd/zkgl-api.service",
@@ -228,6 +244,17 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "scripts/deploy-lighthouse-production.sh missing systemctl enable --now zkgl-auth-adapter",
+    );
+  });
+
+  it("rejects missing LF enforcement for Ubuntu deployment assets", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.gitAttributes = "*.sh text=auto";
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      ".gitattributes missing *.sh text eol=lf",
     );
   });
 

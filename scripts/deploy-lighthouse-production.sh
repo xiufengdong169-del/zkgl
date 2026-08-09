@@ -13,6 +13,11 @@ ZKGL_CURRENT_DIR="${ZKGL_CURRENT_DIR:-${ZKGL_APP_ROOT}/current}"
 ZKGL_ENV_FILE="${ZKGL_ENV_FILE:-/etc/zkgl/zkgl-api.env}"
 ZKGL_NGINX_SITE="${ZKGL_NGINX_SITE:-/etc/nginx/sites-available/zkgl.conf}"
 ZKGL_PUBLIC_HOST="${ZKGL_PUBLIC_HOST:-193.112.79.220}"
+ZKGL_PUBLIC_ORIGIN="${ZKGL_PUBLIC_ORIGIN:-https://${ZKGL_PUBLIC_HOST}}"
+ZKGL_API_BASE_URL="${ZKGL_API_BASE_URL:-${ZKGL_PUBLIC_ORIGIN}/api}"
+ZKGL_TLS_CERT="${ZKGL_TLS_CERT:-/etc/letsencrypt/live/zkgl/fullchain.pem}"
+ZKGL_TLS_KEY="${ZKGL_TLS_KEY:-/etc/letsencrypt/live/zkgl/privkey.pem}"
+ZKGL_CLOUDBASE_REGION="${ZKGL_CLOUDBASE_REGION:-ap-guangzhou}"
 ZKGL_REQUIRE_ENV="${ZKGL_REQUIRE_ENV:-true}"
 
 required_env_keys=(
@@ -32,6 +37,10 @@ required_env_keys=(
   DB_USER
   DB_PASSWORD
 )
+
+env_value() {
+  grep -E "^$1=" "${ZKGL_ENV_FILE}" | tail -n 1 | cut -d= -f2-
+}
 
 echo "==> Installing base packages"
 apt-get update
@@ -88,8 +97,16 @@ if [ "${ZKGL_REQUIRE_ENV}" = "true" ]; then
     echo "Missing required values in ${ZKGL_ENV_FILE}: ${missing[*]}" >&2
     exit 1
   fi
+  if grep -Eq "^API_ALLOWED_ORIGINS=.*正式域名" "${ZKGL_ENV_FILE}"; then
+    echo "API_ALLOWED_ORIGINS still contains the placeholder 正式域名 in ${ZKGL_ENV_FILE}." >&2
+    exit 1
+  fi
   if grep -Eq "^AUTH_TRUSTED_PROXY=false$" "${ZKGL_ENV_FILE}"; then
     echo "AUTH_TRUSTED_PROXY is still false. Configure AUTH_TOKEN_VERIFIER_MODULE and set AUTH_TRUSTED_PROXY=true only after Nginx auth_request integration is ready." >&2
+    exit 1
+  fi
+  if [ ! -f "${ZKGL_TLS_CERT}" ] || [ ! -f "${ZKGL_TLS_KEY}" ]; then
+    echo "TLS certificate files are missing: ${ZKGL_TLS_CERT} ${ZKGL_TLS_KEY}" >&2
     exit 1
   fi
 fi
@@ -110,7 +127,10 @@ echo "==> Installing dependencies and building"
 npm ci
 npm run verify:acceptance
 npm run build -w @zkgl/api
-npm run build -w @zkgl/web
+VITE_CLOUDBASE_ENV_ID="$(env_value CLOUDBASE_ENV_ID)" \
+  VITE_CLOUDBASE_REGION="${ZKGL_CLOUDBASE_REGION}" \
+  VITE_API_BASE_URL="${ZKGL_API_BASE_URL}" \
+  npm run build -w @zkgl/web
 node scripts/verify-web-dist-security.mjs
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
@@ -130,6 +150,8 @@ systemctl daemon-reload
 echo "==> Installing Nginx production site"
 cp deploy/nginx/zkgl.conf "${ZKGL_NGINX_SITE}"
 sed -i "s/server_name _;/server_name ${ZKGL_PUBLIC_HOST};/" "${ZKGL_NGINX_SITE}"
+sed -i "s|ssl_certificate /etc/letsencrypt/live/zkgl/fullchain.pem;|ssl_certificate ${ZKGL_TLS_CERT};|" "${ZKGL_NGINX_SITE}"
+sed -i "s|ssl_certificate_key /etc/letsencrypt/live/zkgl/privkey.pem;|ssl_certificate_key ${ZKGL_TLS_KEY};|" "${ZKGL_NGINX_SITE}"
 ln -sfn "${ZKGL_NGINX_SITE}" /etc/nginx/sites-enabled/zkgl.conf
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/zkgl-demo-http.conf
 nginx -t

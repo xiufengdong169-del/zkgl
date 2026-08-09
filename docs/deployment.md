@@ -138,7 +138,7 @@ CloudBase 不再作为主部署平台。现有 `cloudbaserc.json`、`functions/z
 sudo bash scripts/deploy-lighthouse-production.sh
 ```
 
-该脚本会拉取 GitHub `main`、安装依赖、执行 `npm run verify:acceptance`、构建 API 与前端、安装 systemd/Nginx 配置、启用 `zkgl-auth-adapter`、`zkgl-api`、提醒 timer、导出 timer 和 MySQL 备份 timer，并执行本机 health check。脚本会在 `DB_PASSWORD`、`AUTH_TOKEN_VERIFIER_MODULE` 或 `AUTH_TRUSTED_PROXY` 未达到正式上线条件时退出，避免把未完成认证边界的 API 暴露到公网。
+该脚本会拉取 GitHub `main`、安装依赖、执行 `npm run verify:acceptance`、构建 API 与前端、安装 systemd/Nginx 配置、启用 `zkgl-auth-adapter`、`zkgl-api`、提醒 timer、导出 timer 和 MySQL 备份 timer，并执行本机 health check。脚本会在 `DB_PASSWORD`、`AUTH_TOKEN_VERIFIER_MODULE`、`AUTH_TRUSTED_PROXY`、`API_ALLOWED_ORIGINS` 或 HTTPS 证书未达到正式上线条件时退出，避免把未完成认证边界的 API 暴露到公网。前端构建会显式写入 `VITE_API_BASE_URL`，默认值为 `https://193.112.79.220/api`；若使用正式域名，应在执行前设置 `ZKGL_PUBLIC_HOST`、`ZKGL_PUBLIC_ORIGIN`、`ZKGL_API_BASE_URL`、`ZKGL_TLS_CERT` 和 `ZKGL_TLS_KEY`。
 
 5. 如需手工执行，在项目根目录运行：
 
@@ -181,6 +181,8 @@ CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 ```
 
 `DB_PASSWORD` 必须在服务器环境文件中填写，禁止写入 Git 仓库、前端构建变量或文档示例。
+
+为避免 Windows 工作区把 Ubuntu 部署脚本改成 CRLF，仓库 `.gitattributes` 已强制 `*.sh`、`*.service`、`*.timer` 和 `*.conf` 使用 LF 换行；`node scripts/verify-server-deployment-assets.mjs` 会校验该约束。
 
 ### MySQL 8.0 空库初始化
 

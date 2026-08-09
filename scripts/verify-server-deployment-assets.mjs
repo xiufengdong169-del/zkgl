@@ -21,6 +21,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     demoNginxConfig,
     demoDeployScript,
     productionDeployScript,
+    gitAttributes,
     deploymentDoc,
     finalChecklist,
   ] = await Promise.all([
@@ -34,6 +35,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     readText("deploy/nginx/zkgl-demo-http.conf"),
     readText("scripts/deploy-lighthouse-demo.sh"),
     readText("scripts/deploy-lighthouse-production.sh"),
+    readText(".gitattributes"),
     readText("docs/deployment.md"),
     readText("docs/final-acceptance-checklist.md"),
   ]);
@@ -48,6 +50,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     demoNginxConfig,
     demoDeployScript,
     productionDeployScript,
+    gitAttributes,
     deploymentDoc,
     finalChecklist,
   };
@@ -72,6 +75,7 @@ export function verifyServerDeploymentAssetInputs({
   demoNginxConfig,
   demoDeployScript,
   productionDeployScript,
+  gitAttributes,
   deploymentDoc,
   finalChecklist,
 } = {}) {
@@ -195,8 +199,13 @@ export function verifyServerDeploymentAssetInputs({
     productionDeployScript,
     [
       "ZKGL_REQUIRE_ENV",
+      "ZKGL_API_BASE_URL",
+      "ZKGL_TLS_CERT",
+      "ZKGL_TLS_KEY",
       "https://github.com/xiufengdong169-del/zkgl.git",
       "npm run verify:acceptance",
+      "VITE_API_BASE_URL",
+      "VITE_CLOUDBASE_ENV_ID",
       "deploy/systemd/zkgl-api.service",
       "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/nginx/zkgl.conf",
@@ -210,9 +219,29 @@ export function verifyServerDeploymentAssetInputs({
     ],
     "scripts/deploy-lighthouse-production.sh",
   );
+  includesAll(
+    productionDeployScript,
+    [
+      "API_ALLOWED_ORIGINS still contains the placeholder",
+      "TLS certificate files are missing",
+      "ssl_certificate ${ZKGL_TLS_CERT}",
+      "ssl_certificate_key ${ZKGL_TLS_KEY}",
+    ],
+    "scripts/deploy-lighthouse-production.sh",
+  );
   if (!productionDeployScript.includes(dbPasswordPlaceholder)) {
     fail("scripts/deploy-lighthouse-production.sh must create a DB_PASSWORD placeholder");
   }
+  includesAll(
+    gitAttributes,
+    [
+      "*.sh text eol=lf",
+      "*.service text eol=lf",
+      "*.timer text eol=lf",
+      "*.conf text eol=lf",
+    ],
+    ".gitattributes",
+  );
   includesAll(
     deploymentDoc,
     [
