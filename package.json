@@ -25,7 +25,8 @@
     "verify:acceptance": "npm run verify && npm audit --omit=dev",
     "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
     "verify:github-sync": "node scripts/verify-github-sync.mjs",
-    "verify:public-demo": "node scripts/verify-public-demo.mjs"
+    "verify:public-demo": "node scripts/verify-public-demo.mjs",
+    "verify:server-env": "node scripts/verify-server-env.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

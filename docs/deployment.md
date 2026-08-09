@@ -200,6 +200,14 @@ CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 
 认证 verifier 可参考仓库模板 `deploy/auth/cloudbase-token-verifier.example.mjs`。上线时应复制到服务器本地路径，例如 `/etc/zkgl/cloudbase-token-verifier.mjs`，在服务器上补入真实 CloudBase access token 校验逻辑，然后把 `/etc/zkgl/zkgl-api.env` 中的 `AUTH_TOKEN_VERIFIER_MODULE` 指向该服务器本地文件。示例文件本身会 fail-closed，正式部署脚本也会拒绝把 `.example.` 文件作为生产 verifier 使用。
 
+正式部署前可单独运行服务器环境文件预检；命令入口为 `scripts/verify-server-env.mjs`：
+
+```bash
+npm run verify:server-env -- /etc/zkgl/zkgl-api.env
+```
+
+该命令会检查必填服务端变量、`API_ALLOWED_ORIGINS` 占位、`AUTH_TRUSTED_PROXY`、`AUTH_TOKEN_VERIFIER_MODULE` 真实文件、example verifier 禁用和 HTTPS 证书文件。
+
 ### MySQL 8.0 空库初始化
 
 本项目是全新开发程序，不存在数据库迁移步骤。首次上线使用空库初始化：

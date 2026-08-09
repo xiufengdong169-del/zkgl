@@ -116,6 +116,10 @@ const publicDemoScript = readFileSync(
   new URL("../../../scripts/verify-public-demo.mjs", import.meta.url),
   "utf8",
 );
+const serverEnvScript = readFileSync(
+  new URL("../../../scripts/verify-server-env.mjs", import.meta.url),
+  "utf8",
+);
 const githubVerifyWorkflow = readFileSync(
   new URL("../../../.github/workflows/verify.yml", import.meta.url),
   "utf8",
@@ -285,7 +289,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "80 个测试文件 / 400 条测试",
+  "81 个测试文件 / 403 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -430,6 +434,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:public-demo"]).toBe(
       "node scripts/verify-public-demo.mjs",
     );
+    expect(packageJson.scripts["verify:server-env"]).toBe(
+      "node scripts/verify-server-env.mjs",
+    );
     expect(githubVerifyWorkflow).toContain("npm ci");
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
@@ -541,7 +548,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(80);
+    expect(actualApiTestFiles).toBe(81);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -624,6 +631,7 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(deploymentDoc).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
     expect(deploymentDoc).toContain("AUTH_TOKEN_VERIFIER_MODULE");
+    expect(deploymentDoc).toContain("npm run verify:server-env");
     expect(deploymentDoc).toContain("拒绝把 `.example.` 文件作为生产 verifier 使用");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-export-worker.timer");
@@ -638,6 +646,7 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-api.service");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(finalAcceptanceChecklist).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
+    expect(finalAcceptanceChecklist).toContain("npm run verify:server-env");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
@@ -657,6 +666,7 @@ describe("deployment documentation", () => {
     expect(serverDeploymentAssetVerifier).toContain("auth_request /_zkgl_auth");
     expect(serverDeploymentAssetVerifier).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(serverDeploymentAssetVerifier).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
+    expect(serverDeploymentAssetVerifier).toContain("scripts/verify-server-env.mjs");
     expect(serverDeploymentAssetVerifier).toContain("scripts/bootstrap-lighthouse-demo.sh");
     expect(serverDeploymentAssetVerifier).toContain("scripts/deploy-lighthouse-production.sh");
     expect(packageJson.scripts.verify).toContain(
@@ -680,6 +690,8 @@ describe("deployment documentation", () => {
     expect(serverPreflightVerifier).toContain(
       "node scripts/verify-server-preflight.mjs",
     );
+    expect(serverEnvScript).toContain("AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier");
+    expect(serverEnvScript).toContain("TLS certificate files are missing");
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {

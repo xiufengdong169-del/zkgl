@@ -86,40 +86,6 @@ ENVEOF
   echo "Created ${ZKGL_ENV_FILE}; fill DB_PASSWORD, API_ALLOWED_ORIGINS, and AUTH_TOKEN_VERIFIER_MODULE, then rerun." >&2
 fi
 
-if [ "${ZKGL_REQUIRE_ENV}" = "true" ]; then
-  missing=()
-  for key in "${required_env_keys[@]}"; do
-    if ! grep -Eq "^${key}=.+" "${ZKGL_ENV_FILE}"; then
-      missing+=("${key}")
-    fi
-  done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "Missing required values in ${ZKGL_ENV_FILE}: ${missing[*]}" >&2
-    exit 1
-  fi
-  if grep -Eq "^API_ALLOWED_ORIGINS=.*正式域名" "${ZKGL_ENV_FILE}"; then
-    echo "API_ALLOWED_ORIGINS still contains the placeholder 正式域名 in ${ZKGL_ENV_FILE}." >&2
-    exit 1
-  fi
-  if grep -Eq "^AUTH_TRUSTED_PROXY=false$" "${ZKGL_ENV_FILE}"; then
-    echo "AUTH_TRUSTED_PROXY is still false. Configure AUTH_TOKEN_VERIFIER_MODULE and set AUTH_TRUSTED_PROXY=true only after Nginx auth_request integration is ready." >&2
-    exit 1
-  fi
-  verifier_module="$(env_value AUTH_TOKEN_VERIFIER_MODULE)"
-  if [ ! -f "${verifier_module}" ]; then
-    echo "AUTH_TOKEN_VERIFIER_MODULE does not point to an existing server-local file: ${verifier_module}" >&2
-    exit 1
-  fi
-  if [[ "${verifier_module}" == *".example."* ]]; then
-    echo "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier: ${verifier_module}" >&2
-    exit 1
-  fi
-  if [ ! -f "${ZKGL_TLS_CERT}" ] || [ ! -f "${ZKGL_TLS_KEY}" ]; then
-    echo "TLS certificate files are missing: ${ZKGL_TLS_CERT} ${ZKGL_TLS_KEY}" >&2
-    exit 1
-  fi
-fi
-
 echo "==> Fetching ${ZKGL_REPO_URL} ${ZKGL_BRANCH}"
 if [ ! -d "${ZKGL_CURRENT_DIR}/.git" ]; then
   rm -rf "${ZKGL_CURRENT_DIR}"
@@ -131,6 +97,12 @@ else
 fi
 
 cd "${ZKGL_CURRENT_DIR}"
+
+if [ "${ZKGL_REQUIRE_ENV}" = "true" ]; then
+  echo "==> Verifying server environment"
+  ZKGL_ENV_FILE="${ZKGL_ENV_FILE}" ZKGL_TLS_CERT="${ZKGL_TLS_CERT}" ZKGL_TLS_KEY="${ZKGL_TLS_KEY}" \
+    node scripts/verify-server-env.mjs
+fi
 
 echo "==> Installing dependencies and building"
 npm ci

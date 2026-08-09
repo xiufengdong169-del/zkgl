@@ -13,6 +13,7 @@ type ServerDeploymentAssetsModule = {
     demoBootstrapScript: string;
     demoDeployScript: string;
     productionDeployScript: string;
+    serverEnvVerifier: string;
     verifierTemplate: string;
     gitAttributes: string;
     deploymentDoc: string;
@@ -115,14 +116,13 @@ function validInputs() {
       "ZKGL_TLS_KEY",
       "https://github.com/xiufengdong169-del/zkgl.git",
       "npm run verify:acceptance",
+      "node scripts/verify-server-env.mjs",
       "VITE_API_BASE_URL",
       "VITE_CLOUDBASE_ENV_ID",
       "deploy/systemd/zkgl-api.service",
       "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/nginx/zkgl.conf",
       "AUTH_TOKEN_VERIFIER_MODULE",
-      "AUTH_TOKEN_VERIFIER_MODULE does not point to an existing server-local file",
-      "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier",
       "AUTH_TRUSTED_PROXY=false",
       "DB_" + "PASSWORD=",
       "systemctl enable --now zkgl-auth-adapter",
@@ -130,10 +130,15 @@ function validInputs() {
       "curl -fsS http://127.0.0.1:3010/healthz",
       "curl -fsS http://127.0.0.1:3000/healthz",
       "systemctl list-timers 'zkgl-*'",
-      "API_ALLOWED_ORIGINS still contains the placeholder",
-      "TLS certificate files are missing",
       "ssl_certificate ${ZKGL_TLS_CERT}",
       "ssl_certificate_key ${ZKGL_TLS_KEY}",
+    ].join("\n"),
+    serverEnvVerifier: [
+      "AUTH_TOKEN_VERIFIER_MODULE does not exist",
+      "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier",
+      "API_ALLOWED_ORIGINS still contains a placeholder",
+      "TLS certificate files are missing",
+      "AUTH_TRUSTED_PROXY must be true",
     ].join("\n"),
     verifierTemplate: [
       "export async function verifyAccessToken",
@@ -158,6 +163,7 @@ function validInputs() {
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
@@ -173,6 +179,7 @@ function validInputs() {
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
