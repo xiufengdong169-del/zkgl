@@ -22,6 +22,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     demoBootstrapScript,
     demoDeployScript,
     productionDeployScript,
+    verifierTemplate,
     gitAttributes,
     deploymentDoc,
     finalChecklist,
@@ -37,6 +38,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     readText("scripts/bootstrap-lighthouse-demo.sh"),
     readText("scripts/deploy-lighthouse-demo.sh"),
     readText("scripts/deploy-lighthouse-production.sh"),
+    readText("deploy/auth/cloudbase-token-verifier.example.mjs"),
     readText(".gitattributes"),
     readText("docs/deployment.md"),
     readText("docs/final-acceptance-checklist.md"),
@@ -53,6 +55,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     demoBootstrapScript,
     demoDeployScript,
     productionDeployScript,
+    verifierTemplate,
     gitAttributes,
     deploymentDoc,
     finalChecklist,
@@ -79,6 +82,7 @@ export function verifyServerDeploymentAssetInputs({
   demoBootstrapScript,
   demoDeployScript,
   productionDeployScript,
+  verifierTemplate,
   gitAttributes,
   deploymentDoc,
   finalChecklist,
@@ -225,6 +229,8 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/nginx/zkgl.conf",
       "AUTH_TOKEN_VERIFIER_MODULE",
+      "AUTH_TOKEN_VERIFIER_MODULE does not point to an existing server-local file",
+      "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier",
       "AUTH_TRUSTED_PROXY=false",
       "systemctl enable --now zkgl-auth-adapter",
       "systemctl enable --now zkgl-api",
@@ -247,6 +253,15 @@ export function verifyServerDeploymentAssetInputs({
   if (!productionDeployScript.includes(dbPasswordPlaceholder)) {
     fail("scripts/deploy-lighthouse-production.sh must create a DB_PASSWORD placeholder");
   }
+  includesAll(
+    verifierTemplate,
+    [
+      "export async function verifyAccessToken",
+      "fail",
+      "server-local verifier",
+    ],
+    "deploy/auth/cloudbase-token-verifier.example.mjs",
+  );
   includesAll(
     gitAttributes,
     [
@@ -271,6 +286,7 @@ export function verifyServerDeploymentAssetInputs({
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/deployment.md",
@@ -289,6 +305,7 @@ export function verifyServerDeploymentAssetInputs({
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/final-acceptance-checklist.md",

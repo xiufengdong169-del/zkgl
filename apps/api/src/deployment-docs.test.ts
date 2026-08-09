@@ -285,7 +285,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "80 个测试文件 / 399 条测试",
+  "80 个测试文件 / 400 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -622,6 +622,9 @@ describe("deployment documentation", () => {
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-api.service");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-auth-adapter.service");
+    expect(deploymentDoc).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
+    expect(deploymentDoc).toContain("AUTH_TOKEN_VERIFIER_MODULE");
+    expect(deploymentDoc).toContain("拒绝把 `.example.` 文件作为生产 verifier 使用");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(deploymentDoc).toContain("deploy/nginx/zkgl.conf");
@@ -634,6 +637,7 @@ describe("deployment documentation", () => {
     );
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-api.service");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-auth-adapter.service");
+    expect(finalAcceptanceChecklist).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
@@ -652,6 +656,7 @@ describe("deployment documentation", () => {
     );
     expect(serverDeploymentAssetVerifier).toContain("auth_request /_zkgl_auth");
     expect(serverDeploymentAssetVerifier).toContain("deploy/systemd/zkgl-auth-adapter.service");
+    expect(serverDeploymentAssetVerifier).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
     expect(serverDeploymentAssetVerifier).toContain("scripts/bootstrap-lighthouse-demo.sh");
     expect(serverDeploymentAssetVerifier).toContain("scripts/deploy-lighthouse-production.sh");
     expect(packageJson.scripts.verify).toContain(

@@ -198,6 +198,8 @@ CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 
 为避免 Windows 工作区把 Ubuntu 部署脚本改成 CRLF，仓库 `.gitattributes` 已强制 `*.sh`、`*.service`、`*.timer` 和 `*.conf` 使用 LF 换行；`node scripts/verify-server-deployment-assets.mjs` 会校验该约束。
 
+认证 verifier 可参考仓库模板 `deploy/auth/cloudbase-token-verifier.example.mjs`。上线时应复制到服务器本地路径，例如 `/etc/zkgl/cloudbase-token-verifier.mjs`，在服务器上补入真实 CloudBase access token 校验逻辑，然后把 `/etc/zkgl/zkgl-api.env` 中的 `AUTH_TOKEN_VERIFIER_MODULE` 指向该服务器本地文件。示例文件本身会 fail-closed，正式部署脚本也会拒绝把 `.example.` 文件作为生产 verifier 使用。
+
 ### MySQL 8.0 空库初始化
 
 本项目是全新开发程序，不存在数据库迁移步骤。首次上线使用空库初始化：
@@ -263,7 +265,7 @@ curl http://127.0.0.1:3010/healthz
 
 ### 受信任认证适配服务
 
-独立服务器上的公网请求不得直接向业务 API 注入 `X-ZKGL-CloudBase-UID`。正式上线时必须启用 `deploy/systemd/zkgl-auth-adapter.service`，并在 `/etc/zkgl/zkgl-api.env` 中配置 `AUTH_TOKEN_VERIFIER_MODULE` 指向服务器本地的 CloudBase access token 校验模块。该模块必须导出 `verifyAccessToken(accessToken)`，返回 `{ uid: "CloudBase UID" }` 或 UID 字符串。未配置 verifier 时认证适配器启动失败；token 校验失败时 `/verify` 返回 401，不会向 Nginx 返回受信任 UID。
+独立服务器上的公网请求不得直接向业务 API 注入 `X-ZKGL-CloudBase-UID`。正式上线时必须启用 `deploy/systemd/zkgl-auth-adapter.service`，并在 `/etc/zkgl/zkgl-api.env` 中配置 `AUTH_TOKEN_VERIFIER_MODULE` 指向服务器本地的 CloudBase access token 校验模块，例如 `/etc/zkgl/cloudbase-token-verifier.mjs`。该模块必须导出 `verifyAccessToken(accessToken)`，返回 `{ uid: "CloudBase UID" }` 或 UID 字符串。未配置 verifier 时认证适配器启动失败；token 校验失败时 `/verify` 返回 401，不会向 Nginx 返回受信任 UID。仓库仅提供 `deploy/auth/cloudbase-token-verifier.example.mjs` fail-closed 模板，不保存生产密钥或真实 verifier。
 
 认证适配完成且联调通过后，才允许把服务器本地环境文件中的 `AUTH_TRUSTED_PROXY` 改为 `true`。Nginx 模板 `deploy/nginx/zkgl.conf` 会先把浏览器传入的 `Authorization: Bearer ...` 转给 `127.0.0.1:3010/verify`，再把适配器返回的 `X-ZKGL-CloudBase-UID` 注入到 `127.0.0.1:3000/api`；同时清除外部伪造的同名 UID 头和转发给业务 API 的 Authorization。
 

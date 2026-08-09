@@ -13,6 +13,7 @@ type ServerDeploymentAssetsModule = {
     demoBootstrapScript: string;
     demoDeployScript: string;
     productionDeployScript: string;
+    verifierTemplate: string;
     gitAttributes: string;
     deploymentDoc: string;
     finalChecklist: string;
@@ -120,6 +121,8 @@ function validInputs() {
       "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/nginx/zkgl.conf",
       "AUTH_TOKEN_VERIFIER_MODULE",
+      "AUTH_TOKEN_VERIFIER_MODULE does not point to an existing server-local file",
+      "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier",
       "AUTH_TRUSTED_PROXY=false",
       "DB_" + "PASSWORD=",
       "systemctl enable --now zkgl-auth-adapter",
@@ -131,6 +134,11 @@ function validInputs() {
       "TLS certificate files are missing",
       "ssl_certificate ${ZKGL_TLS_CERT}",
       "ssl_certificate_key ${ZKGL_TLS_KEY}",
+    ].join("\n"),
+    verifierTemplate: [
+      "export async function verifyAccessToken",
+      "fail",
+      "server-local verifier",
     ].join("\n"),
     gitAttributes: [
       "*.sh text eol=lf",
@@ -150,6 +158,7 @@ function validInputs() {
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
     finalChecklist: [
@@ -164,6 +173,7 @@ function validInputs() {
       "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
+      "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
   };
@@ -268,6 +278,17 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "scripts/deploy-lighthouse-production.sh missing systemctl enable --now zkgl-auth-adapter",
+    );
+  });
+
+  it("rejects a missing fail-closed verifier template", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.verifierTemplate = "export async function other() {}";
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "deploy/auth/cloudbase-token-verifier.example.mjs missing export async function verifyAccessToken",
     );
   });
 

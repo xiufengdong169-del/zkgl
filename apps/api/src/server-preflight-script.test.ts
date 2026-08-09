@@ -32,6 +32,7 @@ function validInputs() {
     "Nginx",
     "AUTH_TRUSTED_PROXY",
     "AUTH_TOKEN_VERIFIER_MODULE",
+    "deploy/auth/cloudbase-token-verifier.example.mjs",
     "scripts/create-mysql-backup.mjs",
     "scripts/restore-mysql-backup.mjs",
     "node scripts/verify-server-preflight.mjs",

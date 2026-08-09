@@ -105,6 +105,15 @@ if [ "${ZKGL_REQUIRE_ENV}" = "true" ]; then
     echo "AUTH_TRUSTED_PROXY is still false. Configure AUTH_TOKEN_VERIFIER_MODULE and set AUTH_TRUSTED_PROXY=true only after Nginx auth_request integration is ready." >&2
     exit 1
   fi
+  verifier_module="$(env_value AUTH_TOKEN_VERIFIER_MODULE)"
+  if [ ! -f "${verifier_module}" ]; then
+    echo "AUTH_TOKEN_VERIFIER_MODULE does not point to an existing server-local file: ${verifier_module}" >&2
+    exit 1
+  fi
+  if [[ "${verifier_module}" == *".example."* ]]; then
+    echo "AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier: ${verifier_module}" >&2
+    exit 1
+  fi
   if [ ! -f "${ZKGL_TLS_CERT}" ] || [ ! -f "${ZKGL_TLS_KEY}" ]; then
     echo "TLS certificate files are missing: ${ZKGL_TLS_CERT} ${ZKGL_TLS_KEY}" >&2
     exit 1
