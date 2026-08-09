@@ -11,6 +11,7 @@ type ServerDeploymentAssetsModule = {
     nginxConfig: string;
     demoNginxConfig: string;
     demoDeployScript: string;
+    productionDeployScript: string;
     deploymentDoc: string;
     finalChecklist: string;
   }): string;
@@ -97,6 +98,22 @@ function validInputs() {
       "nginx -t",
       "systemctl reload nginx",
     ].join("\n"),
+    productionDeployScript: [
+      "ZKGL_REQUIRE_ENV",
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "npm run verify:acceptance",
+      "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
+      "deploy/nginx/zkgl.conf",
+      "AUTH_TOKEN_VERIFIER_MODULE",
+      "AUTH_TRUSTED_PROXY=false",
+      "DB_" + "PASSWORD=",
+      "systemctl enable --now zkgl-auth-adapter",
+      "systemctl enable --now zkgl-api",
+      "curl -fsS http://127.0.0.1:3010/healthz",
+      "curl -fsS http://127.0.0.1:3000/healthz",
+      "systemctl list-timers 'zkgl-*'",
+    ].join("\n"),
     deploymentDoc: [
       "deploy/systemd/zkgl-api.service",
       "deploy/systemd/zkgl-auth-adapter.service",
@@ -107,6 +124,7 @@ function validInputs() {
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
       "scripts/deploy-lighthouse-demo.sh",
+      "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
     finalChecklist: [
@@ -119,6 +137,7 @@ function validInputs() {
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
       "scripts/deploy-lighthouse-demo.sh",
+      "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ].join("\n"),
   };
@@ -195,6 +214,20 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "scripts/deploy-lighthouse-demo.sh must not enable trusted proxy",
+    );
+  });
+
+  it("rejects a production deploy script that skips the trusted auth adapter", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.productionDeployScript = inputs.productionDeployScript.replace(
+      "systemctl enable --now zkgl-auth-adapter",
+      "echo skipping auth adapter",
+    );
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "scripts/deploy-lighthouse-production.sh missing systemctl enable --now zkgl-auth-adapter",
     );
   });
 

@@ -132,7 +132,15 @@ CloudBase 不再作为主部署平台。现有 `cloudbaserc.json`、`functions/z
 1. 使用非 root 运维账号登录服务器，并确认安全组仅开放 `22`、`80`、`443`。
 2. 安装 Node.js 22.12.0 或更高版本、Nginx、Git、PM2 可选工具；生产托管以 systemd 为准。
 3. 拉取 GitHub 仓库 `https://github.com/xiufengdong169-del/zkgl.git` 到 `/opt/zkgl/current`。
-4. 在项目根目录执行：
+4. 若服务器环境文件、HTTPS 证书和认证 verifier 已准备好，可执行正式部署脚本：
+
+```bash
+sudo bash scripts/deploy-lighthouse-production.sh
+```
+
+该脚本会拉取 GitHub `main`、安装依赖、执行 `npm run verify:acceptance`、构建 API 与前端、安装 systemd/Nginx 配置、启用 `zkgl-auth-adapter`、`zkgl-api`、提醒 timer、导出 timer 和 MySQL 备份 timer，并执行本机 health check。脚本会在 `DB_PASSWORD`、`AUTH_TOKEN_VERIFIER_MODULE` 或 `AUTH_TRUSTED_PROXY` 未达到正式上线条件时退出，避免把未完成认证边界的 API 暴露到公网。
+
+5. 如需手工执行，在项目根目录运行：
 
 ```bash
 npm ci
@@ -145,7 +153,7 @@ node scripts/verify-server-preflight.mjs
 sudo bash scripts/deploy-lighthouse-demo.sh
 ```
 
-5. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：
+6. 创建服务端环境文件 `/etc/zkgl/zkgl-api.env`，只在服务器保存真实密钥：
 
 ```ini
 DEPLOY_TARGET_HOST=193.112.79.220

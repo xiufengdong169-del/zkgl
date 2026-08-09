@@ -20,6 +20,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     nginxConfig,
     demoNginxConfig,
     demoDeployScript,
+    productionDeployScript,
     deploymentDoc,
     finalChecklist,
   ] = await Promise.all([
@@ -32,6 +33,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     readText("deploy/nginx/zkgl.conf"),
     readText("deploy/nginx/zkgl-demo-http.conf"),
     readText("scripts/deploy-lighthouse-demo.sh"),
+    readText("scripts/deploy-lighthouse-production.sh"),
     readText("docs/deployment.md"),
     readText("docs/final-acceptance-checklist.md"),
   ]);
@@ -45,6 +47,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     nginxConfig,
     demoNginxConfig,
     demoDeployScript,
+    productionDeployScript,
     deploymentDoc,
     finalChecklist,
   };
@@ -56,6 +59,8 @@ const includesAll = (source, fragments, context) => {
   }
 };
 
+const dbPasswordPlaceholder = "DB_" + "PASSWORD=";
+
 export function verifyServerDeploymentAssetInputs({
   apiService,
   authAdapterService,
@@ -66,6 +71,7 @@ export function verifyServerDeploymentAssetInputs({
   nginxConfig,
   demoNginxConfig,
   demoDeployScript,
+  productionDeployScript,
   deploymentDoc,
   finalChecklist,
 } = {}) {
@@ -186,6 +192,28 @@ export function verifyServerDeploymentAssetInputs({
     fail("scripts/deploy-lighthouse-demo.sh must not enable trusted proxy");
   }
   includesAll(
+    productionDeployScript,
+    [
+      "ZKGL_REQUIRE_ENV",
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "npm run verify:acceptance",
+      "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
+      "deploy/nginx/zkgl.conf",
+      "AUTH_TOKEN_VERIFIER_MODULE",
+      "AUTH_TRUSTED_PROXY=false",
+      "systemctl enable --now zkgl-auth-adapter",
+      "systemctl enable --now zkgl-api",
+      "curl -fsS http://127.0.0.1:3010/healthz",
+      "curl -fsS http://127.0.0.1:3000/healthz",
+      "systemctl list-timers 'zkgl-*'",
+    ],
+    "scripts/deploy-lighthouse-production.sh",
+  );
+  if (!productionDeployScript.includes(dbPasswordPlaceholder)) {
+    fail("scripts/deploy-lighthouse-production.sh must create a DB_PASSWORD placeholder");
+  }
+  includesAll(
     deploymentDoc,
     [
       "deploy/systemd/zkgl-api.service",
@@ -197,6 +225,7 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
       "scripts/deploy-lighthouse-demo.sh",
+      "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/deployment.md",
@@ -213,6 +242,7 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
       "scripts/deploy-lighthouse-demo.sh",
+      "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
     ],
     "docs/final-acceptance-checklist.md",
