@@ -23,6 +23,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .sidebar a { padding: 11px 12px; border-radius: 8px; color: #ccdaea; text-decoration: none; }
 .sidebar a.router-link-active { color: #fff; background: #255581; }
 .content { min-width: 0; }
+.demo-banner { margin: 18px auto 0; max-width: 1180px; padding: 12px 18px; border: 1px solid #f0c36d; border-radius: 999px; background: #fff8e6; color: #805b12; font-size: 13px; font-weight: 700; }
 .error { color: #a02727; font-size: 14px; }
 .shell { max-width: 1180px; margin: 0 auto; padding: 44px 28px; }
 .shell header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }

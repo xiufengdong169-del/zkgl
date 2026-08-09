@@ -286,7 +286,7 @@ const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
   "80 个测试文件 / 399 条测试",
-  "9 个测试文件 / 46 条测试",
+  "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "git status --short --branch",
@@ -542,7 +542,7 @@ describe("deployment documentation", () => {
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
     expect(actualApiTestFiles).toBe(80);
-    expect(actualWebTestFiles).toBe(9);
+    expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
       expect(documentedTestFileCount(doc, "Web")).toBe(actualWebTestFiles);

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
+import { demoBannerText, shouldShowDemoBanner } from "./demo-banner";
 import { visibleNavigation } from "./navigation";
 import { useAuthStore } from "./stores/auth";
 
 const route = useRoute(),
   auth = useAuthStore();
 const showNavigation = computed(() => route.name !== "login");
+const showDemoBanner = computed(() => showNavigation.value && shouldShowDemoBanner());
 const menuItems = computed(() =>
   visibleNavigation(auth.user?.permissionCodes ?? []),
 );
@@ -22,7 +24,10 @@ const menuItems = computed(() =>
         </RouterLink>
       </nav>
     </aside>
-    <div class="content"><RouterView /></div>
+    <div class="content">
+      <div v-if="showDemoBanner" class="demo-banner">{{ demoBannerText }}</div>
+      <RouterView />
+    </div>
   </div>
   <RouterView v-else />
 </template>
