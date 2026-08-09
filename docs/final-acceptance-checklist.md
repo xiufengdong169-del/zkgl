@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 79 个测试文件 / 395 条测试。
+- [ ] API 测试通过，当前基线为 80 个测试文件 / 399 条测试。
 - [ ] Web 测试通过，当前基线为 9 个测试文件 / 46 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -51,7 +51,7 @@
 - [ ] 认证适配由 `deploy/systemd/zkgl-auth-adapter.service` 托管，监听 `127.0.0.1:3010`，`AUTH_TOKEN_VERIFIER_MODULE` 已配置，`curl http://127.0.0.1:3010/healthz` 正常。
 - [ ] Nginx 使用 `deploy/nginx/zkgl.conf` 托管 `apps/web/dist`，通过 HTTPS 暴露站点，并通过 `auth_request` 调用本机认证适配服务。
 - [ ] 正式部署可使用 `scripts/deploy-lighthouse-production.sh` 执行；脚本必须在服务器环境文件、HTTPS 证书、`VITE_API_BASE_URL` 和认证 verifier 就绪后运行，并先执行 `npm run verify:acceptance`。
-- [ ] 如需先看公网界面演示，可在服务器执行 `scripts/deploy-lighthouse-demo.sh`，或直接执行 `curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash`；演示使用 `deploy/nginx/zkgl-demo-http.conf` 发布 HTTP 静态演示页，不代理 `/api`，不启用 `AUTH_TRUSTED_PROXY=true`，不作为正式上线口径。
+- [ ] 如需先看公网界面演示，可在服务器执行 `scripts/deploy-lighthouse-demo.sh`，或直接执行 `curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash`；演示使用 `deploy/nginx/zkgl-demo-http.conf` 发布 HTTP 静态演示页，不代理 `/api`，不启用 `AUTH_TRUSTED_PROXY=true`，不作为正式上线口径；发布后执行 `npm run verify:public-demo` 确认 `http://193.112.79.220/` 已返回众肯系统前端壳。
 - [ ] `/api` 仅由 Nginx 反向代理到 `127.0.0.1:3000/api`；外部伪造的 `X-ZKGL-CloudBase-UID` 被清除，业务 API 不接收浏览器直传 UID。
 - [ ] `deploy/systemd/zkgl-reminder.timer` 每日 08:00 执行提醒刷新；历史触发器名称为 `zkglDailyReminder`。
 - [ ] `deploy/systemd/zkgl-export-worker.timer` 每 5 分钟执行导出 worker；历史触发器名称为 `zkglExportWorker`。

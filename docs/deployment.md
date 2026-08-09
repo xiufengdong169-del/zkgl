@@ -98,6 +98,14 @@ curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/script
 
 该脚本会从 GitHub 拉取 `main`，以 `VITE_DEMO_MODE=true` 构建前端，并使用 `deploy/nginx/zkgl-demo-http.conf` 通过 HTTP 80 发布静态演示页。演示模式不连接生产 MySQL，不启用 `AUTH_TRUSTED_PROXY=true`，也不通过 Nginx 代理 `/api` 到业务服务；它只用于快速查看菜单、页面和样例数据。正式上线仍必须使用 HTTPS、`deploy/nginx/zkgl.conf`、`deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service` 和服务器本地 `/etc/zkgl/zkgl-api.env`。
 
+演示脚本执行成功后，在本地或服务器上运行：
+
+```bash
+npm run verify:public-demo
+```
+
+该命令会访问 `http://193.112.79.220/`、`/projects`、`/contracts`、`/finance`、`/admin`，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后再执行。
+
 ## 计划任务
 
 - `zkgl-reminder.timer`：每日 08:00 执行提醒刷新，历史 CloudBase 触发器名称为 `zkglDailyReminder`。

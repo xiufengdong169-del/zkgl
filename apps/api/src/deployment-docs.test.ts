@@ -112,6 +112,10 @@ const githubSyncScript = readFileSync(
   new URL("../../../scripts/verify-github-sync.mjs", import.meta.url),
   "utf8",
 );
+const publicDemoScript = readFileSync(
+  new URL("../../../scripts/verify-public-demo.mjs", import.meta.url),
+  "utf8",
+);
 const githubVerifyWorkflow = readFileSync(
   new URL("../../../.github/workflows/verify.yml", import.meta.url),
   "utf8",
@@ -281,7 +285,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "79 个测试文件 / 395 条测试",
+  "80 个测试文件 / 399 条测试",
   "9 个测试文件 / 46 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -423,6 +427,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:deployment-config"]).toBe(
       "node scripts/verify-deployment-config.mjs",
     );
+    expect(packageJson.scripts["verify:public-demo"]).toBe(
+      "node scripts/verify-public-demo.mjs",
+    );
     expect(githubVerifyWorkflow).toContain("npm ci");
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
@@ -534,7 +541,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(79);
+    expect(actualApiTestFiles).toBe(80);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -621,6 +628,7 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("scripts/bootstrap-lighthouse-demo.sh");
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-demo.sh");
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-production.sh");
+    expect(deploymentDoc).toContain("npm run verify:public-demo");
     expect(deploymentDoc).toContain(
       "curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash",
     );
@@ -631,6 +639,13 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
     expect(finalAcceptanceChecklist).toContain("scripts/bootstrap-lighthouse-demo.sh");
     expect(finalAcceptanceChecklist).toContain("scripts/deploy-lighthouse-production.sh");
+    expect(finalAcceptanceChecklist).toContain("npm run verify:public-demo");
+    expect(publicDemoScript).toContain("http://193.112.79.220/");
+    expect(publicDemoScript).toContain("众肯项目管理系统");
+    expect(publicDemoScript).toContain("/projects");
+    expect(publicDemoScript).toContain("/contracts");
+    expect(publicDemoScript).toContain("/finance");
+    expect(publicDemoScript).toContain("/admin");
     expect(nginxDeploymentTemplate).toContain("auth_request /_zkgl_auth");
     expect(nginxDeploymentTemplate).toContain(
       "proxy_set_header X-ZKGL-CloudBase-UID \"\"",
