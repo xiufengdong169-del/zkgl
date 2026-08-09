@@ -149,6 +149,7 @@ systemctl reload nginx
 echo "==> Health checks"
 curl -fsS http://127.0.0.1:3010/healthz >/dev/null
 curl -fsS http://127.0.0.1:3000/healthz >/dev/null
+curl -fsS http://127.0.0.1:3000/readyz >/dev/null
 systemctl --no-pager --full status zkgl-auth-adapter zkgl-api
 systemctl list-timers 'zkgl-*'
 

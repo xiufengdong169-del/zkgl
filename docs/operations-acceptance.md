@@ -182,7 +182,7 @@ npm run verify:legacy-cloudbase
 
 当前正式部署目标为 Tencent Cloud Lighthouse 独立服务器：`193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。现场运维验收除原业务流程外，还必须确认：
 
-1. `zkgl-api` 与 `zkgl-auth-adapter` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 和 `curl http://127.0.0.1:3010/healthz` 返回健康状态。
+1. `zkgl-api` 与 `zkgl-auth-adapter` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 和 `curl http://127.0.0.1:3010/healthz` 返回健康状态；`curl http://127.0.0.1:3000/readyz` 返回 API 与 MySQL 就绪状态。
 2. Nginx 已通过 HTTPS 托管前端，并将 `/api` 反向代理到本机 API。
 3. 前端生产包使用正式 HTTPS `VITE_API_BASE_URL` 重新构建。
 4. 服务器环境文件仅保存在 `/etc/zkgl/zkgl-api.env`，真实数据库密码不进入 Git、文档示例或浏览器构建产物。

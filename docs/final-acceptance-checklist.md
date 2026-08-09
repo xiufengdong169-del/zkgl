@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 81 个测试文件 / 403 条测试。
+- [ ] API 测试通过，当前基线为 82 个测试文件 / 406 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 48 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -47,7 +47,7 @@
 
 - [ ] 服务器为腾讯云轻量应用服务器，公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04。
 - [ ] MySQL 8.0 已安装，首次上线从空库执行 `database/init/schema.sql`，不存在数据库迁移。
-- [ ] API 由 `deploy/systemd/zkgl-api.service` 托管，监听 `127.0.0.1:3000`，`curl http://127.0.0.1:3000/healthz` 正常。
+- [ ] API 由 `deploy/systemd/zkgl-api.service` 托管，监听 `127.0.0.1:3000`，`curl http://127.0.0.1:3000/healthz` 正常，且 `curl http://127.0.0.1:3000/readyz` 能通过 MySQL 就绪检查。
 - [ ] 认证适配由 `deploy/systemd/zkgl-auth-adapter.service` 托管，监听 `127.0.0.1:3010`，`AUTH_TOKEN_VERIFIER_MODULE` 已指向服务器本地真实 verifier，不能使用 `deploy/auth/cloudbase-token-verifier.example.mjs`，`curl http://127.0.0.1:3010/healthz` 正常。
 - [ ] 正式部署前执行 `npm run verify:server-env -- /etc/zkgl/zkgl-api.env`（脚本路径 `scripts/verify-server-env.mjs`），确认服务端变量、认证 verifier、`AUTH_TRUSTED_PROXY` 和 HTTPS 证书均满足上线条件。
 - [ ] Nginx 使用 `deploy/nginx/zkgl.conf` 托管 `apps/web/dist`，通过 HTTPS 暴露站点，并通过 `auth_request` 调用本机认证适配服务。

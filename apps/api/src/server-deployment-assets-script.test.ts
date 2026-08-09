@@ -129,6 +129,7 @@ function validInputs() {
       "systemctl enable --now zkgl-api",
       "curl -fsS http://127.0.0.1:3010/healthz",
       "curl -fsS http://127.0.0.1:3000/healthz",
+      "curl -fsS http://127.0.0.1:3000/readyz",
       "systemctl list-timers 'zkgl-*'",
       "ssl_certificate ${ZKGL_TLS_CERT}",
       "ssl_certificate_key ${ZKGL_TLS_KEY}",
@@ -166,6 +167,7 @@ function validInputs() {
       "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
+      "curl http://127.0.0.1:3000/readyz",
     ].join("\n"),
     finalChecklist: [
       "deploy/systemd/zkgl-api.service",
@@ -182,6 +184,7 @@ function validInputs() {
       "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
+      "curl http://127.0.0.1:3000/readyz",
     ].join("\n"),
   };
 }

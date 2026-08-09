@@ -239,6 +239,7 @@ export function verifyServerDeploymentAssetInputs({
       "systemctl enable --now zkgl-api",
       "curl -fsS http://127.0.0.1:3010/healthz",
       "curl -fsS http://127.0.0.1:3000/healthz",
+      "curl -fsS http://127.0.0.1:3000/readyz",
       "systemctl list-timers 'zkgl-*'",
     ],
     "scripts/deploy-lighthouse-production.sh",
@@ -301,6 +302,7 @@ export function verifyServerDeploymentAssetInputs({
       "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
+      "curl http://127.0.0.1:3000/readyz",
     ],
     "docs/deployment.md",
   );
@@ -321,6 +323,7 @@ export function verifyServerDeploymentAssetInputs({
       "scripts/verify-server-env.mjs",
       "deploy/auth/cloudbase-token-verifier.example.mjs",
       "node scripts/verify-server-deployment-assets.mjs",
+      "curl http://127.0.0.1:3000/readyz",
     ],
     "docs/final-acceptance-checklist.md",
   );

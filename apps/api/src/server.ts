@@ -147,6 +147,29 @@ async function serveApi(request: IncomingMessage, response: ServerResponse) {
   jsonResponse(response, result.ok ? 200 : errorStatus(result.error.code), result);
 }
 
+async function serveReadyz(response: ServerResponse) {
+  try {
+    const pool = getPool();
+    await pool.query("SELECT 1");
+    jsonResponse(response, 200, {
+      ok: true,
+      checks: { database: "ok" },
+    });
+  } catch (error) {
+    jsonResponse(response, 503, {
+      ok: false,
+      checks: { database: "unavailable" },
+      error: {
+        code: "DATABASE_UNAVAILABLE",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Database readiness check failed",
+      },
+    });
+  }
+}
+
 export function createZkglServer() {
   return createServer(async (request, response) => {
     setCorsHeaders(request, response);
@@ -157,6 +180,10 @@ export function createZkglServer() {
     }
     if (request.method === "GET" && request.url === "/healthz") {
       jsonResponse(response, 200, { ok: true });
+      return;
+    }
+    if (request.method === "GET" && request.url === "/readyz") {
+      await serveReadyz(response);
       return;
     }
     if (request.method !== "POST" || request.url !== "/api") {

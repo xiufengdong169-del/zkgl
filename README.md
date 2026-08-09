@@ -94,6 +94,7 @@ Current production target is Tencent Cloud Lighthouse standalone server:
 - OS: Ubuntu 24.04.
 - Database: MySQL 8.0 already installed on the server.
 - API: Node.js standalone service, `npm run start -w @zkgl/api`, managed by systemd on `127.0.0.1:3000`.
+- API readiness: `/healthz` checks the process, `/readyz` checks MySQL connectivity before production deployment is considered healthy.
 - Web: `apps/web/dist` served by Nginx over HTTPS.
 - Auth adapter: `deploy/systemd/zkgl-auth-adapter.service` listens on `127.0.0.1:3010`; production must configure `AUTH_TOKEN_VERIFIER_MODULE` before enabling `AUTH_TRUSTED_PROXY=true`.
 - Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-auth-adapter.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.

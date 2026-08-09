@@ -267,6 +267,7 @@ sudo systemctl status zkgl-api
 sudo systemctl status zkgl-auth-adapter
 systemctl list-timers 'zkgl-*'
 curl http://127.0.0.1:3000/healthz
+curl http://127.0.0.1:3000/readyz
 curl http://127.0.0.1:3010/healthz
 ```
 

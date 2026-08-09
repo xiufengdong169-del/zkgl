@@ -292,7 +292,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "81 个测试文件 / 403 条测试",
+  "82 个测试文件 / 406 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -560,7 +560,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(81);
+    expect(actualApiTestFiles).toBe(82);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -637,6 +637,7 @@ describe("deployment documentation", () => {
     expect(standaloneServerAuthSource).toContain("AUTH_TRUSTED_PROXY");
     expect(standaloneServerSource).toContain("resolveServerCloudbaseUid");
     expect(standaloneServerSource).toContain("/healthz");
+    expect(standaloneServerSource).toContain("/readyz");
     expect(standaloneServerSource).toContain("maxBodyBytes");
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-api.service");
@@ -652,6 +653,10 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-demo.sh");
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-production.sh");
     expect(deploymentDoc).toContain("npm run verify:public-demo");
+    expect(deploymentDoc).toContain("curl http://127.0.0.1:3000/readyz");
+    expect(finalAcceptanceChecklist).toContain(
+      "curl http://127.0.0.1:3000/readyz",
+    );
     expect(deploymentDoc).toContain(
       "curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash",
     );
