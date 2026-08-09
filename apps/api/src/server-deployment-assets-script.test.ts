@@ -10,6 +10,7 @@ type ServerDeploymentAssetsModule = {
     exportWorkerTimer: string;
     nginxConfig: string;
     demoNginxConfig: string;
+    demoBootstrapScript: string;
     demoDeployScript: string;
     productionDeployScript: string;
     gitAttributes: string;
@@ -89,6 +90,13 @@ function validInputs() {
       "X-Robots-Tag",
       "try_files $uri $uri/ /index.html",
     ].join("\n"),
+    demoBootstrapScript: [
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "git clone --branch",
+      "git -C",
+      "scripts/deploy-lighthouse-demo.sh",
+      "sudo bash",
+    ].join("\n"),
     demoDeployScript: [
       "ZKGL_DEMO_PUBLIC_URL",
       "https://github.com/xiufengdong169-del/zkgl.git",
@@ -139,6 +147,7 @@ function validInputs() {
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
@@ -152,6 +161,7 @@ function validInputs() {
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
@@ -219,6 +229,20 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "deploy/nginx/zkgl-demo-http.conf must not proxy API traffic",
+    );
+  });
+
+  it("rejects a demo bootstrap script that does not delegate to the verified deploy script", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.demoBootstrapScript = inputs.demoBootstrapScript.replace(
+      "scripts/deploy-lighthouse-demo.sh",
+      "echo skip demo deploy",
+    );
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "scripts/bootstrap-lighthouse-demo.sh missing scripts/deploy-lighthouse-demo.sh",
     );
   });
 

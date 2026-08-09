@@ -19,6 +19,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     exportWorkerTimer,
     nginxConfig,
     demoNginxConfig,
+    demoBootstrapScript,
     demoDeployScript,
     productionDeployScript,
     gitAttributes,
@@ -33,6 +34,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     readText("deploy/systemd/zkgl-export-worker.timer"),
     readText("deploy/nginx/zkgl.conf"),
     readText("deploy/nginx/zkgl-demo-http.conf"),
+    readText("scripts/bootstrap-lighthouse-demo.sh"),
     readText("scripts/deploy-lighthouse-demo.sh"),
     readText("scripts/deploy-lighthouse-production.sh"),
     readText(".gitattributes"),
@@ -48,6 +50,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     exportWorkerTimer,
     nginxConfig,
     demoNginxConfig,
+    demoBootstrapScript,
     demoDeployScript,
     productionDeployScript,
     gitAttributes,
@@ -73,6 +76,7 @@ export function verifyServerDeploymentAssetInputs({
   exportWorkerTimer,
   nginxConfig,
   demoNginxConfig,
+  demoBootstrapScript,
   demoDeployScript,
   productionDeployScript,
   gitAttributes,
@@ -179,6 +183,17 @@ export function verifyServerDeploymentAssetInputs({
     fail("deploy/nginx/zkgl-demo-http.conf must not proxy API traffic");
   }
   includesAll(
+    demoBootstrapScript,
+    [
+      "https://github.com/xiufengdong169-del/zkgl.git",
+      "git clone --branch",
+      "git -C",
+      "scripts/deploy-lighthouse-demo.sh",
+      "sudo bash",
+    ],
+    "scripts/bootstrap-lighthouse-demo.sh",
+  );
+  includesAll(
     demoDeployScript,
     [
       "ZKGL_DEMO_PUBLIC_URL",
@@ -253,6 +268,7 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",
@@ -270,6 +286,7 @@ export function verifyServerDeploymentAssetInputs({
       "deploy/systemd/zkgl-export-worker.timer",
       "deploy/nginx/zkgl.conf",
       "deploy/nginx/zkgl-demo-http.conf",
+      "scripts/bootstrap-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-demo.sh",
       "scripts/deploy-lighthouse-production.sh",
       "node scripts/verify-server-deployment-assets.mjs",

@@ -90,6 +90,12 @@ node scripts/verify-web-dist-security.mjs
 sudo bash scripts/deploy-lighthouse-demo.sh
 ```
 
+如果服务器上还没有仓库代码，可在腾讯云轻量应用服务器的 SSH/VNC 终端直接执行一条命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash
+```
+
 该脚本会从 GitHub 拉取 `main`，以 `VITE_DEMO_MODE=true` 构建前端，并使用 `deploy/nginx/zkgl-demo-http.conf` 通过 HTTP 80 发布静态演示页。演示模式不连接生产 MySQL，不启用 `AUTH_TRUSTED_PROXY=true`，也不通过 Nginx 代理 `/api` 到业务服务；它只用于快速查看菜单、页面和样例数据。正式上线仍必须使用 HTTPS、`deploy/nginx/zkgl.conf`、`deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service` 和服务器本地 `/etc/zkgl/zkgl-api.env`。
 
 ## 计划任务
