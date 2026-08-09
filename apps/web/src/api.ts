@@ -1,5 +1,6 @@
 import type { ApiResult } from '@zkgl/shared'
 import { cloudbaseAuth } from './cloudbase'
+import { demoCallApi, demoMode } from './demo'
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 
@@ -26,6 +27,7 @@ function failureMessage<T>(result: ApiResult<T>, status: number) {
 }
 
 export async function callApi<T>(action: string, payload?: unknown): Promise<T> {
+  if (demoMode) return demoCallApi<T>(action, payload)
   const apiUrl = trustedApiBaseUrl()
   const { accessToken } = await cloudbaseAuth.getAccessToken()
   if (!accessToken) throw new Error('登录状态已失效')

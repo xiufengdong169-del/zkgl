@@ -1,0 +1,16 @@
+[Unit]
+Description=ZKGL trusted authentication adapter
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zkgl/current
+EnvironmentFile=/etc/zkgl/zkgl-api.env
+ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js
+Restart=always
+RestartSec=5
+User=zkgl
+Group=zkgl
+
+[Install]
+WantedBy=multi-user.target

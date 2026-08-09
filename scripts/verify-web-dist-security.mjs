@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+﻿import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { glob } from "node:fs/promises";
@@ -15,6 +15,9 @@ export const forbiddenPatterns = [
   /\bAPI_HOST\b/,
   /\bAPI_PORT\b/,
   /\bAPI_ALLOWED_ORIGINS\b/,
+  /\bAUTH_ADAPTER_HOST\b/,
+  /\bAUTH_ADAPTER_PORT\b/,
+  /\bAUTH_TOKEN_VERIFIER_MODULE\b/,
   /\bAUTH_TRUSTED_PROXY\b/,
   /\bBACKUP_MYSQL_DIR\b/,
   /\bBACKUP_RETENTION_DAYS\b/,

@@ -1,4 +1,4 @@
-# 操作手册与验收清单
+﻿# 操作手册与验收清单
 
 ## 登录与工作台
 
@@ -97,7 +97,7 @@
 
 ## 性能与容量现场验收
 
-AC-14 需要在生产级 CloudBase 资源、正常企业网络和基准数据量下现场执行，不以本地单元测试替代。验收前先准备或导入以下基准数据：
+AC-14 需要在腾讯云轻量应用服务器生产环境、正常企业网络和基准数据量下现场执行，不以本地单元测试替代。验收前先准备或导入以下基准数据：
 
 - 不少于 3000 个项目，覆盖项目经理、项目成员、部门范围和临时授权等数据范围。
 - 不少于 10000 份合同，覆盖履约、变更、开票、收款、保证金和结算关联数据。
@@ -114,7 +114,7 @@ AC-14 需要在生产级 CloudBase 资源、正常企业网络和基准数据量
 
 - 30 用户混合场景完成后，95% 请求满足 V2.2 性能阈值。
 - 业务数据无重复审批、无重复写入、无权限绕过。
-- 压测记录、异常截图、CloudBase 函数日志和数据库慢查询记录归档到验收材料。
+- 压测记录、异常截图、Nginx 访问日志、systemd/journal 日志和 MySQL 慢查询记录归档到验收材料。
 
 ## 备份恢复验收
 
@@ -178,9 +178,9 @@ npm audit --omit=dev
 
 当前正式部署目标为 Tencent Cloud Lighthouse 独立服务器：`193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。现场运维验收除原业务流程外，还必须确认：
 
-1. `zkgl-api` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 返回健康状态。
+1. `zkgl-api` 与 `zkgl-auth-adapter` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 和 `curl http://127.0.0.1:3010/healthz` 返回健康状态。
 2. Nginx 已通过 HTTPS 托管前端，并将 `/api` 反向代理到本机 API。
 3. 前端生产包使用正式 HTTPS `VITE_API_BASE_URL` 重新构建。
 4. 服务器环境文件仅保存在 `/etc/zkgl/zkgl-api.env`，真实数据库密码不进入 Git、文档示例或浏览器构建产物。
 5. MySQL 8.0 以空库执行 `database/init/schema.sql` 初始化；本项目仍不存在数据库迁移。
-6. 上线前必须完成受信任认证适配层，校验 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，认证适配层、Nginx 清除外部伪造头和联调验证完成后才允许改为 `true`。
+6. 上线前必须启用 `deploy/systemd/zkgl-auth-adapter.service` 并配置 `AUTH_TOKEN_VERIFIER_MODULE`；受信任认证适配层校验 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，认证适配层、Nginx 清除外部伪造头和联调验证完成后才允许改为 `true`。

@@ -38,6 +38,8 @@ type DeploymentConfigModule = {
     serverMysql: string;
     apiHost: string;
     apiPort: string;
+    authAdapterHost: string;
+    authAdapterPort: string;
     nodeVersion: string;
     functions: DeploymentInputs["cloudbaseConfig"]["functions"];
   };
@@ -54,6 +56,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     `VITE_CLOUDBASE_REGION=${expected.cloudbaseRegion}`,
     "VITE_CLOUDBASE_PUBLISHABLE_KEY=",
     "VITE_API_BASE_URL=",
+    "VITE_DEMO_MODE=",
     `DEPLOY_TARGET_HOST=${expected.serverPublicIp}`,
     `DEPLOY_TARGET_REGION=${expected.serverRegion}`,
     `DEPLOY_TARGET_OS=${expected.serverOs}`,
@@ -61,6 +64,9 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     `API_HOST=${expected.apiHost}`,
     `API_PORT=${expected.apiPort}`,
     "API_ALLOWED_ORIGINS=",
+    `AUTH_ADAPTER_HOST=${expected.authAdapterHost}`,
+    `AUTH_ADAPTER_PORT=${expected.authAdapterPort}`,
+    "AUTH_TOKEN_VERIFIER_MODULE=",
     "AUTH_TRUSTED_PROXY=false",
     "BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql",
     "BACKUP_RETENTION_DAYS=30",
@@ -81,6 +87,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     "  readonly VITE_CLOUDBASE_REGION: string",
     "  readonly VITE_CLOUDBASE_PUBLISHABLE_KEY?: string",
     "  readonly VITE_API_BASE_URL?: string",
+    "  readonly VITE_DEMO_MODE?: string",
     "}",
   ].join("\n");
 

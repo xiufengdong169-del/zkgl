@@ -17,6 +17,7 @@ const includesAll = (source, fragments, context) => {
 
 const requiredFiles = [
   "deploy/systemd/zkgl-api.service",
+  "deploy/systemd/zkgl-auth-adapter.service",
   "deploy/systemd/zkgl-reminder.service",
   "deploy/systemd/zkgl-reminder.timer",
   "deploy/systemd/zkgl-export-worker.service",
@@ -107,6 +108,9 @@ export function verifyServerPreflightInputs({
       "DEPLOY_TARGET_MYSQL=8.0",
       "API_HOST=127.0.0.1",
       "API_PORT=3000",
+      "AUTH_ADAPTER_HOST=127.0.0.1",
+      "AUTH_ADAPTER_PORT=3010",
+      "AUTH_TOKEN_VERIFIER_MODULE=",
       "AUTH_TRUSTED_PROXY=false",
       "BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql",
       "BACKUP_RETENTION_DAYS=30",
@@ -134,6 +138,7 @@ export function verifyServerPreflightInputs({
         "systemd",
         "Nginx",
         "AUTH_TRUSTED_PROXY",
+        "AUTH_TOKEN_VERIFIER_MODULE",
         "scripts/create-mysql-backup.mjs",
         "scripts/restore-mysql-backup.mjs",
         "node scripts/verify-server-preflight.mjs",

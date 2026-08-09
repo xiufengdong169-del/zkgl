@@ -12,6 +12,8 @@ export const expected = {
   serverMysql: "8.0",
   apiHost: "127.0.0.1",
   apiPort: "3000",
+  authAdapterHost: "127.0.0.1",
+  authAdapterPort: "3010",
   nodeVersion: "22.12.0",
   functions: [
     {
@@ -47,6 +49,7 @@ export const browserVariables = [
   "VITE_CLOUDBASE_REGION",
   "VITE_CLOUDBASE_PUBLISHABLE_KEY",
   "VITE_API_BASE_URL",
+  "VITE_DEMO_MODE",
 ];
 export const serverVariables = [
   "DEPLOY_TARGET_HOST",
@@ -56,6 +59,9 @@ export const serverVariables = [
   "API_HOST",
   "API_PORT",
   "API_ALLOWED_ORIGINS",
+  "AUTH_ADAPTER_HOST",
+  "AUTH_ADAPTER_PORT",
+  "AUTH_TOKEN_VERIFIER_MODULE",
   "AUTH_TRUSTED_PROXY",
   "BACKUP_MYSQL_DIR",
   "BACKUP_RETENTION_DAYS",
@@ -148,12 +154,6 @@ export function verifyDeploymentConfigInputs({
     [expectedConfig.cloudbaseEnvId, expectedConfig.cloudbaseRegion],
     "docs/deployment.md",
   );
-  includesAll(
-    finalChecklist,
-    [expectedConfig.cloudbaseEnvId],
-    "docs/final-acceptance-checklist.md",
-  );
-
   for (const variable of browserVariables) {
     if (!new RegExp(`^${variable}=`, "m").test(envExample)) {
       fail(`.env.example missing browser variable ${variable}`);
@@ -193,6 +193,15 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "API_PORT") !== expectedConfig.apiPort) {
     fail(".env.example API_PORT mismatch");
+  }
+  if (envValue(envExample, "AUTH_ADAPTER_HOST") !== expectedConfig.authAdapterHost) {
+    fail(".env.example AUTH_ADAPTER_HOST mismatch");
+  }
+  if (envValue(envExample, "AUTH_ADAPTER_PORT") !== expectedConfig.authAdapterPort) {
+    fail(".env.example AUTH_ADAPTER_PORT mismatch");
+  }
+  if (envValue(envExample, "AUTH_TOKEN_VERIFIER_MODULE")) {
+    fail(".env.example AUTH_TOKEN_VERIFIER_MODULE must stay blank");
   }
   if (envValue(envExample, "AUTH_TRUSTED_PROXY") !== "false") {
     fail(".env.example AUTH_TRUSTED_PROXY must default to false");

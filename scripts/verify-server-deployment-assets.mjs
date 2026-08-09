@@ -12,6 +12,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
   const readText = (path) => readFile(resolve(root, path), "utf8");
   const [
     apiService,
+    authAdapterService,
     reminderService,
     reminderTimer,
     exportWorkerService,
@@ -21,6 +22,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
     finalChecklist,
   ] = await Promise.all([
     readText("deploy/systemd/zkgl-api.service"),
+    readText("deploy/systemd/zkgl-auth-adapter.service"),
     readText("deploy/systemd/zkgl-reminder.service"),
     readText("deploy/systemd/zkgl-reminder.timer"),
     readText("deploy/systemd/zkgl-export-worker.service"),
@@ -31,6 +33,7 @@ export async function readServerDeploymentAssets(root = defaultRoot) {
   ]);
   return {
     apiService,
+    authAdapterService,
     reminderService,
     reminderTimer,
     exportWorkerService,
@@ -49,6 +52,7 @@ const includesAll = (source, fragments, context) => {
 
 export function verifyServerDeploymentAssetInputs({
   apiService,
+  authAdapterService,
   reminderService,
   reminderTimer,
   exportWorkerService,
@@ -68,6 +72,18 @@ export function verifyServerDeploymentAssetInputs({
       "After=network.target mysql.service",
     ],
     "deploy/systemd/zkgl-api.service",
+  );
+  includesAll(
+    authAdapterService,
+    [
+      "WorkingDirectory=/opt/zkgl/current",
+      "EnvironmentFile=/etc/zkgl/zkgl-api.env",
+      "ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js",
+      "Restart=always",
+      "User=zkgl",
+      "After=network.target",
+    ],
+    "deploy/systemd/zkgl-auth-adapter.service",
   );
   includesAll(
     reminderService,
@@ -135,6 +151,7 @@ export function verifyServerDeploymentAssetInputs({
     deploymentDoc,
     [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/systemd/zkgl-reminder.service",
       "deploy/systemd/zkgl-reminder.timer",
       "deploy/systemd/zkgl-export-worker.service",
@@ -148,6 +165,7 @@ export function verifyServerDeploymentAssetInputs({
     finalChecklist,
     [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/systemd/zkgl-reminder.service",
       "deploy/systemd/zkgl-reminder.timer",
       "deploy/systemd/zkgl-export-worker.service",

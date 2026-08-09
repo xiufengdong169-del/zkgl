@@ -62,6 +62,25 @@ describe("callApi", () => {
     expect(body.requestId).toEqual(expect.any(String));
   });
 
+  it("演示模式下使用本地样例数据且不请求真实后端", async () => {
+    vi.stubEnv("VITE_DEMO_MODE", "true");
+    vi.stubEnv("VITE_API_BASE_URL", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await import("./api");
+    await expect(callApi("session.get")).resolves.toMatchObject({
+      id: "demo-admin",
+      enabled: true,
+    });
+    await expect(callApi("report.dashboard")).resolves.toMatchObject({
+      projectCount: 3,
+    });
+
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("未取得登录令牌时不发起请求", async () => {
     cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "" });
     const fetchMock = vi.fn();

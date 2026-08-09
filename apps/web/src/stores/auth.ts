@@ -3,6 +3,7 @@ import type { SessionUser } from '@zkgl/shared'
 
 import { cloudbaseAuth } from '../cloudbase'
 import { callApi } from '../api'
+import { demoMode, demoUser } from '../demo'
 
 interface AuthState {
   loading: boolean
@@ -17,6 +18,12 @@ export const useAuthStore = defineStore('auth', {
     async signIn(username: string, password: string) {
       this.loading = true
       this.error = null
+      if (demoMode) {
+        this.user = demoUser
+        this.authenticated = true
+        this.loading = false
+        return
+      }
       let cloudbaseSignedIn = false
       try {
         const { error } = await cloudbaseAuth.signInWithPassword({ username, password })
@@ -35,12 +42,22 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async signOut() {
+      if (demoMode) {
+        this.authenticated = false
+        this.user = null
+        return
+      }
       await cloudbaseAuth.signOut()
       this.authenticated = false
       this.user = null
     },
     async ensureSession() {
       if (this.user && this.authenticated) return this.user
+      if (demoMode) {
+        this.user = demoUser
+        this.authenticated = true
+        return this.user
+      }
       try {
         this.user = await callApi<SessionUser>('session.get')
         this.authenticated = true

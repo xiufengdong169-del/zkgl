@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+﻿import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -155,6 +155,7 @@ const browserEnvironmentVariables = [
   "VITE_CLOUDBASE_REGION",
   "VITE_CLOUDBASE_PUBLISHABLE_KEY",
   "VITE_API_BASE_URL",
+  "VITE_DEMO_MODE",
 ];
 const serverEnvironmentVariables = [
   "DEPLOY_TARGET_HOST",
@@ -164,6 +165,9 @@ const serverEnvironmentVariables = [
   "API_HOST",
   "API_PORT",
   "API_ALLOWED_ORIGINS",
+  "AUTH_ADAPTER_HOST",
+  "AUTH_ADAPTER_PORT",
+  "AUTH_TOKEN_VERIFIER_MODULE",
   "AUTH_TRUSTED_PROXY",
   "BACKUP_MYSQL_DIR",
   "BACKUP_RETENTION_DAYS",
@@ -202,22 +206,21 @@ const frontendDeploymentFragments = [
   "VITE_API_BASE_URL",
   "npm run build -w @zkgl/web",
   "node scripts/verify-web-dist-security.mjs",
-  "tcb hosting deploy apps/web/dist / --yes",
-  "CloudBase 静态网站托管",
+  "apps/web/dist",
+  "Nginx",
   "HTTPS",
-  "Web 安全域名",
   "session.get",
 ];
 const cloudbaseCliPrerequisiteFragments = [
-  "CloudBase CLI",
+  "历史 CloudBase 函数包（非主部署）",
+  "正式上线不再部署到 CloudBase",
   "tcb --version",
   "tcb login",
   "tcb fn deploy zkgl-api --yes",
-  "tcb hosting deploy apps/web/dist / --yes",
 ];
 const onsitePerformanceAcceptanceFragments = [
   "AC-14",
-  "生产级 CloudBase",
+  "腾讯云轻量应用服务器生产环境",
   "基准数据量",
   "3000 个项目",
   "10000 份合同",
@@ -278,8 +281,8 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "77 个测试文件 / 381 条测试",
-  "9 个测试文件 / 44 条测试",
+  "79 个测试文件 / 390 条测试",
+  "9 个测试文件 / 46 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "git status --short --branch",
@@ -289,13 +292,15 @@ const finalAcceptanceChecklistFragments = [
   "database/init/schema.sql",
   "不存在数据库迁移",
   "上线初始化资料清单",
-  "cloudbase-d7gc2b32cd4196059",
-  "tcb --version",
+  "193.112.79.220",
+  "Ubuntu 24.04",
+  "MySQL 8.0",
   "VITE_API_BASE_URL",
   "zkglDailyReminder",
   "zkglExportWorker",
   "apps/web/dist",
-  "CloudBase 静态网站托管",
+  "Nginx",
+  "deploy/systemd/zkgl-auth-adapter.service",
   "session.get",
   "内部账号停用",
   "敏感字段",
@@ -309,8 +314,9 @@ const finalAcceptanceChecklistFragments = [
   "docs/performance-acceptance-template.md",
   "docs/backup-recovery-acceptance-template.md",
   "P95 统计",
-  "CloudBase 函数日志",
-  "数据库慢查询记录",
+  "Nginx 访问日志",
+  "systemd/journal 日志",
+  "MySQL 慢查询记录",
   "备份恢复",
   "每日自动备份",
   "每半年",
@@ -318,7 +324,10 @@ const finalAcceptanceChecklistFragments = [
 ];
 const performanceAcceptanceTemplateFragments = [
   "AC-14 现场性能验收记录模板",
-  "生产级 CloudBase",
+  "腾讯云轻量应用服务器生产环境",
+  "193.112.79.220",
+  "Ubuntu 24.04",
+  "MySQL 8.0",
   "基准数据量确认",
   "不少于 3000 个",
   "不少于 10000 份",
@@ -330,7 +339,8 @@ const performanceAcceptanceTemplateFragments = [
   "≤5 秒",
   "越权查询/保存/审批",
   "重复审批",
-  "CloudBase 函数日志",
+  "Nginx 访问日志",
+  "systemd/journal 日志",
   "数据库慢查询记录",
   "验收会议纪要或签字页",
   "是否通过 AC-14",
@@ -362,7 +372,9 @@ function documentedTestFileCount(source: string, label: "API" | "Web") {
 }
 const backupRecoveryAcceptanceTemplateFragments = [
   "备份恢复验收记录模板",
-  "cloudbase-d7gc2b32cd4196059",
+  "193.112.79.220",
+  "Ubuntu 24.04",
+  "MySQL 8.0",
   "生产环境是否被覆盖",
   "deploy/systemd/zkgl-mysql-backup.timer",
   "scripts/create-mysql-backup.mjs",
@@ -522,7 +534,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(77);
+    expect(actualApiTestFiles).toBe(79);
     expect(actualWebTestFiles).toBe(9);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -581,6 +593,7 @@ describe("deployment documentation", () => {
       "127.0.0.1:3000",
       "X-ZKGL-CloudBase-UID",
       "Authorization: Bearer",
+      "AUTH_TOKEN_VERIFIER_MODULE",
       "AUTH_TRUSTED_PROXY",
     ]) {
       expect(deploymentDoc).toContain(fragment);
@@ -601,10 +614,12 @@ describe("deployment documentation", () => {
     expect(standaloneServerSource).toContain("maxBodyBytes");
     expect(standaloneServerSource).toContain("API_ALLOWED_ORIGINS");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-api.service");
+    expect(deploymentDoc).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(deploymentDoc).toContain("deploy/nginx/zkgl.conf");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-api.service");
+    expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
@@ -613,6 +628,7 @@ describe("deployment documentation", () => {
       "proxy_set_header X-ZKGL-CloudBase-UID \"\"",
     );
     expect(serverDeploymentAssetVerifier).toContain("auth_request /_zkgl_auth");
+    expect(serverDeploymentAssetVerifier).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(packageJson.scripts.verify).toContain(
       "node scripts/verify-server-deployment-assets.mjs",
     );
@@ -721,16 +737,12 @@ describe("deployment documentation", () => {
       `VITE_CLOUDBASE_REGION=${expectedCloudbaseRegion}`,
     );
 
-    for (const doc of [
-      deploymentDoc,
-      performanceAcceptanceTemplate,
-      finalAcceptanceChecklist,
-    ]) {
+    for (const doc of [deploymentDoc]) {
       expect(doc).toContain(expectedCloudbaseEnvId);
     }
     expect(deploymentDoc).toContain(expectedCloudbaseRegion);
-    expect(deploymentDoc).toContain("广州南沙");
-    expect(finalAcceptanceChecklist).toContain("广州南沙");
+    expect(deploymentDoc).toContain("广州");
+    expect(finalAcceptanceChecklist).toContain("广州");
   });
 
   it("deployment docs and verification cover CloudBase function config", () => {

@@ -36,6 +36,7 @@ const user = (): SessionUser => ({
 describe("auth store", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.unstubAllEnvs();
     authMocks.signInWithPassword.mockReset();
     authMocks.signOut.mockReset();
     authMocks.callApi.mockReset();
@@ -58,6 +59,21 @@ describe("auth store", () => {
     expect(auth.error).toBeNull();
     expect(auth.authenticated).toBe(true);
     expect(auth.user).toEqual(currentUser);
+  });
+
+  it("演示模式下自动使用本地演示管理员且不调用真实登录", async () => {
+    vi.stubEnv("VITE_DEMO_MODE", "true");
+    vi.resetModules();
+    const { useAuthStore: useDemoAuthStore } = await import("./auth");
+    const auth = useDemoAuthStore();
+
+    await auth.signIn("demo", "demo");
+
+    expect(auth.authenticated).toBe(true);
+    expect(auth.user?.id).toBe("demo-admin");
+    expect(auth.user?.permissionCodes).toContain("system.admin");
+    expect(authMocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(authMocks.callApi).not.toHaveBeenCalled();
   });
 
   it("登录失败时清理认证状态并保留错误消息", async () => {

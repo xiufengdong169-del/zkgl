@@ -2,23 +2,23 @@
 
 ## 新建系统原则
 
-众肯科技项目全过程管理系统全部为新开发程序。前端、云函数 API、数据库结构、权限体系、审批模型、文件管理、报表、提醒与导出任务均从零建设；不接续旧系统，不复用旧程序，不兼容旧接口，也不迁移历史数据库或存量数据。
+众肯科技项目全过程管理系统全部为新开发程序。前端、Node.js API、数据库结构、权限体系、审批模型、文件管理、报表、提醒与导出任务均从零建设；不接续旧系统，不复用旧程序，不兼容旧接口，也不迁移历史数据库或存量数据。
 
 ## 总体组成
 
 - 前端：Vue 3、TypeScript、Vite，部署为浏览器应用。
-- API：CloudBase 云函数承载统一业务入口，使用 Node.js + TypeScript。
-- 数据库：CloudBase MySQL，首次上线从空库执行 `database/init/schema.sql`。
-- 文件：CloudBase 存储保存附件和后台导出文件，业务侧保存文件对象、版本和访问记录。
+- API：独立服务器 Node.js 服务承载统一业务入口，使用 Node.js + TypeScript，由 systemd 托管。
+- 数据库：腾讯云轻量应用服务器本机 MySQL 8.0，首次上线从空库执行 `database/init/schema.sql`。
+- 文件：业务侧保存文件对象、版本和访问记录；生产附件存储或备份策略按服务器上线方案落实。
 - 定时任务：`zkgl-reminder` 生成临期与异常提醒，`zkgl-export-worker` 处理后台导出任务。
 
 ## 安全边界
 
-浏览器仅使用 CloudBase 环境 ID、地域、Publishable Key 和 API 访问地址完成登录与请求。浏览器不得接触 MySQL 密码、SecretKey、服务端 API Key 或任何数据库连接参数。
+浏览器仅使用身份认证所需的 CloudBase 公开配置、Publishable Key 和正式 HTTPS API 访问地址完成登录与请求。浏览器不得接触 MySQL 密码、SecretKey、服务端 API Key 或任何数据库连接参数。
 
 账号登录统一交由 CloudBase 身份服务完成，业务系统不接收、不保存、不打印用户密码。邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口；若未来确需启用，必须先完成独立安全评审、验证码频控、审计日志和自动化回归测试。
 
-云函数 API 负责二次校验：
+独立服务器 API 负责二次校验：
 
 1. CloudBase 会话有效。
 2. `cloudbase_uid` 唯一映射到启用状态的内部用户。

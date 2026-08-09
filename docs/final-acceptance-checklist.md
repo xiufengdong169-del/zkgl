@@ -1,4 +1,4 @@
-# 最终交付验收总清单
+﻿# 最终交付验收总清单
 
 本文档用于项目最终交付前逐项复核。除现场性能、生产部署、备份恢复演练等必须在真实环境完成的事项外，其余项目应先在本地执行 `npm run verify:acceptance` 并确认通过。
 
@@ -7,7 +7,7 @@
 - [ ] Markdown 需求基线为 `需求评审修订基线_V2.2.md`，且作为当前唯一 Markdown 开发与验收基线。
 - [ ] Word 版需求说明书为 `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`，并与 Markdown 基线保持“全新开发、无数据库迁移、空库初始化、当前模块前缀”一致。
 - [ ] 架构、安全边界、事务与审计原则见 `docs/architecture.md`。
-- [ ] CloudBase 部署、空库初始化、账号开通和上线初始化资料清单见 `docs/deployment.md`。
+- [ ] 腾讯云轻量应用服务器部署、空库初始化、账号开通和上线初始化资料清单见 `docs/deployment.md`。
 - [ ] 操作手册、主流程验收、现场性能验收和备份恢复验收见 `docs/operations-acceptance.md`。
 - [ ] AC-14 现场性能验收记录模板见 `docs/performance-acceptance-template.md`。
 - [ ] 备份恢复验收记录模板见 `docs/backup-recovery-acceptance-template.md`。
@@ -16,17 +16,17 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 77 个测试文件 / 381 条测试。
-- [ ] Web 测试通过，当前基线为 9 个测试文件 / 44 条测试。
+- [ ] API 测试通过，当前基线为 79 个测试文件 / 390 条测试。
+- [ ] Web 测试通过，当前基线为 9 个测试文件 / 46 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
-- [ ] `npm run verify:deployment-config` 通过，CloudBase 环境、前后端环境变量、函数部署配置和 CI Node 版本一致性校验通过。
+- [ ] `npm run verify:deployment-config` 通过，腾讯云轻量服务器、前后端环境变量、历史函数包配置和 CI Node 版本一致性校验通过。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
 - [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
-- [ ] CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过。
+- [ ] 历史 CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过；它们不作为当前生产主部署口径。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 
 ## 3. GitHub 版本管理
@@ -43,25 +43,24 @@
 - [ ] 基础角色、权限、审批模板、岗位、编号规则、系统参数和敏感字段授权已由初始化脚本提供。
 - [ ] 上线初始化资料清单已准备：部门、人员、CloudBase UID、角色分配、审批岗位任职、审批金额阈值、编号规则、系统参数和验收演示账号。
 
-## 5. CloudBase 部署
+## 5. 腾讯云轻量应用服务器部署
 
-- [ ] CloudBase 环境 ID 为 `cloudbase-d7gc2b32cd4196059`，地域为广州南沙。
-- [ ] 部署机器已安装 CloudBase CLI，且 `tcb --version` 能正常输出版本号。
-- [ ] 已开启用户名密码登录，且已配置 Web 安全域名。
-- [ ] 登录安全策略已设置：首次登录强制修改初始密码，连续失败 5 次后锁定 15 分钟。
-- [ ] 邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口。
-- [ ] 云函数环境变量已配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`，且未提交到 Git。
-- [ ] 仅 `zkgl-api` 配置客户端 HTTP 访问路径，并将完整 HTTPS 地址写入前端 `VITE_API_BASE_URL`。
-- [ ] `zkgl-reminder` 和 `zkgl-export-worker` 不配置客户端 HTTP 访问路径。
-- [ ] 定时触发器名称分别为 `zkglDailyReminder` 和 `zkglExportWorker`。
-- [ ] 前端在 `VITE_API_BASE_URL` 设置为 `zkgl-api` HTTPS 访问地址后重新构建。
-- [ ] `apps/web/dist` 已发布到 CloudBase 静态网站托管，且 HTTPS、Web 安全域名、登录跳转和 `session.get` API 请求验证成功。
+- [ ] 服务器为腾讯云轻量应用服务器，公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04。
+- [ ] MySQL 8.0 已安装，首次上线从空库执行 `database/init/schema.sql`，不存在数据库迁移。
+- [ ] API 由 `deploy/systemd/zkgl-api.service` 托管，监听 `127.0.0.1:3000`，`curl http://127.0.0.1:3000/healthz` 正常。
+- [ ] 认证适配由 `deploy/systemd/zkgl-auth-adapter.service` 托管，监听 `127.0.0.1:3010`，`AUTH_TOKEN_VERIFIER_MODULE` 已配置，`curl http://127.0.0.1:3010/healthz` 正常。
+- [ ] Nginx 使用 `deploy/nginx/zkgl.conf` 托管 `apps/web/dist`，通过 HTTPS 暴露站点，并通过 `auth_request` 调用本机认证适配服务。
+- [ ] `/api` 仅由 Nginx 反向代理到 `127.0.0.1:3000/api`；外部伪造的 `X-ZKGL-CloudBase-UID` 被清除，业务 API 不接收浏览器直传 UID。
+- [ ] `deploy/systemd/zkgl-reminder.timer` 每日 08:00 执行提醒刷新；历史触发器名称为 `zkglDailyReminder`。
+- [ ] `deploy/systemd/zkgl-export-worker.timer` 每 5 分钟执行导出 worker；历史触发器名称为 `zkglExportWorker`。
+- [ ] `deploy/systemd/zkgl-mysql-backup.timer` 每日 02:30 执行 MySQL 备份。
+- [ ] 前端在正式 HTTPS `VITE_API_BASE_URL` 下重新构建，`apps/web/dist` 已由 Nginx 发布，且登录跳转和 `session.get` API 请求验证成功。
 
 ## 6. 账号、权限与审计
 
 - [ ] CloudBase UID 与内部账号一对一映射。
 - [ ] 业务系统不接收、不保存、不打印用户密码。
-- [ ] 邮箱验证码找回密码默认关闭，前端无入口、后端无找回密码动作。
+- [ ] 邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口，前端无入口、后端无找回密码动作。
 - [ ] 内部账号停用后，旧会话访问业务 API 被拒绝。
 - [ ] 无权限用户不能进入对应菜单，后端也拒绝对应业务动作。
 - [ ] 项目、投标、合同、财务、交付、结算、文件和报表按统一数据范围校验。
@@ -84,9 +83,9 @@
 ## 8. 结果型验收用例
 
 - [ ] AC-01 至 AC-15 均按 `docs/acceptance-traceability.md` 完成自动化或现场验收。
-- [ ] AC-14 现场性能验收在生产级 CloudBase 资源、正常企业网络和基准数据量下执行。
+- [ ] AC-14 现场性能验收在腾讯云轻量应用服务器生产环境、正常企业网络和基准数据量下执行。
 - [ ] 30 用户混合查询、保存、提交和审批后，95% 请求满足 V2.2 性能阈值。
-- [ ] `docs/performance-acceptance-template.md` 已填写并归档压测原始记录、P95 统计、错误明细、CloudBase 函数日志和数据库慢查询记录。
+- [ ] `docs/performance-acceptance-template.md` 已填写并归档压测原始记录、P95 统计、错误明细、Nginx 访问日志、systemd/journal 日志和 MySQL 慢查询记录。
 - [ ] 并发审批无重复审批记录，越权查询、保存和审批被拒绝并留下审计日志。
 
 ## 9. 备份恢复与运维
@@ -113,9 +112,9 @@
 - [ ] 操作系统为 Ubuntu 24.04，数据库为服务器本机 MySQL 8.0。
 - [ ] API 使用 `npm run start -w @zkgl/api` 启动，由 systemd 托管，监听 `127.0.0.1:3000`。
 - [ ] Nginx 提供 HTTPS、静态前端托管和 `/api` 反向代理。
-- [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-reminder.service`、`deploy/systemd/zkgl-reminder.timer`、`deploy/systemd/zkgl-export-worker.service`、`deploy/systemd/zkgl-export-worker.timer`、`deploy/systemd/zkgl-mysql-backup.service`、`deploy/systemd/zkgl-mysql-backup.timer`、`deploy/nginx/zkgl.conf` 作为上线基线。
+- [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service`、`deploy/systemd/zkgl-reminder.service`、`deploy/systemd/zkgl-reminder.timer`、`deploy/systemd/zkgl-export-worker.service`、`deploy/systemd/zkgl-export-worker.timer`、`deploy/systemd/zkgl-mysql-backup.service`、`deploy/systemd/zkgl-mysql-backup.timer`、`deploy/nginx/zkgl.conf` 作为上线基线。
 - [ ] `VITE_API_BASE_URL` 已配置为生产 HTTPS API 地址后重新构建前端。
 - [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库。
-- [ ] 上线前已接入受信任认证适配层，校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。
+- [ ] 上线前已启用 `deploy/systemd/zkgl-auth-adapter.service`，并配置 `AUTH_TOKEN_VERIFIER_MODULE`；认证适配层校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。
 - [ ] CloudBase 函数包仅作为历史交付包和可回退适配保留，不再作为主部署验收口径。
 

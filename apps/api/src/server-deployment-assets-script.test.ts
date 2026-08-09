@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 type ServerDeploymentAssetsModule = {
   verifyServerDeploymentAssetInputs(inputs: {
     apiService: string;
+    authAdapterService: string;
     reminderService: string;
     reminderTimer: string;
     exportWorkerService: string;
@@ -25,6 +26,14 @@ function validInputs() {
       "WorkingDirectory=/opt/zkgl/current",
       "EnvironmentFile=/etc/zkgl/zkgl-api.env",
       "ExecStart=/usr/bin/npm run start -w @zkgl/api",
+      "Restart=always",
+      "User=zkgl",
+    ].join("\n"),
+    authAdapterService: [
+      "After=network.target",
+      "WorkingDirectory=/opt/zkgl/current",
+      "EnvironmentFile=/etc/zkgl/zkgl-api.env",
+      "ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js",
       "Restart=always",
       "User=zkgl",
     ].join("\n"),
@@ -72,6 +81,7 @@ function validInputs() {
     ].join("\n"),
     deploymentDoc: [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/systemd/zkgl-reminder.service",
       "deploy/systemd/zkgl-reminder.timer",
       "deploy/systemd/zkgl-export-worker.service",
@@ -81,6 +91,7 @@ function validInputs() {
     ].join("\n"),
     finalChecklist: [
       "deploy/systemd/zkgl-api.service",
+      "deploy/systemd/zkgl-auth-adapter.service",
       "deploy/systemd/zkgl-reminder.service",
       "deploy/systemd/zkgl-reminder.timer",
       "deploy/systemd/zkgl-export-worker.service",
@@ -126,6 +137,20 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "deploy/systemd/zkgl-api.service missing EnvironmentFile=/etc/zkgl/zkgl-api.env",
+    );
+  });
+
+  it("rejects an auth adapter service that does not run the verifier boundary", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.authAdapterService = inputs.authAdapterService.replace(
+      "ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js",
+      "ExecStart=/usr/bin/node apps/api/dist/server.js",
+    );
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "deploy/systemd/zkgl-auth-adapter.service missing ExecStart=/usr/bin/node apps/api/dist/auth-adapter-cli.js",
     );
   });
 

@@ -1,15 +1,15 @@
-# CloudBase 部署说明
+﻿# 腾讯云轻量应用服务器部署说明
 
 ## 前置条件
 
-1. CloudBase 环境：`cloudbase-d7gc2b32cd4196059`，地域为广州南沙。
-2. 在 CloudBase 控制台开启用户名密码登录，并配置 Web 安全域名。
-3. 登录安全策略必须设置为：首次登录强制修改初始密码；连续失败 5 次后锁定 15 分钟。
-4. 邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口；如后续启用，必须先补充验证码频控、审计日志、安全评审和自动化测试后再部署。
-5. 在云函数环境变量中配置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`CLOUDBASE_ENV_ID`。这些值不得提交到 Git。
-6. 从空 MySQL 数据库执行 `database/init/schema.sql`，再按项目方名单维护部门、人员、内部用户、角色和授权。
-7. 当前新开发阶段不存在数据库迁移步骤，也不执行历史数据导入或旧系统兼容脚本。
-8. 部署机器已安装 CloudBase CLI，且执行 `tcb --version` 能正常输出版本号；如命令不可用，应先完成 CLI 安装、登录和权限授权后再执行部署命令。
+1. 正式运行环境为腾讯云轻量应用服务器：公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04。
+2. 服务器已安装 MySQL 8.0；首次上线从空 MySQL 数据库执行 `database/init/schema.sql`。
+3. 当前新开发阶段不存在数据库迁移步骤，也不执行历史数据导入或旧系统兼容脚本。
+4. API、认证适配、提醒、导出和备份均由 systemd 托管；Nginx 对外提供 HTTPS、静态前端和 `/api` 反向代理。
+5. 服务器本地环境文件 `/etc/zkgl/zkgl-api.env` 保存真实数据库密码、认证 verifier 路径和服务端变量，不得提交到 Git。
+6. CloudBase 仅作为现阶段身份认证来源和 UID 映射来源；不得再作为生产主部署平台描述。
+7. 登录安全策略必须设置为：首次登录强制修改初始密码；连续失败 5 次后锁定 15 分钟。
+8. 邮箱验证码找回密码默认关闭，本期不暴露找回密码业务接口；如后续启用，必须先补充验证码频控、审计日志、安全评审和自动化测试后再部署。
 
 ## 上线初始化资料清单
 
@@ -51,10 +51,12 @@ npm run verify:acceptance
 
 上述目录是构建产物，不纳入版本管理。
 
-`npm run verify:deployment-config` 会校验 CloudBase 环境 ID、地域、前后端环境变量、函数部署配置和 GitHub Actions Node 版本一致性。
+`npm run verify:deployment-config` 会校验腾讯云轻量服务器参数、前后端环境变量、历史函数包配置和 GitHub Actions Node 版本一致性。
 `node scripts/verify-cloudbase-function-packages.mjs` 会同时校验三套函数包和 `cloudbaserc.json` 中的函数名、目录、`index.main` handler、Nodejs18.15 runtime、超时时间、内存规格、依赖安装开关和定时触发器配置。
 
-## 云函数部署
+## 历史 CloudBase 函数包（非主部署）
+
+正式上线不再部署到 CloudBase。下列命令仅用于校验历史交付包和回退适配资产，不能作为当前生产发布流程：
 
 ```powershell
 tcb --version
@@ -64,29 +66,29 @@ tcb fn deploy zkgl-reminder --yes
 tcb fn deploy zkgl-export-worker --yes
 ```
 
-只为 `zkgl-api` 配置客户端 HTTP 访问路径，并将完整 HTTPS 地址写入前端构建变量 `VITE_API_BASE_URL`。不要为 `zkgl-reminder` 和 `zkgl-export-worker` 配置客户端 HTTP 访问路径。
+如确需验证历史函数包，只能在隔离环境中执行；当前生产验收以腾讯云轻量应用服务器、systemd、Nginx 和 MySQL 8.0 为准。
 
 ## 前端发布
 
-前端必须在 `zkgl-api` HTTPS 访问地址确认后重新构建，避免浏览器产物中缺少 API 地址或使用不受信任协议。
+前端必须在正式域名和 `/api` 反向代理地址确认后重新构建，避免浏览器产物中缺少 API 地址或使用不受信任协议。
 
 ```powershell
 $env:VITE_CLOUDBASE_ENV_ID="cloudbase-d7gc2b32cd4196059"
 $env:VITE_CLOUDBASE_REGION="ap-guangzhou"
-$env:VITE_API_BASE_URL="https://<zkgl-api-http-url>"
+$env:VITE_API_BASE_URL="https://正式域名/api"
 npm run build -w @zkgl/web
 node scripts/verify-web-dist-security.mjs
-tcb hosting deploy apps/web/dist / --yes
 ```
 
-发布后应在 CloudBase 静态网站托管控制台核对访问域名、HTTPS 状态、Web 安全域名、首页加载、登录跳转和 API 请求地址。若 API 地址调整，必须重新设置 `VITE_API_BASE_URL` 并重新构建前端。
+构建后的 `apps/web/dist` 由 Nginx 静态站点托管。发布后应核对访问域名、HTTPS 状态、首页加载、登录跳转和 `session.get` API 请求地址。若 API 地址调整，必须重新设置 `VITE_API_BASE_URL` 并重新构建前端。
 
-## 定时触发器
+## 计划任务
 
-- `zkgl-reminder`：触发器名称必须为 `zkglDailyReminder`，建议每日 08:00 执行，CloudBase 七段 Cron 示例：`0 0 8 * * * *`。
-- `zkgl-export-worker`：触发器名称必须为 `zkglExportWorker`，建议每 5 分钟执行一次，七段 Cron 示例：`0 */5 * * * * *`。
+- `zkgl-reminder.timer`：每日 08:00 执行提醒刷新，历史 CloudBase 触发器名称为 `zkglDailyReminder`。
+- `zkgl-export-worker.timer`：每 5 分钟执行后台导出 worker，历史 CloudBase 触发器名称为 `zkglExportWorker`。
+- `zkgl-mysql-backup.timer`：每日 02:30 执行 MySQL 备份。
 
-部署后应在控制台核对触发器名称、时区、最近执行日志和函数权限控制。
+部署后应通过 `systemctl list-timers 'zkgl-*'`、`journalctl` 和业务日志核对最近执行状态。
 
 ## 上线验收检查
 
@@ -103,7 +105,7 @@ tcb hosting deploy apps/web/dist / --yes
 
 ## 2026-08-02 部署环境变更：腾讯云轻量服务器
 
-正式部署目标已从 CloudBase 主部署调整为独立服务器部署：
+正式部署目标已调整为独立服务器部署：
 
 - 云资源：Tencent Cloud Lighthouse，4 核 4G，广州。
 - 公网 IP：`193.112.79.220`。
@@ -142,6 +144,9 @@ DEPLOY_TARGET_MYSQL=8.0
 API_HOST=127.0.0.1
 API_PORT=3000
 API_ALLOWED_ORIGINS=https://正式域名
+AUTH_ADAPTER_HOST=127.0.0.1
+AUTH_ADAPTER_PORT=3010
+AUTH_TOKEN_VERIFIER_MODULE=
 AUTH_TRUSTED_PROXY=false
 BACKUP_MYSQL_DIR=/var/backups/zkgl/mysql
 BACKUP_RETENTION_DAYS=30
@@ -176,6 +181,7 @@ mysql -u root -p zkgl < database/init/schema.sql
 推荐以仓库模板创建 systemd 服务和定时器：
 
 - `deploy/systemd/zkgl-api.service`：API 常驻服务。
+- `deploy/systemd/zkgl-auth-adapter.service`：受信任认证适配服务，监听 `127.0.0.1:3010`，由 Nginx `auth_request` 内部调用。
 - `deploy/systemd/zkgl-reminder.service`：提醒刷新一次性任务。
 - `deploy/systemd/zkgl-reminder.timer`：每日 08:00 触发提醒刷新。
 - `deploy/systemd/zkgl-export-worker.service`：后台导出一次性任务。
@@ -208,14 +214,23 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
+sudo systemctl enable --now zkgl-auth-adapter
 sudo systemctl enable --now zkgl-api
 sudo systemctl enable --now zkgl-reminder.timer
 sudo systemctl enable --now zkgl-export-worker.timer
 sudo systemctl enable --now zkgl-mysql-backup.timer
 sudo systemctl status zkgl-api
+sudo systemctl status zkgl-auth-adapter
 systemctl list-timers 'zkgl-*'
 curl http://127.0.0.1:3000/healthz
+curl http://127.0.0.1:3010/healthz
 ```
+
+### 受信任认证适配服务
+
+独立服务器上的公网请求不得直接向业务 API 注入 `X-ZKGL-CloudBase-UID`。正式上线时必须启用 `deploy/systemd/zkgl-auth-adapter.service`，并在 `/etc/zkgl/zkgl-api.env` 中配置 `AUTH_TOKEN_VERIFIER_MODULE` 指向服务器本地的 CloudBase access token 校验模块。该模块必须导出 `verifyAccessToken(accessToken)`，返回 `{ uid: "CloudBase UID" }` 或 UID 字符串。未配置 verifier 时认证适配器启动失败；token 校验失败时 `/verify` 返回 401，不会向 Nginx 返回受信任 UID。
+
+认证适配完成且联调通过后，才允许把服务器本地环境文件中的 `AUTH_TRUSTED_PROXY` 改为 `true`。Nginx 模板 `deploy/nginx/zkgl.conf` 会先把浏览器传入的 `Authorization: Bearer ...` 转给 `127.0.0.1:3010/verify`，再把适配器返回的 `X-ZKGL-CloudBase-UID` 注入到 `127.0.0.1:3000/api`；同时清除外部伪造的同名 UID 头和转发给业务 API 的 Authorization。
 
 ### MySQL 备份
 
@@ -251,10 +266,13 @@ node scripts/restore-mysql-backup.mjs
 
 ```nginx
 location /api {
+  auth_request /_zkgl_auth;
+  auth_request_set $zkgl_cloudbase_uid $upstream_http_x_zkgl_cloudbase_uid;
   proxy_set_header Host $host;
   proxy_set_header X-Real-IP $remote_addr;
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-ZKGL-CloudBase-UID "";
+  proxy_set_header X-ZKGL-CloudBase-UID $zkgl_cloudbase_uid;
+  proxy_set_header Authorization "";
   proxy_pass http://127.0.0.1:3000/api;
 }
 

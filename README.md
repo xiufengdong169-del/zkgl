@@ -1,11 +1,11 @@
-# 众肯科技项目全过程管理系统
+﻿# 众肯科技项目全过程管理系统
 
-当前开发与验收基线为《需求评审修订基线 V2.2》。本项目是完整新建系统：前端、云函数 API、数据库初始化脚本、权限体系、审批流、报表、文件与定时任务均从零开发，不包含历史系统改造、旧程序复用、旧接口兼容或历史数据迁移。
+当前开发与验收基线为《需求评审修订基线 V2.2》。本项目是完整新建系统：前端、Node.js API、数据库初始化脚本、权限体系、审批流、报表、文件与定时任务均从零开发，不包含历史系统改造、旧程序复用、旧接口兼容或历史数据迁移。
 
 ## 工程结构
 
 - `apps/web`：Vue 3 + TypeScript 前端。
-- `apps/api`：Node.js + TypeScript CloudBase 云函数 API、定时提醒与导出 worker。
+- `apps/api`：Node.js + TypeScript API、认证适配、定时提醒与导出 worker。
 - `packages/shared`：前后端共享的用户、权限与类型定义。
 - `database/init/schema.sql`：空库一次性初始化脚本。
 - `docs`：架构、部署、操作与验收说明。
@@ -47,7 +47,7 @@ npm audit --omit=dev
 - `需求评审修订基线_V2.2.md`：当前唯一 Markdown 需求基线。
 - `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`：当前 Word 版需求说明书。
 - `docs/architecture.md`：系统架构、安全边界、事务与审计原则。
-- `docs/deployment.md`：CloudBase 部署、空库初始化、账号开通、上线初始化资料清单和云函数部署说明。
+- `docs/deployment.md`：腾讯云轻量应用服务器部署、空库初始化、账号开通、上线初始化资料清单和服务器部署说明。
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
 - `docs/performance-acceptance-template.md`：AC-14 现场性能验收记录模板，用于归档 30 用户压测结果。
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。
@@ -56,8 +56,8 @@ npm audit --omit=dev
 
 ## 安全原则
 
-- 浏览器只允许使用 CloudBase 环境 ID、地域、Publishable Key 和已部署的 API 访问地址。
-- MySQL 密码、SecretKey、服务端 API Key 等敏感值只能放在本地 `.env` 或 CloudBase 环境变量中，禁止写入源码、文档示例或前端构建变量。
+- 浏览器只允许使用身份认证所需的公开配置、Publishable Key 和正式 HTTPS API 访问地址。
+- MySQL 密码、SecretKey、服务端 API Key 等敏感值只能放在本地 `.env` 或服务器 `/etc/zkgl/zkgl-api.env`，禁止写入源码、文档示例或前端构建变量。
 - 所有业务请求必须经过 CloudBase 身份、内部账号状态、功能权限、数据范围和敏感字段授权校验。
 
 ## GitHub 版本管理
@@ -91,7 +91,8 @@ Current production target is Tencent Cloud Lighthouse instead of CloudBase prima
 - Database: MySQL 8.0 already installed on the server.
 - API: Node.js standalone service, `npm run start -w @zkgl/api`, managed by systemd on `127.0.0.1:3000`.
 - Web: `apps/web/dist` served by Nginx over HTTPS.
-- Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.
+- Auth adapter: `deploy/systemd/zkgl-auth-adapter.service` listens on `127.0.0.1:3010`; production must configure `AUTH_TOKEN_VERIFIER_MODULE` before enabling `AUTH_TRUSTED_PROXY=true`.
+- Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-auth-adapter.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.
 - Backup and restore drills use `scripts/create-mysql-backup.mjs` and `scripts/restore-mysql-backup.mjs`; restore drills must target a non-production database.
 - Database initialization remains empty-database initialization through `database/init/schema.sql`; there is still no database migration.
 

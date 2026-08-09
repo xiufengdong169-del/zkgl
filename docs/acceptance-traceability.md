@@ -1,4 +1,4 @@
-# V2.2 验收追踪表
+﻿# V2.2 验收追踪表
 
 本文档用于把《需求评审修订基线 V2.2》的关键验收项映射到当前实现与自动化测试，便于最终验收时快速复核。
 
@@ -6,7 +6,7 @@
 
 ## 2026-08-02 部署目标口径
 
-当前生产部署目标为 Tencent Cloud Lighthouse 独立服务器：公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。API 由 systemd 托管，Nginx 提供 HTTPS、静态前端和 `/api` 反向代理；上线前必须确认 `AUTH_TRUSTED_PROXY` 只在受信任认证适配层完成后启用。备份恢复使用 `scripts/create-mysql-backup.mjs` 与 `scripts/restore-mysql-backup.mjs`，并通过 `node scripts/verify-server-preflight.mjs` 完成上线资产预检。
+当前生产部署目标为 Tencent Cloud Lighthouse 独立服务器：公网 IP `193.112.79.220`，广州，4 核 4G，Ubuntu 24.04，MySQL 8.0。API 由 systemd 托管，`zkgl-auth-adapter` 在 `127.0.0.1:3010` 提供 Nginx 内部认证子请求，Nginx 提供 HTTPS、静态前端和 `/api` 反向代理；上线前必须配置 `AUTH_TOKEN_VERIFIER_MODULE`，并确认 `AUTH_TRUSTED_PROXY` 只在受信任认证适配层完成后启用。备份恢复使用 `scripts/create-mysql-backup.mjs` 与 `scripts/restore-mysql-backup.mjs`，并通过 `node scripts/verify-server-preflight.mjs` 完成上线资产预检。
 ## 自动化与现场验收覆盖
 
 | 验收项 | 验收重点 | 主要自动化覆盖 |
@@ -57,7 +57,7 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 77 个测试文件 / 381 条测试通过；Web 9 个测试文件 / 44 条测试通过。
+- `npm run test`：API 79 个测试文件 / 390 条测试通过；Web 9 个测试文件 / 46 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
