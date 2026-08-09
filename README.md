@@ -13,7 +13,7 @@
 ## 本地开发
 
 1. 执行 `npm install` 安装依赖。
-2. 复制 `.env.example` 为 `.env.local`，只填写浏览器可公开的 CloudBase 配置与 API 地址。
+2. 复制 `.env.example` 为 `.env.local`，只填写浏览器可公开的登录配置与 API 地址。
 3. 执行 `npm run dev` 启动前端开发服务。
 4. 提交前至少执行：
 
@@ -33,9 +33,13 @@ npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
-npm run build:function
-node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev
+```
+
+历史函数包已不属于当前主部署口径。如需单独复核历史/回退资产，可执行：
+
+```powershell
+npm run verify:legacy-cloudbase
 ```
 
 ## 数据库初始化原则
@@ -45,7 +49,7 @@ npm audit --omit=dev
 ## 交付与验收入口
 
 - `需求评审修订基线_V2.2.md`：当前唯一 Markdown 需求基线。
-- `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`：当前 Word 版需求说明书。
+- `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`：当前 Word 版需求说明书原文件名；当前实际部署口径以腾讯云轻量应用服务器为准。
 - `docs/architecture.md`：系统架构、安全边界、事务与审计原则。
 - `docs/deployment.md`：腾讯云轻量应用服务器部署、空库初始化、账号开通、上线初始化资料清单和服务器部署说明。
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
@@ -58,7 +62,7 @@ npm audit --omit=dev
 
 - 浏览器只允许使用身份认证所需的公开配置、Publishable Key 和正式 HTTPS API 访问地址。
 - MySQL 密码、SecretKey、服务端 API Key 等敏感值只能放在本地 `.env` 或服务器 `/etc/zkgl/zkgl-api.env`，禁止写入源码、文档示例或前端构建变量。
-- 所有业务请求必须经过 CloudBase 身份、内部账号状态、功能权限、数据范围和敏感字段授权校验。
+- 所有业务请求必须经过登录身份、内部账号状态、功能权限、数据范围和敏感字段授权校验；运行环境入口由轻量服务器上的 Nginx、认证适配服务和 API 服务共同完成。
 
 ## GitHub 版本管理
 
@@ -70,7 +74,7 @@ https://github.com/xiufengdong169-del/zkgl
 
 每个可验证改动应在通过测试与构建后提交并推送到 `main`。
 
-仓库包含 GitHub Actions 工作流 `.github/workflows/verify.yml`，会在 push 和 pull request 时执行 `npm ci` 与 `npm run verify:acceptance`，用于持续校验类型检查、测试、构建、敏感信息扫描、CloudBase 函数包校验和生产依赖审计。
+仓库包含 GitHub Actions 工作流 `.github/workflows/verify.yml`，会在 push 和 pull request 时执行 `npm ci` 与 `npm run verify:acceptance`，用于持续校验类型检查、测试、构建、敏感信息扫描、轻量服务器部署资产和生产依赖审计。
 
 ## GitHub sync verification
 
@@ -84,7 +88,7 @@ This verifies that the current branch is `main`, `origin` points to `https://git
 
 ## 2026-08-02 deployment target update
 
-Current production target is Tencent Cloud Lighthouse instead of CloudBase primary hosting:
+Current production target is Tencent Cloud Lighthouse standalone server:
 
 - Server: `193.112.79.220`, Guangzhou, 4C4G.
 - OS: Ubuntu 24.04.

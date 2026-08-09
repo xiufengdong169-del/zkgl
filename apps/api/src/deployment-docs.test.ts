@@ -154,9 +154,12 @@ const verificationCommands = [
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
   "node scripts/verify-server-preflight.mjs",
+  "npm audit --omit=dev",
+];
+const legacyCloudbaseVerificationCommands = [
+  "npm run verify:legacy-cloudbase",
   "npm run build:function",
   "node scripts/verify-cloudbase-function-packages.mjs",
-  "npm audit --omit=dev",
 ];
 const browserEnvironmentVariables = [
   "VITE_CLOUDBASE_ENV_ID",
@@ -457,7 +460,10 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "npm run verify:deployment-config",
     );
-    expect(packageJson.scripts.verify).toContain(
+    expect(packageJson.scripts.verify).not.toContain(
+      "node scripts/verify-cloudbase-function-packages.mjs",
+    );
+    expect(packageJson.scripts["verify:legacy-cloudbase"]).toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
     expect(deploymentConfigVerifier).toContain(expectedCloudbaseEnvId);
@@ -494,6 +500,12 @@ describe("deployment documentation", () => {
       expect(readme).toContain(command);
       expect(operationsAcceptanceDoc).toContain(command);
       expect(acceptanceTraceabilityDoc).toContain(command);
+    }
+    for (const command of legacyCloudbaseVerificationCommands) {
+      expect(deploymentDoc).toContain(command);
+    }
+    for (const doc of [readme, operationsAcceptanceDoc, acceptanceTraceabilityDoc]) {
+      expect(doc).toContain("npm run verify:legacy-cloudbase");
     }
     for (const doc of [operationsAcceptanceDoc]) {
       expect(doc).not.toMatch(
@@ -789,7 +801,8 @@ describe("deployment documentation", () => {
 
   it("deployment docs and verification cover CloudBase function config", () => {
     expect(deploymentDoc).toContain("cloudbaserc.json");
-    expect(operationsAcceptanceDoc).toContain("cloudbaserc.json");
+    expect(operationsAcceptanceDoc).not.toContain("cloudbaserc.json");
+    expect(operationsAcceptanceDoc).toContain("当前腾讯云轻量服务器主部署验收");
 
     for (const fn of cloudbaseConfig.functions) {
       expect(deploymentDoc, `deployment docs missing ${fn.name}`).toContain(

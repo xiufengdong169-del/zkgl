@@ -161,9 +161,13 @@ npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
-npm run build:function
-node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev
+```
+
+历史函数包不属于当前腾讯云轻量服务器主部署验收。如需单独复核历史/回退资产，可执行：
+
+```powershell
+npm run verify:legacy-cloudbase
 ```
 
 以下检查已纳入自动化测试和 `npm run verify:acceptance`：
@@ -172,7 +176,7 @@ npm audit --omit=dev
 - 可提交审批业务均配置审批模板和审批结果回写。
 - 源码和交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
-- 三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置正确。
+- 腾讯云轻量服务器部署资产、Nginx/systemd 模板、备份恢复脚本和服务器预检脚本一致；历史函数包仅在执行 `npm run verify:legacy-cloudbase` 时单独复核，不作为当前主部署验收项。
 - 生产依赖审计 `npm audit --omit=dev` 无已知漏洞。
 ## 2026-08-02 独立服务器运维补充
 

@@ -43,20 +43,19 @@ npm install
 npm run verify:acceptance
 ```
 
-函数包生成在：
+`npm run verify:deployment-config` 会校验腾讯云轻量服务器参数、前后端环境变量、历史资产配置和 GitHub Actions Node 版本一致性。
 
-- `functions/zkgl-api`
-- `functions/zkgl-reminder`
-- `functions/zkgl-export-worker`
+当前主线验收命令不再构建或部署历史函数包。历史函数包如需单独复核，可运行：
 
-上述目录是构建产物，不纳入版本管理。
+```powershell
+npm run verify:legacy-cloudbase
+```
 
-`npm run verify:deployment-config` 会校验腾讯云轻量服务器参数、前后端环境变量、历史函数包配置和 GitHub Actions Node 版本一致性。
-`node scripts/verify-cloudbase-function-packages.mjs` 会同时校验三套函数包和 `cloudbaserc.json` 中的函数名、目录、`index.main` handler、Nodejs18.15 runtime、超时时间、内存规格、依赖安装开关和定时触发器配置。
+该命令内部执行 `npm run build:function` 和 `node scripts/verify-cloudbase-function-packages.mjs`。生成的 `functions/zkgl-api`、`functions/zkgl-reminder`、`functions/zkgl-export-worker` 是历史/回退资产构建产物，不纳入版本管理，也不作为当前轻量服务器上线步骤。
 
 ## 历史 CloudBase 函数包（非主部署）
 
-正式上线不再部署到 CloudBase。下列命令仅用于校验历史交付包和回退适配资产，不能作为当前生产发布流程：
+正式上线不再部署到 CloudBase。下列命令仅用于隔离环境回看历史交付包和回退适配资产，不能作为当前生产发布流程：
 
 ```powershell
 tcb --version

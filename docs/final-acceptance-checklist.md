@@ -22,11 +22,11 @@
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
-- [ ] `npm run verify:deployment-config` 通过，腾讯云轻量服务器、前后端环境变量、历史函数包配置和 CI Node 版本一致性校验通过。
+- [ ] `npm run verify:deployment-config` 通过，腾讯云轻量服务器、前后端环境变量、历史资产配置和 CI Node 版本一致性校验通过。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
 - [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
-- [ ] 历史 CloudBase 函数包 `zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 生成并校验通过；它们不作为当前生产主部署口径。
+- [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 
 ## 3. GitHub 版本管理

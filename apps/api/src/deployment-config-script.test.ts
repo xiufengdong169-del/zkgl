@@ -110,6 +110,8 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       scripts: {
         verify: "npm run typecheck && npm run verify:deployment-config",
         "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
+        "verify:legacy-cloudbase":
+          "npm run build:function && node scripts/verify-cloudbase-function-packages.mjs",
       },
     },
     workflow: `permissions:\n  contents: read\nnode-version: "${expected.nodeVersion}"`,
@@ -136,7 +138,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
 }
 
 describe("deployment config verifier script", () => {
-  it("accepts aligned CloudBase environment, functions, CI, and docs config", async () => {
+  it("accepts aligned Lighthouse server, login identity, historical assets, CI, and docs config", async () => {
     const { verifyDeploymentConfigInputs, expected } =
       await loadDeploymentConfigModule();
 
@@ -215,5 +217,17 @@ describe("deployment config verifier script", () => {
         "must not include deployment or secret fragment",
       );
     }
+  });
+
+  it("rejects reintroducing historical function packaging into the primary verification command", async () => {
+    const { verifyDeploymentConfigInputs, expected } =
+      await loadDeploymentConfigModule();
+    const inputs = makeValidInputs(expected);
+    inputs.packageJson.scripts!.verify +=
+      " && npm run build:function && node scripts/verify-cloudbase-function-packages.mjs";
+
+    expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
+      "Lighthouse server acceptance path",
+    );
   });
 });

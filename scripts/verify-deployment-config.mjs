@@ -296,6 +296,18 @@ export function verifyDeploymentConfigInputs({
   if (!packageJson.scripts?.verify?.includes("npm run verify:deployment-config")) {
     fail("package.json verify must run verify:deployment-config");
   }
+  if (
+    packageJson.scripts?.verify?.includes("npm run build:function") ||
+    packageJson.scripts?.verify?.includes("verify-cloudbase-function-packages")
+  ) {
+    fail("package.json verify must stay focused on the Lighthouse server acceptance path");
+  }
+  if (
+    packageJson.scripts?.["verify:legacy-cloudbase"] !==
+    "npm run build:function && node scripts/verify-cloudbase-function-packages.mjs"
+  ) {
+    fail("package.json missing verify:legacy-cloudbase script for historical assets");
+  }
 
   return "Deployment config verified";
 }

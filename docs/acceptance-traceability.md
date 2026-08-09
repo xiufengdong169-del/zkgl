@@ -47,8 +47,6 @@ npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
-npm run build:function
-node scripts/verify-cloudbase-function-packages.mjs
 npm audit --omit=dev
 ```
 
@@ -64,8 +62,7 @@ npm audit --omit=dev
 - `node scripts/verify-server-deployment-assets.mjs`：独立服务器 systemd 与 Nginx 部署模板通过。
 - `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer 和备份恢复验收文档通过。
 - `node scripts/verify-server-preflight.mjs`：Tencent Cloud Lighthouse 上线预检资产通过。
-- `npm run build:function`：`zkgl-api`、`zkgl-reminder`、`zkgl-export-worker` 打包通过。
-- `node scripts/verify-cloudbase-function-packages.mjs`：三套 CloudBase 函数包入口、依赖清单、无 workspace 内部包运行时引用，且 `cloudbaserc.json` 部署配置校验通过。
+- 当前主线自动化验收以腾讯云轻量服务器部署资产为准。历史函数包仅作为历史/回退资产，可按需通过 `npm run verify:legacy-cloudbase` 单独复核，不进入当前主部署验收闭环。
 - `npm audit --omit=dev`：生产依赖无已知漏洞。
 
 ## 接口定义一致性检查
