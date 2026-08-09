@@ -308,6 +308,9 @@ export function verifyDeploymentConfigInputs({
   ) {
     fail("package.json missing verify:legacy-cloudbase script for historical assets");
   }
+  if (packageJson.scripts?.["verify:local-demo"] !== "node scripts/verify-local-demo.mjs") {
+    fail("package.json missing verify:local-demo script for local visual demo checks");
+  }
 
   return "Deployment config verified";
 }

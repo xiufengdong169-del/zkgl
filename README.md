@@ -42,6 +42,14 @@ npm audit --omit=dev
 npm run verify:legacy-cloudbase
 ```
 
+如需在没有服务器 SSH 权限时先本地验证可视化演示包，可执行：
+
+```powershell
+npm run verify:local-demo
+```
+
+该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并验证首页和主要 SPA 路由能返回“众肯项目管理系统”前端壳。
+
 ## 数据库初始化原则
 
 本项目不存在数据库迁移。开发、测试和首次上线环境均从空 MySQL 数据库执行 `database/init/schema.sql` 完成初始化。正式投产后的结构变更机制另行评审，不在当前新开发阶段引入迁移表或迁移执行器。

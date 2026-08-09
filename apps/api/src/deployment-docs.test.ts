@@ -116,6 +116,10 @@ const publicDemoScript = readFileSync(
   new URL("../../../scripts/verify-public-demo.mjs", import.meta.url),
   "utf8",
 );
+const localDemoScript = readFileSync(
+  new URL("../../../scripts/verify-local-demo.mjs", import.meta.url),
+  "utf8",
+);
 const serverEnvScript = readFileSync(
   new URL("../../../scripts/verify-server-env.mjs", import.meta.url),
   "utf8",
@@ -141,7 +145,7 @@ const expectedCloudbaseRegion = "ap-guangzhou";
 const expectedServerPublicIp = "193.112.79.220";
 const expectedServerOs = "Ubuntu 24.04";
 const expectedServerMysql = "MySQL 8.0";
-const expectedAcceptanceReviewDate = "2026-08-02";
+const expectedAcceptanceReviewDate = "2026-08-10";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -207,6 +211,7 @@ const ignoredLocalAndSecretPatterns = [
   "~$*.docx",
   "node_modules/",
   "dist/",
+  ".tmp/",
   "*.tsbuildinfo",
   ".env",
   ".env.*",
@@ -292,7 +297,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "82 个测试文件 / 406 条测试",
+  "83 个测试文件 / 409 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -437,6 +442,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:public-demo"]).toBe(
       "node scripts/verify-public-demo.mjs",
     );
+    expect(packageJson.scripts["verify:local-demo"]).toBe(
+      "node scripts/verify-local-demo.mjs",
+    );
     expect(packageJson.scripts["verify:server-env"]).toBe(
       "node scripts/verify-server-env.mjs",
     );
@@ -452,7 +460,9 @@ describe("deployment documentation", () => {
     expect(githubSyncScript).toContain("fetch");
     expect(githubSyncScript).toContain("origin/main");
     expect(readme).toContain("npm run verify:github-sync");
+    expect(readme).toContain("npm run verify:local-demo");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
+    expect(acceptanceTraceabilityDoc).toContain("npm run verify:local-demo");
     expect(acceptanceTraceabilityDoc).toContain(
       `最后复核日期：${expectedAcceptanceReviewDate}`,
     );
@@ -560,7 +570,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(82);
+    expect(actualApiTestFiles).toBe(83);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
@@ -653,6 +663,7 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-demo.sh");
     expect(deploymentDoc).toContain("scripts/deploy-lighthouse-production.sh");
     expect(deploymentDoc).toContain("npm run verify:public-demo");
+    expect(deploymentDoc).toContain("npm run verify:local-demo");
     expect(deploymentDoc).toContain("curl http://127.0.0.1:3000/readyz");
     expect(finalAcceptanceChecklist).toContain(
       "curl http://127.0.0.1:3000/readyz",
@@ -670,12 +681,17 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("scripts/bootstrap-lighthouse-demo.sh");
     expect(finalAcceptanceChecklist).toContain("scripts/deploy-lighthouse-production.sh");
     expect(finalAcceptanceChecklist).toContain("npm run verify:public-demo");
+    expect(finalAcceptanceChecklist).toContain("npm run verify:local-demo");
     expect(publicDemoScript).toContain("http://193.112.79.220/");
     expect(publicDemoScript).toContain("众肯项目管理系统");
     expect(publicDemoScript).toContain("/projects");
     expect(publicDemoScript).toContain("/contracts");
     expect(publicDemoScript).toContain("/finance");
     expect(publicDemoScript).toContain("/admin");
+    expect(localDemoScript).toContain("VITE_DEMO_MODE");
+    expect(localDemoScript).toContain(".tmp");
+    expect(localDemoScript).toContain("createDemoStaticServer");
+    expect(localDemoScript).toContain("verifyPublicDemo");
     expect(nginxDeploymentTemplate).toContain("auth_request /_zkgl_auth");
     expect(nginxDeploymentTemplate).toContain(
       "proxy_set_header X-ZKGL-CloudBase-UID \"\"",

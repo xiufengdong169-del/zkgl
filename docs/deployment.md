@@ -105,6 +105,14 @@ npm run verify:public-demo
 
 该命令会访问 `http://193.112.79.220/`、`/projects`、`/contracts`、`/finance`、`/admin`，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后再执行。
 
+如果暂时没有服务器 SSH/VNC 操作权限，但需要先证明演示包本身可打开，可在本地执行：
+
+```bash
+npm run verify:local-demo
+```
+
+该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 都能返回众肯系统前端壳；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
+
 ## 计划任务
 
 - `zkgl-reminder.timer`：每日 08:00 执行提醒刷新，历史 CloudBase 触发器名称为 `zkglDailyReminder`。

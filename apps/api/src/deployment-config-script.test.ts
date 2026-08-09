@@ -110,6 +110,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       scripts: {
         verify: "npm run typecheck && npm run verify:deployment-config",
         "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
+        "verify:local-demo": "node scripts/verify-local-demo.mjs",
         "verify:legacy-cloudbase":
           "npm run build:function && node scripts/verify-cloudbase-function-packages.mjs",
       },
