@@ -39,6 +39,7 @@ export async function main(event: TimerEvent) {
       occurredAt: new Date(),
       details: {
         created: result.created,
+        updatedAbnormalStarts: result.updatedAbnormalStarts,
         triggerTime: event.TriggerTime ?? event.Time ?? null,
       },
     });

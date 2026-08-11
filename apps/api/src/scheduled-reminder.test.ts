@@ -40,4 +40,9 @@ describe("scheduled reminder worker", () => {
     expect(source).not.toContain("error.message");
     expect(source).not.toContain("error.stack");
   });
+
+  it("audits how many overdue early-start records were marked abnormal", () => {
+    expect(source).toContain("updatedAbnormalStarts");
+    expect(source).toContain("result.updatedAbnormalStarts");
+  });
 });

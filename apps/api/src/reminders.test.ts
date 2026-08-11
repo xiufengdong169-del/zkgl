@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildReminderMaintenanceStatements,
   buildReminderStatements,
   refreshReminders,
+  reminderMaintenanceStatements,
   reminderStatements,
 } from "./reminders.js";
 import {
@@ -47,9 +49,12 @@ describe("scheduled reminders", () => {
 
     await expect(refreshReminders({ execute } as never)).resolves.toEqual({
       created: reminderStatements.length * 2,
+      updatedAbnormalStarts: reminderMaintenanceStatements.length * 2,
     });
 
-    expect(execute).toHaveBeenCalledTimes(reminderStatements.length + 1);
+    expect(execute).toHaveBeenCalledTimes(
+      reminderStatements.length + reminderMaintenanceStatements.length + 1,
+    );
     const executedSql = execute.mock.calls.map(([sql]) => String(sql)).join("\n");
     expect(executedSql).toContain("INTERVAL 45 DAY");
     expect(executedSql).toContain("INTERVAL 14 DAY");
@@ -99,10 +104,20 @@ describe("scheduled reminders", () => {
   });
 
   it("marks early-start projects as abnormal after the expected signing date", () => {
+    const maintenanceSql = buildReminderMaintenanceStatements().join("\n");
     const overdueSql = reminderStatements.find((sql) =>
       sql.includes("'EARLY_START_CONTRACT_OVERDUE'"),
     );
 
+    expect(maintenanceSql).toContain("UPDATE prj_start SET");
+    expect(maintenanceSql).toContain(
+      "current_contract_status='SIGNING_OVERDUE'",
+    );
+    expect(maintenanceSql).toContain("expected_signing_on<CURDATE()");
+    expect(maintenanceSql).toContain("start_type='EARLY'");
+    expect(maintenanceSql).toContain("status='APPROVED'");
+    expect(maintenanceSql).toContain("contract_reminder_active=1");
+    expect(maintenanceSql).toContain("is_deleted=0");
     expect(overdueSql).toBeTruthy();
     expect(overdueSql).toContain("s.start_type='EARLY'");
     expect(overdueSql).toContain("s.status='APPROVED'");

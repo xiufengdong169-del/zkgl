@@ -302,7 +302,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 416 条测试",
+  "83 个测试文件 / 417 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -863,8 +863,11 @@ describe("deployment documentation", () => {
   it("documents overdue abnormal reminders for approved early-start projects", () => {
     for (const fragment of [
       "先开工签约逾期异常",
-      "超过预计签约日后持续生成异常提醒",
-      "先开工项目超过预计签约日后标记异常并持续提醒补签或风险处置",
+      "超过预计签约日后将",
+      "持续生成异常提醒",
+      "先开工项目超过预计签约日后将",
+      "current_contract_status",
+      "SIGNING_OVERDUE",
     ]) {
       const docs = [deploymentDoc, finalAcceptanceChecklist, operationsAcceptanceDoc];
       expect(

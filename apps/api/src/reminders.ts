@@ -64,16 +64,28 @@ export function buildReminderStatements(
   ] as const;
 }
 
+export function buildReminderMaintenanceStatements() {
+  return [
+    `UPDATE prj_start SET current_contract_status='SIGNING_OVERDUE',version=version+1 WHERE start_type='EARLY' AND status='APPROVED' AND contract_reminder_active=1 AND expected_signing_on<CURDATE() AND is_deleted=0 AND COALESCE(current_contract_status,'')<>'SIGNING_OVERDUE'`,
+  ] as const;
+}
+
 export const reminderStatements = buildReminderStatements();
+export const reminderMaintenanceStatements = buildReminderMaintenanceStatements();
 
 export async function refreshReminders(
   connection: Pick<PoolConnection, "execute">,
-): Promise<{ created: number }> {
+): Promise<{ created: number; updatedAbnormalStarts: number }> {
   const statements = buildReminderStatements(await loadReminderSettings(connection));
+  let updatedAbnormalStarts = 0;
+  for (const sql of buildReminderMaintenanceStatements()) {
+    const [result] = await connection.execute<ResultSetHeader>(sql);
+    updatedAbnormalStarts += result.affectedRows;
+  }
   let created = 0;
   for (const sql of statements) {
     const [result] = await connection.execute<ResultSetHeader>(sql);
     created += result.affectedRows;
   }
-  return { created };
+  return { created, updatedAbnormalStarts };
 }

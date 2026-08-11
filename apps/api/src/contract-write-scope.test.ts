@@ -255,6 +255,14 @@ describe("contract write scopes", () => {
     expect(
       calls.some((call) => call.sql.includes("status='PERFORMING'")),
     ).toBe(true);
+    const earlyStartReminderUpdate = calls.find((call) =>
+      call.sql.startsWith("UPDATE prj_start SET contract_reminder_active=0"),
+    )!;
+    expect(earlyStartReminderUpdate).toBeDefined();
+    expect(earlyStartReminderUpdate.sql).toContain(
+      "current_contract_status='SIGNED'",
+    );
+    expect(earlyStartReminderUpdate.sql).toContain("start_type='EARLY'");
   });
 
   it("allows project-authorized users to create contract changes without owner filtering", async () => {
