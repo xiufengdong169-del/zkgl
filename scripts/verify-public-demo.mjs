@@ -36,6 +36,13 @@ export function extractFrontendModuleEntries(html) {
   ).filter(Boolean);
 }
 
+export function extractStylesheetEntries(html) {
+  return Array.from(
+    html.matchAll(/<link\b[^>]*\brel=["']stylesheet["'][^>]*\bhref=["']([^"']+)["'][^>]*>/gi),
+    (match) => match[1],
+  ).filter(Boolean);
+}
+
 export function verifyDemoHtml(route, html) {
   if (!html.includes("<title>众肯项目管理系统</title>")) {
     fail(`${route} missing 众肯项目管理系统 title`);
@@ -47,7 +54,11 @@ export function verifyDemoHtml(route, html) {
   if (!moduleEntries.some((entry) => /^\/(?:assets\/|src\/main\.ts)/.test(entry))) {
     fail(`${route} missing frontend module entry`);
   }
-  return moduleEntries;
+  const stylesheetEntries = extractStylesheetEntries(html);
+  if (!stylesheetEntries.some((entry) => /^\/assets\/.*\.css(?:\?|$)/.test(entry))) {
+    fail(`${route} missing frontend stylesheet entry`);
+  }
+  return { moduleEntries, stylesheetEntries };
 }
 
 export async function verifyPublicDemo({
@@ -56,24 +67,27 @@ export async function verifyPublicDemo({
   routes = demoRoutes,
 } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  const checkedModuleUrls = new Set();
+  const checkedAssetUrls = new Set();
   for (const route of routes) {
     const url = buildRouteUrl(normalizedBaseUrl, route);
     const response = await fetchImpl(url, { redirect: "follow" });
     if (!response.ok) fail(`${route} returned HTTP ${response.status}`);
     const html = await response.text();
-    const moduleEntries = verifyDemoHtml(route, html);
-    for (const entry of moduleEntries) {
-      const moduleUrl = new URL(entry, url).toString();
-      if (checkedModuleUrls.has(moduleUrl)) continue;
-      checkedModuleUrls.add(moduleUrl);
-      const moduleResponse = await fetchImpl(moduleUrl, { redirect: "follow" });
-      if (!moduleResponse.ok) {
-        fail(`${route} frontend module ${entry} returned HTTP ${moduleResponse.status}`);
+    const { moduleEntries, stylesheetEntries } = verifyDemoHtml(route, html);
+    for (const [kind, entry] of [
+      ...moduleEntries.map((item) => ["frontend module", item]),
+      ...stylesheetEntries.map((item) => ["frontend stylesheet", item]),
+    ]) {
+      const assetUrl = new URL(entry, url).toString();
+      if (checkedAssetUrls.has(assetUrl)) continue;
+      checkedAssetUrls.add(assetUrl);
+      const assetResponse = await fetchImpl(assetUrl, { redirect: "follow" });
+      if (!assetResponse.ok) {
+        fail(`${route} ${kind} ${entry} returned HTTP ${assetResponse.status}`);
       }
-      const moduleContent = await moduleResponse.text();
-      if (!moduleContent.trim()) {
-        fail(`${route} frontend module ${entry} is empty`);
+      const assetContent = await assetResponse.text();
+      if (!assetContent.trim()) {
+        fail(`${route} ${kind} ${entry} is empty`);
       }
     }
   }

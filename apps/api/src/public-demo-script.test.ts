@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 type PublicDemoModule = {
   buildRouteUrl(baseUrl: URL, route: string): string;
   extractFrontendModuleEntries(html: string): string[];
+  extractStylesheetEntries(html: string): string[];
   normalizeBaseUrl(rawUrl?: string): URL;
-  verifyDemoHtml(route: string, html: string): string[];
+  verifyDemoHtml(route: string, html: string): {
+    moduleEntries: string[];
+    stylesheetEntries: string[];
+  };
   verifyPublicDemo(options?: {
     baseUrl?: string;
     fetchImpl?: typeof fetch;
@@ -18,7 +22,7 @@ async function loadPublicDemoModule() {
 }
 
 const demoHtml =
-  '<!doctype html><html><head><title>众肯项目管理系统</title></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>';
+  '<!doctype html><html><head><title>众肯项目管理系统</title><link rel="stylesheet" href="/assets/index.css"></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>';
 
 describe("public demo verifier script", () => {
   it("accepts the built SPA shell on demo routes", async () => {
@@ -28,6 +32,9 @@ describe("public demo verifier script", () => {
       requested.push(url);
       if (url.endsWith("/assets/index.js")) {
         return new Response("import './chunk.js';", { status: 200 });
+      }
+      if (url.endsWith("/assets/index.css")) {
+        return new Response("body{display:block}", { status: 200 });
       }
       return new Response(demoHtml, { status: 200 });
     }) as typeof fetch;
@@ -42,6 +49,7 @@ describe("public demo verifier script", () => {
     expect(requested).toEqual([
       "http://193.112.79.220/",
       "http://193.112.79.220/assets/index.js",
+      "http://193.112.79.220/assets/index.css",
       "http://193.112.79.220/projects",
     ]);
   });
@@ -52,12 +60,32 @@ describe("public demo verifier script", () => {
       if (url.endsWith("/assets/index.js")) {
         return new Response("missing", { status: 404 });
       }
+      if (url.endsWith("/assets/index.css")) {
+        return new Response("body{}", { status: 200 });
+      }
       return new Response(demoHtml, { status: 200 });
     }) as typeof fetch;
 
     await expect(
       verifyPublicDemo({ fetchImpl, routes: ["/"] }),
     ).rejects.toThrow("frontend module /assets/index.js returned HTTP 404");
+  });
+
+  it("rejects a demo page whose stylesheet asset is missing", async () => {
+    const { verifyPublicDemo } = await loadPublicDemoModule();
+    const fetchImpl = (async (url: string) => {
+      if (url.endsWith("/assets/index.js")) {
+        return new Response("import './chunk.js';", { status: 200 });
+      }
+      if (url.endsWith("/assets/index.css")) {
+        return new Response("missing", { status: 404 });
+      }
+      return new Response(demoHtml, { status: 200 });
+    }) as typeof fetch;
+
+    await expect(
+      verifyPublicDemo({ fetchImpl, routes: ["/"] }),
+    ).rejects.toThrow("frontend stylesheet /assets/index.css returned HTTP 404");
   });
 
   it("rejects an old or unrelated HTML page even when HTTP status is 200", async () => {
@@ -87,8 +115,12 @@ describe("public demo verifier script", () => {
   });
 
   it("builds route URLs from normalized base URL", async () => {
-    const { buildRouteUrl, extractFrontendModuleEntries, normalizeBaseUrl } =
-      await loadPublicDemoModule();
+    const {
+      buildRouteUrl,
+      extractFrontendModuleEntries,
+      extractStylesheetEntries,
+      normalizeBaseUrl,
+    } = await loadPublicDemoModule();
     const baseUrl = normalizeBaseUrl("http://193.112.79.220///");
 
     expect(buildRouteUrl(baseUrl, "/finance")).toBe(
@@ -96,6 +128,9 @@ describe("public demo verifier script", () => {
     );
     expect(extractFrontendModuleEntries(demoHtml)).toEqual([
       "/assets/index.js",
+    ]);
+    expect(extractStylesheetEntries(demoHtml)).toEqual([
+      "/assets/index.css",
     ]);
   });
 });

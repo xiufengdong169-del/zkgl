@@ -56,14 +56,14 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 83 个测试文件 / 411 条测试通过；Web 10 个测试文件 / 48 条测试通过。
+- `npm run test`：API 83 个测试文件 / 412 条测试通过；Web 10 个测试文件 / 48 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `node scripts/verify-server-deployment-assets.mjs`：独立服务器 systemd 与 Nginx 部署模板通过。
 - `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer 和备份恢复验收文档通过。
 - `node scripts/verify-server-preflight.mjs`：Tencent Cloud Lighthouse 上线预检资产通过。
-- `npm run verify:local-demo`：本地 demo 模式构建、临时 HTTP 服务、主要 SPA 路由前端壳和前端入口 JS 模块校验通过，可在服务器权限未就绪时先证明可视化演示包可打开。
+- `npm run verify:local-demo`：本地 demo 模式构建、临时 HTTP 服务、主要 SPA 路由前端壳、前端入口 JS 模块和 CSS 样式资源校验通过，可在服务器权限未就绪时先证明可视化演示包可打开。
 - 当前主线自动化验收以腾讯云轻量服务器部署资产为准。历史函数包仅作为历史/回退资产，可按需通过 `npm run verify:legacy-cloudbase` 单独复核，不进入当前主部署验收闭环。
 - `npm audit --omit=dev`：生产依赖无已知漏洞。
 

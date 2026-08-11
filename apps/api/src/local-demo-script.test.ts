@@ -32,11 +32,12 @@ async function makeDemoDist() {
   tempDirs.push(dist);
   await writeFile(
     join(dist, "index.html"),
-    '<!doctype html><html><head><title>众肯项目管理系统</title></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>',
+    '<!doctype html><html><head><title>众肯项目管理系统</title><link rel="stylesheet" href="/assets/index.css"></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>',
     "utf8",
   );
   await mkdir(join(dist, "assets"));
   await writeFile(join(dist, "assets", "index.js"), "console.log('demo');", "utf8");
+  await writeFile(join(dist, "assets", "index.css"), "body{display:block}", "utf8");
   return dist;
 }
 
