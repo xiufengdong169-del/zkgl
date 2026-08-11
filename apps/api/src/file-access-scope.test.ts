@@ -177,6 +177,42 @@ describe("file access scopes", () => {
     expect(log?.params).toEqual(["f99", "v1", "u2", "api-request-1"]);
   });
 
+  it("rejects non-HTTPS storage temporary URLs before logging download success", async () => {
+    const connection = fileConnection();
+    const executor = new MySqlActionExecutor(
+      { getConnection: async () => connection } as never,
+      async () => "http://temporary.example/export.csv",
+    );
+
+    await expect(
+      executor.execute(
+        "file.download",
+        { fileId: "f99" },
+        allScopeUser,
+        "api-request-insecure-url",
+      ),
+    ).rejects.toMatchObject({
+      code: "TEMPORARY_DOWNLOAD_URL_NOT_HTTPS",
+      status: 502,
+    });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.includes("DOWNLOAD','SUCCESS"),
+      ),
+    ).toBe(false);
+    const log = connection.calls.find((call) =>
+      call.sql.includes("denial_code,request_id"),
+    );
+    expect(log?.params).toEqual([
+      "f99",
+      "v1",
+      "u2",
+      "TEMPORARY_DOWNLOAD_URL_NOT_HTTPS",
+      "api-request-insecure-url",
+    ]);
+  });
+
   it("uses the API request id when writing denied sensitive file download logs", async () => {
     const connection = fileConnection("SENSITIVE");
     const executor = new MySqlActionExecutor(

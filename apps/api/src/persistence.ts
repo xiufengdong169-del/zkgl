@@ -24,6 +24,7 @@ import { validatePaymentSource } from "./finance.js";
 import { refreshReminders } from "./reminders.js";
 import { assertAccountStatusChangeAllowed } from "./accounts.js";
 import {
+  assertHttpsTemporaryDownloadUrl,
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
   validateFileType,
@@ -1612,10 +1613,25 @@ export class MySqlActionExecutor {
             );
             throw new AppError("EXPORT_FILE_EXPIRED", "导出文件已过期", 410);
           }
-          const url = await this.createTemporaryUrl(
-            file.storageKey,
-            DOWNLOAD_URL_TTL_SECONDS,
-          );
+          let url: string;
+          try {
+            url = assertHttpsTemporaryDownloadUrl(
+              await this.createTemporaryUrl(
+                file.storageKey,
+                DOWNLOAD_URL_TTL_SECONDS,
+              ),
+            );
+          } catch (error) {
+            const denialCode =
+              error instanceof AppError
+                ? error.code
+                : "TEMPORARY_DOWNLOAD_URL_INVALID";
+            await connection.execute(
+              `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,denial_code,request_id) VALUES(?,?,?,'DOWNLOAD','DENIED',?,?)`,
+              [file.id, file.versionId, user.id, denialCode, requestId],
+            );
+            throw error;
+          }
           await connection.execute(
             `INSERT INTO file_access_log(file_id,version_id,user_id,action,outcome,request_id) VALUES(?,?,?,'DOWNLOAD','SUCCESS',?)`,
             [file.id, file.versionId, user.id, requestId],

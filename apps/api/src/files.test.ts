@@ -2,6 +2,7 @@ import type { SessionUser } from "@zkgl/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  assertHttpsTemporaryDownloadUrl,
   authorizeFileDownload,
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -177,6 +178,34 @@ describe("private files", () => {
     expect(deps.createTemporaryUrl).not.toHaveBeenCalled();
     expect(deps.writeAccessLog).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: "DENIED" }),
+    );
+  });
+
+  it("backend rejects non-HTTPS temporary download URLs before returning them", async () => {
+    expect(assertHttpsTemporaryDownloadUrl("https://temporary.example/file")).toBe(
+      "https://temporary.example/file",
+    );
+    expect(() =>
+      assertHttpsTemporaryDownloadUrl("http://temporary.example/file"),
+    ).toThrow("HTTPS");
+    expect(() => assertHttpsTemporaryDownloadUrl("not-a-url")).toThrow(
+      "文件临时下载地址无效",
+    );
+
+    const deps = dependencies({
+      createTemporaryUrl: vi.fn(async () => "http://temporary.example/file"),
+    });
+    await expect(authorizeFileDownload(user, file, "r-https", deps)).rejects
+      .toMatchObject({
+        code: "TEMPORARY_DOWNLOAD_URL_NOT_HTTPS",
+        status: 502,
+      });
+    expect(deps.writeAccessLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: "DENIED",
+        denialCode: "TEMPORARY_DOWNLOAD_URL_NOT_HTTPS",
+        requestId: "r-https",
+      }),
     );
   });
 });

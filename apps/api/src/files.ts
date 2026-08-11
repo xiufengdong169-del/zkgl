@@ -205,6 +205,27 @@ export function buildPrivateStorageKey(
   return `private/files/${fileId}/v${version}/${sha256.toLowerCase()}.${extension}`;
 }
 
+export function assertHttpsTemporaryDownloadUrl(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AppError(
+      "TEMPORARY_DOWNLOAD_URL_INVALID",
+      "文件临时下载地址无效",
+      502,
+    );
+  }
+  if (parsed.protocol !== "https:") {
+    throw new AppError(
+      "TEMPORARY_DOWNLOAD_URL_NOT_HTTPS",
+      "文件临时下载地址必须使用 HTTPS",
+      502,
+    );
+  }
+  return parsed.toString();
+}
+
 export async function authorizeFileDownload(
   user: SessionUser,
   file: FileRecord,
@@ -225,9 +246,11 @@ export async function authorizeFileDownload(
       denialCode = "SENSITIVE_FILE_DENIED";
       throw new ForbiddenError("无权访问敏感附件");
     }
-    const url = await dependencies.createTemporaryUrl(
-      file.storageKey,
-      DOWNLOAD_URL_TTL_SECONDS,
+    const url = assertHttpsTemporaryDownloadUrl(
+      await dependencies.createTemporaryUrl(
+        file.storageKey,
+        DOWNLOAD_URL_TTL_SECONDS,
+      ),
     );
     await dependencies.writeAccessLog({
       fileId: file.id,
@@ -239,12 +262,17 @@ export async function authorizeFileDownload(
     });
     return { url, expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS };
   } catch (error) {
+    const temporaryUrlDenialCode =
+      error instanceof AppError &&
+      error.code.startsWith("TEMPORARY_DOWNLOAD_URL")
+        ? error.code
+        : null;
     await dependencies.writeAccessLog({
       fileId: file.id,
       versionId: file.currentVersionId,
       userId: user.id,
       outcome: "DENIED",
-      denialCode: denialCode ?? "FILE_NOT_ACTIVE",
+      denialCode: denialCode ?? temporaryUrlDenialCode ?? "FILE_NOT_ACTIVE",
       requestId,
     });
     throw error;
