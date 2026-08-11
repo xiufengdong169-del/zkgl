@@ -97,13 +97,13 @@ curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/script
 
 该脚本会从 GitHub 拉取 `main`，以 `VITE_DEMO_MODE=true` 构建前端，并使用 `deploy/nginx/zkgl-demo-http.conf` 通过 HTTP 80 发布静态演示页。演示模式不连接生产 MySQL，不启用 `AUTH_TRUSTED_PROXY=true`，也不通过 Nginx 代理 `/api` 到业务服务；它只用于快速查看菜单、页面和样例数据。正式上线仍必须使用 HTTPS、`deploy/nginx/zkgl.conf`、`deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service` 和服务器本地 `/etc/zkgl/zkgl-api.env`。
 
-演示脚本执行成功后，在本地或服务器上运行：
+演示脚本执行成功后，如需校验公网演示地址，必须显式指定服务器 URL：
 
 ```bash
-npm run verify:public-demo
+node scripts/verify-public-demo.mjs http://193.112.79.220/
 ```
 
-该命令会访问 `http://193.112.79.220/`、`/projects`、`/contracts`、`/finance`、`/admin`，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后再执行。
+该命令会访问 `http://193.112.79.220/`、`/projects`、`/contracts`、`/finance`、`/admin`，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可替换命令中的 URL，或设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后执行 `npm run verify:public-demo`。不带参数的 `npm run verify:public-demo` 默认只校验本机 `http://127.0.0.1:4173/`，避免在本地演示阶段误访问远程服务器。
 
 `npm run verify:local-demo` 已纳入 `npm run verify:acceptance`。如果暂时没有服务器 SSH/VNC 操作权限，但需要先单独证明演示包本身可打开，也可在本地执行：
 

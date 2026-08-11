@@ -25,6 +25,30 @@ const demoHtml =
   '<!doctype html><html><head><title>众肯项目管理系统</title><link rel="stylesheet" href="/assets/index.css"></head><body><div id="app"></div><script type="module" src="/assets/index.js"></script></body></html>';
 
 describe("public demo verifier script", () => {
+  it("defaults to the local visual demo URL so verification does not touch the server accidentally", async () => {
+    const { verifyPublicDemo } = await loadPublicDemoModule();
+    const requested: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      requested.push(url);
+      if (url.endsWith("/assets/index.js")) {
+        return new Response("import './chunk.js';", { status: 200 });
+      }
+      if (url.endsWith("/assets/index.css")) {
+        return new Response("body{display:block}", { status: 200 });
+      }
+      return new Response(demoHtml, { status: 200 });
+    }) as typeof fetch;
+
+    await expect(
+      verifyPublicDemo({ fetchImpl, routes: ["/"] }),
+    ).resolves.toBe("Public demo verified: http://127.0.0.1:4173/");
+    expect(requested).toEqual([
+      "http://127.0.0.1:4173/",
+      "http://127.0.0.1:4173/assets/index.js",
+      "http://127.0.0.1:4173/assets/index.css",
+    ]);
+  });
+
   it("accepts the built SPA shell on demo routes", async () => {
     const { verifyPublicDemo } = await loadPublicDemoModule();
     const requested: string[] = [];

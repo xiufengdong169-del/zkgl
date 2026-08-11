@@ -302,7 +302,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 420 条测试",
+  "83 个测试文件 / 421 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -696,7 +696,7 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("scripts/deploy-lighthouse-production.sh");
     expect(finalAcceptanceChecklist).toContain("npm run verify:public-demo");
     expect(finalAcceptanceChecklist).toContain("npm run verify:local-demo");
-    expect(publicDemoScript).toContain("http://193.112.79.220/");
+    expect(publicDemoScript).toContain("http://127.0.0.1:4173/");
     expect(publicDemoScript).toContain("众肯项目管理系统");
     expect(publicDemoScript).toContain("/projects");
     expect(publicDemoScript).toContain("/contracts");
@@ -715,7 +715,16 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("npm run demo:local");
     expect(deploymentDoc).toContain("http://127.0.0.1:4173/");
     expect(deploymentDoc).toContain("不会访问远程服务器");
+    expect(deploymentDoc).toContain(
+      "node scripts/verify-public-demo.mjs http://193.112.79.220/",
+    );
+    expect(deploymentDoc).toContain(
+      "不带参数的 `npm run verify:public-demo` 默认只校验本机",
+    );
     expect(finalAcceptanceChecklist).toContain("http://127.0.0.1:4173/");
+    expect(finalAcceptanceChecklist).toContain(
+      "未显式传入 URL 的 `npm run verify:public-demo` 默认只校验本机",
+    );
     expect(publicDemoScript).toContain("extractFrontendModuleEntries");
     expect(publicDemoScript).toContain("frontend module");
     expect(publicDemoScript).toContain("extractStylesheetEntries");

@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 
-const defaultBaseUrl = "http://193.112.79.220/";
+const defaultBaseUrl = "http://127.0.0.1:4173/";
 const demoRoutes = ["/", "/projects", "/contracts", "/finance", "/admin"];
 
 const fail = (message) => {
