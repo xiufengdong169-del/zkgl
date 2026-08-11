@@ -102,6 +102,28 @@ const extractInlinePermissionCodes = (source: string) =>
     ),
   ].sort();
 
+const extractSeededPermissionCodes = (source: string) => {
+  const block =
+    /INSERT INTO iam_permission\(code,name,permission_type\)\s*VALUES([\s\S]*?)ON DUPLICATE KEY UPDATE/.exec(
+      source,
+    )?.[1] ?? "";
+  return [...new Set([...block.matchAll(/\('([^']+)'/g)].map((match) => match[1]!))]
+    .sort();
+};
+
+const extractRolePermissionGrantCodes = (source: string) =>
+  [
+    ...new Set(
+      [
+        ...source.matchAll(
+          /INSERT IGNORE INTO iam_role_permission[\s\S]*?p\.code IN\s*\(([\s\S]*?)\)\s*WHERE r\.code='[^']+'/g,
+        ),
+      ].flatMap((match) =>
+        [...match[1]!.matchAll(/'([^']+)'/g)].map((code) => code[1]!),
+      ),
+    ),
+  ].sort();
+
 const extractTableColumns = (source: string) => {
   const tables = new Map<string, Set<string>>();
   for (const match of source.matchAll(
@@ -475,6 +497,20 @@ describe("empty database initialization schema", () => {
       expect(schema, `missing frontend permission seed ${permission}`).toContain(
         `('${permission}'`,
       );
+  });
+
+  it("role permission seed lists only reference seeded permission codes", () => {
+    const seededPermissionCodes = extractSeededPermissionCodes(schema);
+    const roleGrantCodes = extractRolePermissionGrantCodes(schema);
+
+    expect(seededPermissionCodes.length).toBeGreaterThan(40);
+    expect(roleGrantCodes.length).toBeGreaterThan(20);
+    for (const permission of roleGrantCodes) {
+      expect(
+        seededPermissionCodes,
+        `role permission seed references missing permission ${permission}`,
+      ).toContain(permission);
+    }
   });
 
   it("frontend inline permission codes are seeded", () => {
