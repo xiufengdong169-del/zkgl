@@ -35,6 +35,24 @@ function projectReferenceConnection() {
   };
 }
 
+function closeOpenItemCompleteConnection(row: Record<string, unknown>) {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM prj_close_open_item i")) return [[row], []];
+      if (sql.startsWith("UPDATE prj_close_open_item SET"))
+        return [{ affectedRows: 1 }, []];
+      return [[], []];
+    },
+  };
+}
+
 async function executeWith(
   connection: ReturnType<typeof projectReferenceConnection>,
   action: string,
@@ -172,5 +190,39 @@ describe("project reference data scopes", () => {
       "JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0",
     );
     expect(query.params).toEqual(["item-1"]);
+  });
+
+  it("records who completed close open items and increments the tracking version", async () => {
+    const connection = closeOpenItemCompleteConnection({
+      status: "OPEN",
+      responsibleId: scopedUser.employeeId,
+      projectManagerId: "manager-1",
+      createdBy: "creator-1",
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "project.close.openItem.complete",
+        { itemId: "item-1", completedOn: "2026-08-01" },
+        scopedUser,
+      ),
+    ).resolves.toEqual({
+      id: "item-1",
+      status: "COMPLETED",
+      completedOn: "2026-08-01",
+      completedBy: scopedUser.id,
+    });
+
+    const update = connection.calls.find((call) =>
+      call.sql.startsWith("UPDATE prj_close_open_item SET"),
+    )!;
+    expect(update.sql).toContain("completed_by=?");
+    expect(update.sql).toContain("version=version+1");
+    expect(update.sql).toContain("WHERE id=? AND status='OPEN'");
+    expect(update.params).toEqual(["2026-08-01", scopedUser.id, "item-1"]);
+    expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
   });
 });

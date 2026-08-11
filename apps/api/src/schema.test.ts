@@ -745,6 +745,9 @@ describe("empty database initialization schema", () => {
     expect(persistence).toContain(
       "FROM fin_receipt x WHERE x.status='ACTIVE' AND x.is_deleted=0",
     );
+    expect(schema).toMatch(
+      /CREATE TABLE IF NOT EXISTS prj_close_open_item[\s\S]*?completed_by BIGINT UNSIGNED NULL[\s\S]*?version INT UNSIGNED NOT NULL DEFAULT 0/,
+    );
     for (const statement of [
       "UPDATE prj_project p JOIN prj_acceptance a ON a.project_id=p.id AND a.is_deleted=0 SET p.status='PENDING_ACCEPTANCE'",
       "UPDATE prj_project p JOIN prj_change c ON c.project_id=p.id AND c.is_deleted=0 SET p.estimated_cost",
@@ -794,6 +797,7 @@ describe("empty database initialization schema", () => {
       "UPDATE bid_task SET status=?,completion_description=COALESCE(?,completion_description),updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE bid_check SET result=?,issue_description=?,rectifier_id=?,rectification_due_at=?,recheck_result=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE con_contract_milestone SET completed_on=?,status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
+      "UPDATE prj_close_open_item SET status='COMPLETED',completed_on=?,completed_by=?,version=version+1 WHERE id=? AND status='OPEN'",
       "UPDATE partner_plan SET current_version=?,status='ENABLED',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE prj_stage SET status=?,actual_start_on=CASE WHEN ?='IN_PROGRESS' AND actual_start_on IS NULL THEN CURDATE() ELSE actual_start_on END,actual_end_on=CASE WHEN ?='COMPLETED' THEN CURDATE() ELSE actual_end_on END,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE prj_stage SET completion_percentage=?,status=CASE WHEN ?=100 THEN 'PENDING_CONFIRMATION' WHEN status='NOT_STARTED' THEN 'IN_PROGRESS' ELSE status END,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",

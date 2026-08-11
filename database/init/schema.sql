@@ -1497,9 +1497,11 @@ CREATE TABLE IF NOT EXISTS prj_close_open_item (
   responsible_id BIGINT UNSIGNED NOT NULL,
   due_on DATE NOT NULL,
   completed_on DATE NULL,
+  completed_by BIGINT UNSIGNED NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
   last_reminded_at DATETIME(3) NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  version INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT fk_close_item_application FOREIGN KEY (close_application_id) REFERENCES prj_close_application(id),
   INDEX idx_close_item_due (status, due_on)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -4878,13 +4878,14 @@ export class MySqlActionExecutor {
               403,
             );
           await connection.execute(
-            `UPDATE prj_close_open_item SET status='COMPLETED',completed_on=? WHERE id=? AND status='OPEN'`,
-            [input.completedOn, input.itemId],
+            `UPDATE prj_close_open_item SET status='COMPLETED',completed_on=?,completed_by=?,version=version+1 WHERE id=? AND status='OPEN'`,
+            [input.completedOn, user.id, input.itemId],
           );
           return {
             id: input.itemId,
             status: "COMPLETED",
             completedOn: input.completedOn,
+            completedBy: user.id,
           };
         }
         case "settlement.summary": {

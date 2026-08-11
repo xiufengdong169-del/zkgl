@@ -25,7 +25,7 @@
 | AC-12 | 无关项目详情、导出和附件地址均按数据范围拒绝并审计 | `apps/api/src/handler.test.ts` |
 | AC-13 | 暂定金额经金额变更审批后转为已确认 | `apps/api/src/contracts.test.ts` |
 | AC-14 | 30 用户在基准数据量下混合查询、保存和审批，95% 请求满足 V2.2 性能阈值且无重复审批或越权 | `docs/operations-acceptance.md` 现场负载验收 |
-| AC-15 | 存在未收款、未退保证金和未关闭问题时普通结项被阻止；带遗留事项必须完整登记且最终特批人为公司负责人 | `apps/api/src/settlements.test.ts` |
+| AC-15 | 存在未收款、未退保证金和未关闭问题时普通结项被阻止；带遗留事项必须完整登记且最终特批人为公司负责人，完成确认人可追溯 | `apps/api/src/settlements.test.ts`、`apps/api/src/project-reference-scope.test.ts` |
 
 ## 交付前必跑命令
 
@@ -56,7 +56,7 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 83 个测试文件 / 417 条测试通过；Web 10 个测试文件 / 48 条测试通过。
+- `npm run test`：API 83 个测试文件 / 418 条测试通过；Web 10 个测试文件 / 48 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。

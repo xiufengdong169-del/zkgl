@@ -302,7 +302,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 417 条测试",
+  "83 个测试文件 / 418 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -329,6 +329,7 @@ const finalAcceptanceChecklistFragments = [
   "HTTPS 临时地址",
   "noopener,noreferrer",
   "业务主流程验收",
+  "completed_by",
   "AC-01 至 AC-15",
   "AC-14",
   "30 用户",
