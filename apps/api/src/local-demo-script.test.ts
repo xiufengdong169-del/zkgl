@@ -1,4 +1,4 @@
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -30,6 +30,7 @@ type ServeLocalDemoModule = {
   serveLocalDemo(options?: {
     host?: string;
     port?: number;
+    strictPort?: boolean;
     outDir?: string;
     buildDemo?: (options: { outDir: string }) => Promise<string>;
     verifyDist?: (options: { dist: string }) => Promise<string>;
@@ -225,5 +226,69 @@ describe("local demo verifier script", () => {
     expect(verifyDemo).toHaveBeenCalledWith({ baseUrl });
     expect(verifyAssets).toHaveBeenCalledWith({ baseUrl, dist });
     expect(logger).toHaveBeenCalledWith(`Local demo ready: ${baseUrl}`);
+  });
+
+  it("falls back to a free local port when the default demo port is already used", async () => {
+    const { serveLocalDemo } = await loadServeLocalDemoModule();
+    const dist = await makeDemoDist();
+    const blockingServer = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("busy");
+    });
+    const blockingBaseUrl = await listen(blockingServer);
+    const occupiedPort = Number(new URL(blockingBaseUrl).port);
+    const logger = vi.fn();
+
+    const { baseUrl, server } = await serveLocalDemo({
+      host: "127.0.0.1",
+      port: occupiedPort,
+      strictPort: false,
+      outDir: dist,
+      buildDemo: vi.fn(async (_options: { outDir: string }) => dist),
+      verifyDist: vi.fn(async (_options: { dist: string }) =>
+        "Web dist security verified",
+      ),
+      verifyDemo: vi.fn(async (_options: { baseUrl: string }) =>
+        "Public demo verified",
+      ),
+      verifyAssets: vi.fn(
+        async (_options: { baseUrl: string; dist: string }) =>
+          "Local demo assets verified",
+      ),
+      logger,
+    });
+    servers.push(server);
+
+    expect(baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    expect(new URL(baseUrl).port).not.toBe(String(occupiedPort));
+    expect(logger).toHaveBeenCalledWith(
+      `Local demo port ${occupiedPort} is already in use; trying a free local port.`,
+    );
+    expect(logger).toHaveBeenCalledWith(`Local demo ready: ${baseUrl}`);
+  });
+
+  it("keeps an explicitly requested local demo port strict", async () => {
+    const { serveLocalDemo } = await loadServeLocalDemoModule();
+    const dist = await makeDemoDist();
+    const blockingServer = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("busy");
+    });
+    const blockingBaseUrl = await listen(blockingServer);
+    const occupiedPort = Number(new URL(blockingBaseUrl).port);
+
+    await expect(
+      serveLocalDemo({
+        host: "127.0.0.1",
+        port: occupiedPort,
+        strictPort: true,
+        outDir: dist,
+        buildDemo: vi.fn(async (_options: { outDir: string }) => dist),
+        verifyDist: vi.fn(async (_options: { dist: string }) =>
+          "Web dist security verified",
+        ),
+        logger: vi.fn(),
+      }),
+    ).rejects.toMatchObject({ code: "EADDRINUSE" });
   });
 });

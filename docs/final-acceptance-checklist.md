@@ -16,7 +16,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 84 个测试文件 / 431 条测试。
+- [ ] API 测试通过，当前基线为 84 个测试文件 / 433 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 48 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -55,7 +55,7 @@
 - [ ] 正式部署可使用 `scripts/deploy-lighthouse-production.sh` 执行；脚本必须在服务器环境文件、HTTPS 证书、`VITE_API_BASE_URL` 和认证 verifier 就绪后运行，并先执行 `npm run verify:acceptance`。
 - [ ] 如需先看公网界面演示，可在服务器执行 `scripts/deploy-lighthouse-demo.sh`，或直接执行 `curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash`；演示使用 `deploy/nginx/zkgl-demo-http.conf` 发布 HTTP 静态演示页，不代理 `/api`，不启用 `AUTH_TRUSTED_PROXY=true`，不作为正式上线口径；发布后执行 `node scripts/verify-public-demo.mjs http://193.112.79.220/` 确认公网地址已返回众肯系统前端壳。未显式传入 URL 的 `npm run verify:public-demo` 默认只校验本机 `http://127.0.0.1:4173/`，避免本地演示阶段误访问远程服务器。
 - [ ] 如服务器登录权限暂不可用，可先执行 `npm run verify:local-demo`，确认 demo 模式前端包在本地临时 HTTP 服务下可打开，且 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 路由均返回众肯系统前端壳，前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问。
-- [ ] 如需在本地电脑持续查看可视化界面，执行 `npm run demo:local`，打开 `http://127.0.0.1:4173/`，确认页面使用样例数据展示且不连接生产 MySQL、不访问远程服务器。
+- [ ] 如需在本地电脑持续查看可视化界面，执行 `npm run demo:local`，优先打开 `http://127.0.0.1:4173/`；若 4173 已被占用，以终端输出的实际本地链接为准，确认页面使用样例数据展示且不连接生产 MySQL、不访问远程服务器。
 - [ ] `/api` 仅由 Nginx 反向代理到 `127.0.0.1:3000/api`；外部伪造的 `X-ZKGL-CloudBase-UID` 被清除，业务 API 不接收浏览器直传 UID。
 - [ ] `deploy/systemd/zkgl-reminder.timer` 每日 08:00 执行提醒刷新；历史触发器名称为 `zkglDailyReminder`。
 - [ ] `deploy/systemd/zkgl-export-worker.timer` 每 5 分钟执行导出 worker；历史触发器名称为 `zkglExportWorker`。
