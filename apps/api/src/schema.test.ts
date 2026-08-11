@@ -14,6 +14,10 @@ const persistence = readFileSync(
   new URL("./persistence.ts", import.meta.url),
   "utf8",
 );
+const sensitiveFields = readFileSync(
+  new URL("./sensitive-fields.ts", import.meta.url),
+  "utf8",
+);
 const webRoutes = readFileSync(
   new URL("../../web/src/routes.ts", import.meta.url),
   "utf8",
@@ -121,6 +125,70 @@ const extractRolePermissionGrantCodes = (source: string) =>
       ].flatMap((match) =>
         [...match[1]!.matchAll(/'([^']+)'/g)].map((code) => code[1]!),
       ),
+    ),
+  ].sort();
+
+const extractSeededRoleCodes = (source: string) => {
+  const block =
+    /INSERT INTO iam_role\(code,name,status,created_at,updated_at\)\s*VALUES([\s\S]*?)ON DUPLICATE KEY UPDATE/.exec(
+      source,
+    )?.[1] ?? "";
+  return [
+    ...new Set([...block.matchAll(/\('([^']+)'/g)].map((match) => match[1]!)),
+  ].sort();
+};
+
+const extractSensitiveGrantSeedBlocks = (source: string) =>
+  [
+    ...source.matchAll(
+      /INSERT IGNORE INTO iam_sensitive_field_grant[\s\S]*?(?=\nINSERT|\n$)/g,
+    ),
+  ].map((match) => match[0]!);
+
+const extractSensitiveGrantFieldCodes = (source: string) =>
+  [
+    ...new Set(
+      extractSensitiveGrantSeedBlocks(source).flatMap((block) => [
+        ...[
+          ...block.matchAll(
+            /(?:SELECT|UNION ALL SELECT)\s+'([^']+)'(?:\s+field_code)?/g,
+          ),
+        ].map((match) => match[1]!),
+        ...[
+          ...block.matchAll(
+            /SELECT\s+id\s*,\s*'([^']+)'\s*,\s*'(?:FULL|MASKED)'/g,
+          ),
+        ].map((match) => match[1]!),
+      ]),
+    ),
+  ].sort();
+
+const extractSensitiveGrantRoleCodes = (source: string) =>
+  [
+    ...new Set(
+      extractSensitiveGrantSeedBlocks(source).flatMap((block) => [
+        ...[...block.matchAll(/WHERE\s+r\.code\s+IN\(([^)]*)\)/g)].flatMap(
+          (match) =>
+            [...match[1]!.matchAll(/'([^']+)'/g)].map((code) => code[1]!),
+        ),
+        ...[...block.matchAll(/WHERE\s+code\s+IN\(([^)]*)\)/g)].flatMap(
+          (match) =>
+            [...match[1]!.matchAll(/'([^']+)'/g)].map((code) => code[1]!),
+        ),
+        ...[...block.matchAll(/WHERE\s+r\.code='([^']+)'/g)].map(
+          (match) => match[1]!,
+        ),
+        ...[...block.matchAll(/WHERE\s+code='([^']+)'/g)].map(
+          (match) => match[1]!,
+        ),
+      ]),
+    ),
+  ].sort();
+
+const extractRuntimeSensitiveFieldCodes = (source: string) =>
+  [
+    ...new Set(
+      [...source.matchAll(/return\s+"([^"]+)";/g)].map((match) => match[1]!),
     ),
   ].sort();
 
@@ -510,6 +578,29 @@ describe("empty database initialization schema", () => {
         seededPermissionCodes,
         `role permission seed references missing permission ${permission}`,
       ).toContain(permission);
+    }
+  });
+
+  it("role sensitive field seed references only seeded roles and protected fields", () => {
+    const seededRoleCodes = extractSeededRoleCodes(schema);
+    const runtimeSensitiveFieldCodes =
+      extractRuntimeSensitiveFieldCodes(sensitiveFields);
+    const grantRoleCodes = extractSensitiveGrantRoleCodes(schema);
+    const grantFieldCodes = extractSensitiveGrantFieldCodes(schema);
+
+    expect(seededRoleCodes.length).toBeGreaterThan(5);
+    expect(runtimeSensitiveFieldCodes).toEqual([
+      "bank_account",
+      "partner_settlement",
+      "profit",
+    ]);
+    expect(grantRoleCodes.length).toBeGreaterThan(3);
+    expect(grantFieldCodes).toEqual(runtimeSensitiveFieldCodes);
+    for (const role of grantRoleCodes) {
+      expect(
+        seededRoleCodes,
+        `sensitive field grant references missing role ${role}`,
+      ).toContain(role);
     }
   });
 
