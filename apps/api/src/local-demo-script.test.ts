@@ -26,9 +26,27 @@ type LocalDemoModule = {
   }): Promise<string>;
 };
 
+type ServeLocalDemoModule = {
+  serveLocalDemo(options?: {
+    host?: string;
+    port?: number;
+    outDir?: string;
+    buildDemo?: (options: { outDir: string }) => Promise<string>;
+    verifyDist?: (options: { dist: string }) => Promise<string>;
+    verifyDemo?: (options: { baseUrl: string }) => Promise<string>;
+    verifyAssets?: (options: { baseUrl: string; dist: string }) => Promise<string>;
+    logger?: (message: string) => void;
+  }): Promise<{ baseUrl: string; server: Server }>;
+};
+
 async function loadLocalDemoModule() {
   // @ts-expect-error script module is outside the TypeScript source root.
   return (await import("../../../scripts/verify-local-demo.mjs")) as LocalDemoModule;
+}
+
+async function loadServeLocalDemoModule() {
+  // @ts-expect-error script module is outside the TypeScript source root.
+  return (await import("../../../scripts/serve-local-demo.mjs")) as ServeLocalDemoModule;
 }
 
 const tempDirs: string[] = [];
@@ -167,5 +185,45 @@ describe("local demo verifier script", () => {
       baseUrl: firstVerifyDemoCall![0].baseUrl,
       dist,
     });
+  });
+
+  it("builds, verifies, and keeps a local visual demo server open", async () => {
+    const { serveLocalDemo } = await loadServeLocalDemoModule();
+    const dist = await makeDemoDist();
+    const buildDemo = vi.fn(async (_options: { outDir: string }) => dist);
+    const verifyDist = vi.fn(async (_options: { dist: string }) =>
+      "Web dist security verified",
+    );
+    const verifyDemo = vi.fn(async (_options: { baseUrl: string }) =>
+      "Public demo verified",
+    );
+    const verifyAssets = vi.fn(
+      async (_options: { baseUrl: string; dist: string }) =>
+        "Local demo assets verified",
+    );
+    const logger = vi.fn();
+
+    const { baseUrl, server } = await serveLocalDemo({
+      host: "127.0.0.1",
+      port: 0,
+      outDir: dist,
+      buildDemo,
+      verifyDist,
+      verifyDemo,
+      verifyAssets,
+      logger,
+    });
+    servers.push(server);
+
+    expect(baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    expect(baseUrl).not.toBe("http://127.0.0.1:0/");
+    await expect(fetch(`${baseUrl}admin`)).resolves.toMatchObject({
+      status: 200,
+    });
+    expect(buildDemo).toHaveBeenCalledWith({ outDir: dist });
+    expect(verifyDist).toHaveBeenCalledWith({ dist });
+    expect(verifyDemo).toHaveBeenCalledWith({ baseUrl });
+    expect(verifyAssets).toHaveBeenCalledWith({ baseUrl, dist });
+    expect(logger).toHaveBeenCalledWith(`Local demo ready: ${baseUrl}`);
   });
 });
