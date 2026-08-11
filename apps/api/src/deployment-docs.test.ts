@@ -308,7 +308,7 @@ const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
   "85 个测试文件 / 439 条测试",
-  "10 个测试文件 / 48 条测试",
+  "10 个测试文件 / 51 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "npm run verify:performance-acceptance",

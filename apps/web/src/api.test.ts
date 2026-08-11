@@ -227,3 +227,53 @@ describe("openTrustedDownloadUrl", () => {
     expect(open).not.toHaveBeenCalled();
   });
 });
+
+describe("demoCallApi sample data", () => {
+  it("returns non-empty sample lists for the visual demo module pages", async () => {
+    const { demoCallApi } = await import("./demo");
+
+    for (const action of [
+      "project.application.list",
+      "bid.application.list",
+      "file.list",
+      "report.receivables",
+    ]) {
+      const result = await demoCallApi<{ items: unknown[] }>(action, {});
+      expect(result.items.length, `${action} should not render an empty demo table`).toBeGreaterThan(0);
+    }
+  });
+
+  it("returns structured sample data for finance, settlement, and delivery dashboards", async () => {
+    const { demoCallApi } = await import("./demo");
+
+    await expect(demoCallApi("finance.summary")).resolves.toMatchObject({
+      invoicedAmount: "960000.00",
+      receivedAmount: "780000.00",
+      paidAmount: "80000.00",
+    });
+    await expect(demoCallApi("delivery.records")).resolves.toMatchObject({
+      stages: [expect.objectContaining({ projectName: "广州智慧园区全过程咨询" })],
+      risks: [expect.objectContaining({ status: "OPEN" })],
+    });
+    await expect(demoCallApi("finance.operations")).resolves.toMatchObject({
+      payments: [expect.objectContaining({ code: "FK-2026-001" })],
+      plans: [expect.objectContaining({ code: "HZFA-2026-001" })],
+      settlements: [expect.objectContaining({ code: "JS-2026-001" })],
+      deposits: [expect.objectContaining({ code: "BZJ-2026-001" })],
+    });
+  });
+
+  it("returns project detail and report samples that keep demo pages from crashing", async () => {
+    const { demoCallApi } = await import("./demo");
+
+    await expect(demoCallApi("project.detail", { projectId: "p-001" })).resolves.toMatchObject({
+      money: expect.objectContaining({ contractAmount: "3200000.00" }),
+      approvalRecords: [expect.objectContaining({ instanceCode: "SP-2026-001" })],
+      auditLogs: [expect.objectContaining({ outcome: "SUCCESS" })],
+    });
+    await expect(demoCallApi("report.analytics")).resolves.toMatchObject({
+      profits: [expect.objectContaining({ projectCode: "XM-2026-001" })],
+      collection: { contractAmount: 3200000, receivedAmount: 780000 },
+    });
+  });
+});
