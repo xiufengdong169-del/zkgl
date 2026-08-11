@@ -4,6 +4,7 @@ type RequirementBaselineModule = {
   currentMarkdownBaseline: string;
   currentWordBaseline: string;
   extractAcceptanceCaseCodes(source: string): string[];
+  extractDocxVisibleText(documentXml: string): string;
   verifyRequirementBaseline(options?: {
     root?: string;
     readText?: (relativePath: string, root?: string) => Promise<string>;
@@ -70,6 +71,19 @@ describe("requirement baseline verifier script", () => {
       "AC-02",
       "AC-15",
     ]);
+  });
+
+  it("extracts visible text from split Word text runs and XML entities", async () => {
+    const { extractDocxVisibleText } = await loadRequirementBaselineModule();
+
+    expect(
+      extractDocxVisibleText(
+        "<w:document><w:t>Tencent </w:t><w:t>Cloud</w:t><w:t> &amp; MySQL</w:t></w:document>",
+      ),
+    ).toBe("Tencent Cloud & MySQL");
+    expect(extractDocxVisibleText("plain fallback text")).toBe(
+      "plain fallback text",
+    );
   });
 
   it("verifies the current Markdown and Word requirement baselines are aligned", async () => {

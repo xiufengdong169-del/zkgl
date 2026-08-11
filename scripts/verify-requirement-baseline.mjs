@@ -40,6 +40,29 @@ export async function extractDocxDocumentXml(relativePath, root = defaultRoot) {
   }
 }
 
+function decodeXmlText(value) {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, codePoint) =>
+      String.fromCodePoint(Number(codePoint)),
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_match, codePoint) =>
+      String.fromCodePoint(Number.parseInt(codePoint, 16)),
+    );
+}
+
+export function extractDocxVisibleText(documentXml) {
+  const textRuns = [
+    ...documentXml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g),
+  ];
+  if (!textRuns.length) return documentXml;
+  return textRuns.map((match) => decodeXmlText(match[1])).join("");
+}
+
 export function extractAcceptanceCaseCodes(source) {
   return [...new Set([...source.matchAll(/\bAC-\d{2}\b/g)].map((match) => match[0]))];
 }
@@ -70,6 +93,7 @@ export async function verifyRequirementBaseline({
     readText("docs/final-acceptance-checklist.md", root),
     readText("docs/acceptance-traceability.md", root),
   ]);
+  const wordBaselineText = extractDocxVisibleText(wordBaselineXml);
 
   for (const fragment of [
     "完整的新建系统",
@@ -92,7 +116,7 @@ export async function verifyRequirementBaseline({
     "prj_*",
     "con_*",
   ]) {
-    assertContains(wordBaselineXml, fragment, currentWordBaseline);
+    assertContains(wordBaselineText, fragment, currentWordBaseline);
   }
 
   for (const fragment of [
@@ -100,7 +124,7 @@ export async function verifyRequirementBaseline({
     "cloudbase-d7gc2b32cd4196059",
     "CloudBase 技术路线",
   ]) {
-    assertNotContains(wordBaselineXml, fragment, currentWordBaseline);
+    assertNotContains(wordBaselineText, fragment, currentWordBaseline);
   }
 
   assertContains(readme, currentWordBaseline, "README.md");
