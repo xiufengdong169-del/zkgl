@@ -2,6 +2,7 @@ import type { SessionUser } from "@zkgl/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  assertCloudFileIdMatchesStorageKey,
   assertHttpsTemporaryDownloadUrl,
   authorizeFileDownload,
   buildPrivateStorageKey,
@@ -123,6 +124,35 @@ describe("private files", () => {
     expect(buildPrivateStorageKey("f1", 2, "a".repeat(64), "pdf")).toBe(
       `private/files/f1/v2/${"a".repeat(64)}.pdf`,
     );
+  });
+
+  it("requires completed cloud file ids to exactly match reserved private storage keys", () => {
+    const expectedStorageKey = `private/files/f1/v2/${"a".repeat(64)}.pdf`;
+
+    expect(
+      assertCloudFileIdMatchesStorageKey(
+        `cloud://env-1/${expectedStorageKey}`,
+        expectedStorageKey,
+      ),
+    ).toBe(`cloud://env-1/${expectedStorageKey}`);
+    expect(() =>
+      assertCloudFileIdMatchesStorageKey(
+        `cloud://env-1/prefix/${expectedStorageKey}`,
+        expectedStorageKey,
+      ),
+    ).toThrow("上传文件与预分配路径不一致");
+    expect(() =>
+      assertCloudFileIdMatchesStorageKey(
+        `cloud:///private/files/f1/v2/${"a".repeat(64)}.pdf`,
+        expectedStorageKey,
+      ),
+    ).toThrow("上传文件与预分配路径不一致");
+    expect(() =>
+      assertCloudFileIdMatchesStorageKey(
+        `cloud://env-1/${expectedStorageKey}`,
+        `private/files/f1/v0/${"a".repeat(64)}.pdf`,
+      ),
+    ).toThrow("预分配文件存储路径无效");
   });
 
   it("requires project attachments to carry the same project id as business id", () => {

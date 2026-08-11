@@ -74,6 +74,7 @@
 
 - 导出 CSV 防公式注入。
 - 附件默认只允许 PDF、Office 文档、CSV、常见图片和 ZIP，并同时校验扩展名与 MIME 类型；EXE、DLL、BAT、CMD、PS1、JS、SH 等可执行或脚本文件必须拒绝。
+- 附件上传完成时必须严格匹配后端预分配的 `private/files/...` 私有存储路径；路径存在额外前缀、环境段异常或 hash/版本不一致时不得激活文件版本。
 - 后台导出文件为私有文件，过期时间受 `export.retention_days` 参数控制。
 - 文件下载成功和拒绝均有访问日志；后端强制校验临时下载地址必须为 HTTPS，前端仅打开 HTTPS 临时下载地址，并使用 `noopener,noreferrer` 隔离新窗口。
 

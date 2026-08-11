@@ -205,6 +205,33 @@ export function buildPrivateStorageKey(
   return `private/files/${fileId}/v${version}/${sha256.toLowerCase()}.${extension}`;
 }
 
+const reservedPrivateStorageKeyPattern =
+  /^private\/files\/[a-zA-Z0-9_-]+\/v[1-9][0-9]*\/[a-f0-9]{64}\.[a-z0-9]+$/;
+const cloudFileIdPattern =
+  /^cloud:\/\/[a-zA-Z0-9._-]+\/(.+)$/;
+
+export function assertCloudFileIdMatchesStorageKey(
+  cloudFileId: string,
+  expectedStorageKey: string,
+): string {
+  if (!reservedPrivateStorageKeyPattern.test(expectedStorageKey)) {
+    throw new AppError(
+      "FILE_STORAGE_KEY_INVALID",
+      "预分配文件存储路径无效",
+      500,
+    );
+  }
+  const match = cloudFileIdPattern.exec(cloudFileId);
+  if (!match || match[1] !== expectedStorageKey) {
+    throw new AppError(
+      "FILE_STORAGE_KEY_MISMATCH",
+      "上传文件与预分配路径不一致",
+      409,
+    );
+  }
+  return cloudFileId;
+}
+
 export function assertHttpsTemporaryDownloadUrl(url: string): string {
   let parsed: URL;
   try {

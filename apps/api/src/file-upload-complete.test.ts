@@ -14,6 +14,7 @@ const user: SessionUser = {
   sensitiveFieldAccess: {},
   dataScopes: [{ type: "PROJECT", projectIds: ["p1"] }],
 };
+const uploadedSha256 = "a".repeat(64);
 
 function uploadCompleteConnection() {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
@@ -31,7 +32,7 @@ function uploadCompleteConnection() {
             {
               id: "f1",
               versionId: "v1",
-              expectedStorageKey: "private/files/f1/v1/aaaaaaaa.pdf",
+              expectedStorageKey: `private/files/f1/v1/${uploadedSha256}.pdf`,
             },
           ],
           [],
@@ -58,7 +59,7 @@ function versionCompleteConnection() {
             {
               id: "v2",
               versionNumber: 2,
-              expectedStorageKey: "private/files/f1/v2/aaaaaaaa.pdf",
+              expectedStorageKey: `private/files/f1/v2/${uploadedSha256}.pdf`,
             },
           ],
           [],
@@ -135,7 +136,32 @@ describe("file upload completion", () => {
         "file.upload.complete",
         {
           fileId: "f1",
-          cloudFileId: "cloud://env/private/files/f1/v1/bbbbbbbb.pdf",
+          cloudFileId: `cloud://env/private/files/f1/v1/${"b".repeat(64)}.pdf`,
+        },
+        user,
+      ),
+    ).rejects.toMatchObject({ code: "FILE_STORAGE_KEY_MISMATCH" });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE file_version SET storage_key="),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+
+  it("rejects uploaded cloud file ids whose suffix is correct but path has an extra prefix", async () => {
+    const connection = uploadCompleteConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "file.upload.complete",
+        {
+          fileId: "f1",
+          cloudFileId: `cloud://env/not-reserved/private/files/f1/v1/${uploadedSha256}.pdf`,
         },
         user,
       ),
@@ -160,7 +186,7 @@ describe("file upload completion", () => {
         "file.upload.complete",
         {
           fileId: "f1",
-          cloudFileId: "cloud://env/private/files/f1/v1/aaaaaaaa.pdf",
+          cloudFileId: `cloud://env/private/files/f1/v1/${uploadedSha256}.pdf`,
         },
         user,
       ),
@@ -183,7 +209,7 @@ describe("file upload completion", () => {
     expect(fileUpdate?.sql).toContain("status='UPLOADING'");
     expect(fileUpdate?.sql).toContain("is_deleted=0");
     expect(versionUpdate?.params).toEqual([
-      "cloud://env/private/files/f1/v1/aaaaaaaa.pdf",
+      `cloud://env/private/files/f1/v1/${uploadedSha256}.pdf`,
       "v1",
     ]);
     expect(fileUpdate?.params).toEqual(["u1", "f1"]);
@@ -202,7 +228,7 @@ describe("file upload completion", () => {
         {
           fileId: "f1",
           versionId: "v2",
-          cloudFileId: "cloud://env/private/files/f1/v2/aaaaaaaa.pdf",
+          cloudFileId: `cloud://env/private/files/f1/v2/${uploadedSha256}.pdf`,
         },
         user,
       ),
@@ -223,5 +249,31 @@ describe("file upload completion", () => {
     expect(fileUpdate?.sql).toContain("status='ACTIVE'");
     expect(fileUpdate?.sql).toContain("is_deleted=0");
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
+  it("rejects uploaded new versions whose cloud path is not exactly the reserved key", async () => {
+    const connection = versionCompleteConnection();
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "file.version.complete",
+        {
+          fileId: "f1",
+          versionId: "v2",
+          cloudFileId: `cloud://env/not-reserved/private/files/f1/v2/${uploadedSha256}.pdf`,
+        },
+        user,
+      ),
+    ).rejects.toMatchObject({ code: "FILE_STORAGE_KEY_MISMATCH" });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE file_version SET storage_key="),
+      ),
+    ).toBe(false);
+    expect(connection.calls.map((call) => call.sql)).toContain("ROLLBACK");
   });
 });

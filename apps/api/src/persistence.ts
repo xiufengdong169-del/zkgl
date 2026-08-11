@@ -24,6 +24,7 @@ import { validatePaymentSource } from "./finance.js";
 import { refreshReminders } from "./reminders.js";
 import { assertAccountStatusChangeAllowed } from "./accounts.js";
 import {
+  assertCloudFileIdMatchesStorageKey,
   assertHttpsTemporaryDownloadUrl,
   buildPrivateStorageKey,
   DOWNLOAD_URL_TTL_SECONDS,
@@ -1398,15 +1399,13 @@ export class MySqlActionExecutor {
               "待完成的文件不存在",
               409,
             );
-          if (!input.cloudFileId.endsWith(`/${row.expectedStorageKey}`))
-            throw new AppError(
-              "FILE_STORAGE_KEY_MISMATCH",
-              "上传文件与预分配路径不一致",
-              409,
-            );
+          const storageKey = assertCloudFileIdMatchesStorageKey(
+            input.cloudFileId,
+            row.expectedStorageKey,
+          );
           const [versionResult] = await connection.execute<ResultSetHeader>(
             `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=? AND status='UPLOADING'`,
-            [input.cloudFileId, row.versionId],
+            [storageKey, row.versionId],
           );
           if (!versionResult.affectedRows)
             throw new AppError(
@@ -1500,15 +1499,13 @@ export class MySqlActionExecutor {
               "待完成的新版本不存在",
               409,
             );
-          if (!input.cloudFileId.endsWith(`/${version.expectedStorageKey}`))
-            throw new AppError(
-              "FILE_STORAGE_KEY_MISMATCH",
-              "上传文件与预分配路径不一致",
-              409,
-            );
+          const storageKey = assertCloudFileIdMatchesStorageKey(
+            input.cloudFileId,
+            version.expectedStorageKey,
+          );
           const [versionResult] = await connection.execute<ResultSetHeader>(
             `UPDATE file_version SET storage_key=?,status='ACTIVE' WHERE id=? AND status='UPLOADING'`,
-            [input.cloudFileId, input.versionId],
+            [storageKey, input.versionId],
           );
           if (!versionResult.affectedRows)
             throw new AppError(
