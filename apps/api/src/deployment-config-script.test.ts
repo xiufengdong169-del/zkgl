@@ -112,6 +112,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
           "npm run typecheck && npm run verify:deployment-config && npm run verify:local-demo",
         "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
         "verify:local-demo": "node scripts/verify-local-demo.mjs",
+        "demo:local": "node scripts/serve-local-demo.mjs",
         "verify:legacy-cloudbase":
           "npm run build:function && node scripts/verify-cloudbase-function-packages.mjs",
       },
@@ -127,6 +128,10 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       "systemd",
       "Nginx",
       "npm run start -w @zkgl/api",
+      "npm run demo:local",
+      "http://127.0.0.1:4173/",
+      "不连接生产 MySQL",
+      "不会访问远程服务器",
     ].join("\n"),
     finalChecklist: [
       expected.cloudbaseEnvId,
@@ -135,6 +140,8 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       `MySQL ${expected.serverMysql}`,
       "systemd",
       "Nginx",
+      "npm run demo:local",
+      "http://127.0.0.1:4173/",
     ].join("\n"),
   };
 }
@@ -242,6 +249,27 @@ describe("deployment config verifier script", () => {
 
     expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
       "verify must run verify:local-demo",
+    );
+  });
+
+  it("rejects removing the persistent local visual demo access command or docs", async () => {
+    const { verifyDeploymentConfigInputs, expected } =
+      await loadDeploymentConfigModule();
+    const missingScript = makeValidInputs(expected);
+    delete missingScript.packageJson.scripts!["demo:local"];
+
+    expect(() => verifyDeploymentConfigInputs(missingScript)).toThrow(
+      "missing demo:local script",
+    );
+
+    const missingDocs = makeValidInputs(expected);
+    missingDocs.deploymentDoc = missingDocs.deploymentDoc.replace(
+      "npm run demo:local",
+      "npm run dev",
+    );
+
+    expect(() => verifyDeploymentConfigInputs(missingDocs)).toThrow(
+      "docs/deployment.md missing npm run demo:local",
     );
   });
 });

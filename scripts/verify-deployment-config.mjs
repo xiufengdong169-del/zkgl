@@ -314,6 +314,24 @@ export function verifyDeploymentConfigInputs({
   if (packageJson.scripts?.["verify:local-demo"] !== "node scripts/verify-local-demo.mjs") {
     fail("package.json missing verify:local-demo script for local visual demo checks");
   }
+  if (packageJson.scripts?.["demo:local"] !== "node scripts/serve-local-demo.mjs") {
+    fail("package.json missing demo:local script for persistent local visual demo access");
+  }
+  includesAll(
+    deploymentDoc,
+    [
+      "npm run demo:local",
+      "http://127.0.0.1:4173/",
+      "不连接生产 MySQL",
+      "不会访问远程服务器",
+    ],
+    "docs/deployment.md",
+  );
+  includesAll(
+    finalChecklist,
+    ["npm run demo:local", "http://127.0.0.1:4173/"],
+    "docs/final-acceptance-checklist.md",
+  );
 
   return "Deployment config verified";
 }

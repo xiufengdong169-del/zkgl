@@ -120,6 +120,10 @@ const localDemoScript = readFileSync(
   new URL("../../../scripts/verify-local-demo.mjs", import.meta.url),
   "utf8",
 );
+const localDemoServerScript = readFileSync(
+  new URL("../../../scripts/serve-local-demo.mjs", import.meta.url),
+  "utf8",
+);
 const serverEnvScript = readFileSync(
   new URL("../../../scripts/verify-server-env.mjs", import.meta.url),
   "utf8",
@@ -298,7 +302,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 415 条测试",
+  "83 个测试文件 / 416 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -446,6 +450,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:local-demo"]).toBe(
       "node scripts/verify-local-demo.mjs",
     );
+    expect(packageJson.scripts["demo:local"]).toBe(
+      "node scripts/serve-local-demo.mjs",
+    );
     expect(packageJson.scripts["verify:server-env"]).toBe(
       "node scripts/verify-server-env.mjs",
     );
@@ -462,12 +469,14 @@ describe("deployment documentation", () => {
     expect(githubSyncScript).toContain("origin/main");
     expect(readme).toContain("npm run verify:github-sync");
     expect(readme).toContain("npm run verify:local-demo");
+    expect(readme).toContain("npm run demo:local");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:local-demo");
     expect(acceptanceTraceabilityDoc).toContain(
       `最后复核日期：${expectedAcceptanceReviewDate}`,
     );
     expect(finalAcceptanceChecklist).toContain("npm run verify:github-sync");
+    expect(finalAcceptanceChecklist).toContain("npm run demo:local");
     expect(packageJson.scripts.verify).toContain(
       "npm run verify:deployment-config",
     );
@@ -481,6 +490,7 @@ describe("deployment documentation", () => {
     expect(deploymentConfigVerifier).toContain(expectedCloudbaseEnvId);
     expect(deploymentConfigVerifier).toContain(expectedCloudbaseRegion);
     expect(deploymentConfigVerifier).toContain("VITE_API_BASE_URL");
+    expect(deploymentConfigVerifier).toContain("demo:local");
     expect(deploymentConfigVerifier).toContain("DB_PASSWORD");
     expect(deploymentConfigVerifier).toContain("zkglDailyReminder");
     expect(deploymentConfigVerifier).toContain("zkglExportWorker");
@@ -696,6 +706,14 @@ describe("deployment documentation", () => {
     expect(localDemoScript).toContain("verifyPublicDemo");
     expect(localDemoScript).toContain("collectLocalDemoAssetRoutes");
     expect(localDemoScript).toContain("verifyLocalDemoAssets");
+    expect(localDemoServerScript).toContain("serveLocalDemo");
+    expect(localDemoServerScript).toContain("http://");
+    expect(localDemoServerScript).toContain("4173");
+    expect(localDemoServerScript).toContain("verifyLocalDemoAssets");
+    expect(deploymentDoc).toContain("npm run demo:local");
+    expect(deploymentDoc).toContain("http://127.0.0.1:4173/");
+    expect(deploymentDoc).toContain("不会访问远程服务器");
+    expect(finalAcceptanceChecklist).toContain("http://127.0.0.1:4173/");
     expect(publicDemoScript).toContain("extractFrontendModuleEntries");
     expect(publicDemoScript).toContain("frontend module");
     expect(publicDemoScript).toContain("extractStylesheetEntries");

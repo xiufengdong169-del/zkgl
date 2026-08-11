@@ -113,6 +113,14 @@ npm run verify:local-demo
 
 该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 都能返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
 
+如需在本地电脑持续打开可视化界面供项目方查看，而不是只做一次自动验证，可执行：
+
+```bash
+npm run demo:local
+```
+
+默认访问地址为 `http://127.0.0.1:4173/`。该命令会重新构建 demo 模式前端包，启动本机静态 HTTP 服务，并在开放端口前自动复核路由、JS/CSS 入口和全部构建静态资源；它只读取本地演示样例数据，不连接生产 MySQL，也不会访问远程服务器。
+
 ## 计划任务
 
 - `zkgl-reminder.timer`：每日 08:00 执行提醒刷新，历史 CloudBase 触发器名称为 `zkglDailyReminder`。
