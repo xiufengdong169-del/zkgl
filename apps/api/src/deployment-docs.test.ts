@@ -73,6 +73,10 @@ const sourceSecretHygieneScript = readFileSync(
   new URL("../../../scripts/verify-source-secret-hygiene.mjs", import.meta.url),
   "utf8",
 );
+const requirementBaselineVerifier = readFileSync(
+  new URL("../../../scripts/verify-requirement-baseline.mjs", import.meta.url),
+  "utf8",
+);
 const cloudbaseFunctionPackageVerifier = readFileSync(
   new URL("../../../scripts/verify-cloudbase-function-packages.mjs", import.meta.url),
   "utf8",
@@ -302,7 +306,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 424 条测试",
+  "84 个测试文件 / 428 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -454,6 +458,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:local-demo"]).toBe(
       "node scripts/verify-local-demo.mjs",
     );
+    expect(packageJson.scripts["verify:requirements"]).toBe(
+      "node scripts/verify-requirement-baseline.mjs",
+    );
     expect(packageJson.scripts["demo:local"]).toBe(
       "node scripts/serve-local-demo.mjs",
     );
@@ -473,9 +480,11 @@ describe("deployment documentation", () => {
     expect(githubSyncScript).toContain("origin/main");
     expect(readme).toContain("npm run verify:github-sync");
     expect(readme).toContain("npm run verify:local-demo");
+    expect(readme).toContain("npm run verify:requirements");
     expect(readme).toContain("npm run demo:local");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:local-demo");
+    expect(acceptanceTraceabilityDoc).toContain("npm run verify:requirements");
     expect(acceptanceTraceabilityDoc).toContain(
       `最后复核日期：${expectedAcceptanceReviewDate}`,
     );
@@ -484,6 +493,7 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts.verify).toContain(
       "npm run verify:deployment-config",
     );
+    expect(packageJson.scripts.verify).toContain("npm run verify:requirements");
     expect(packageJson.scripts.verify).toContain("npm run verify:local-demo");
     expect(packageJson.scripts.verify).not.toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
@@ -508,6 +518,13 @@ describe("deployment documentation", () => {
       "众肯科技项目全过程管理系统需求说明书_V2.2_腾讯云轻量服务器版.docx",
     );
     expect(sourceSecretHygieneScript).toContain("word/document.xml");
+    expect(requirementBaselineVerifier).toContain("currentWordBaseline");
+    expect(requirementBaselineVerifier).toContain(
+      "众肯科技项目全过程管理系统需求说明书_V2.2_腾讯云轻量服务器版.docx",
+    );
+    expect(requirementBaselineVerifier).toContain("CloudBase 部署版");
+    expect(requirementBaselineVerifier).toContain("cloudbase-d7gc2b32cd4196059");
+    expect(deploymentDoc).toContain("node scripts/verify-requirement-baseline.mjs");
     expect(cloudbaseFunctionPackageVerifier).toContain("unexpected root entries");
     expect(cloudbaseFunctionPackageVerifier).toContain("non-JavaScript dist artifact");
     expect(cloudbaseFunctionPackageVerifier).toContain("sourceMappingURL");
@@ -589,7 +606,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(83);
+    expect(actualApiTestFiles).toBe(84);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);

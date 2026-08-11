@@ -157,6 +157,7 @@ npm run typecheck
 npm run test
 npm run build
 node scripts/verify-source-secret-hygiene.mjs
+npm run verify:requirements
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs

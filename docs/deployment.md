@@ -176,6 +176,7 @@ npm ci
 npm run verify:acceptance
 npm run build -w @zkgl/api
 npm run build -w @zkgl/web
+node scripts/verify-requirement-baseline.mjs
 node scripts/verify-web-dist-security.mjs
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-server-preflight.mjs

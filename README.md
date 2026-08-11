@@ -28,6 +28,7 @@ npm run typecheck
 npm run test
 npm run build
 node scripts/verify-source-secret-hygiene.mjs
+npm run verify:requirements
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
 node scripts/verify-server-deployment-assets.mjs
@@ -74,6 +75,7 @@ npm run demo:local
 - `docs/performance-acceptance-template.md`：AC-14 现场性能验收记录模板，用于归档 30 用户压测结果。
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。
 - `docs/acceptance-traceability.md`：V2.2 结果型验收用例、自动化测试映射和交付前必跑命令。
+- `scripts/verify-requirement-baseline.mjs`：校验 Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口保持一致。
 - `docs/final-acceptance-checklist.md`：最终交付验收总清单，用于上线前逐项签核。
 
 ## 安全原则
@@ -92,7 +94,7 @@ https://github.com/xiufengdong169-del/zkgl
 
 每个可验证改动应在通过测试与构建后提交并推送到 `main`。
 
-仓库包含 GitHub Actions 工作流 `.github/workflows/verify.yml`，会在 push 和 pull request 时执行 `npm ci` 与 `npm run verify:acceptance`，用于持续校验类型检查、测试、构建、敏感信息扫描、轻量服务器部署资产和生产依赖审计。
+仓库包含 GitHub Actions 工作流 `.github/workflows/verify.yml`，会在 push 和 pull request 时执行 `npm ci` 与 `npm run verify:acceptance`，用于持续校验类型检查、测试、构建、需求基线一致性、敏感信息扫描、轻量服务器部署资产和生产依赖审计。
 
 ## GitHub sync verification
 
