@@ -163,6 +163,7 @@ const verificationCommands = [
   "node scripts/verify-source-secret-hygiene.mjs",
   "node scripts/verify-web-dist-security.mjs",
   "npm run verify:deployment-config",
+  "npm run verify:performance-acceptance",
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
   "node scripts/verify-server-preflight.mjs",
@@ -306,10 +307,11 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "84 个测试文件 / 433 条测试",
+  "85 个测试文件 / 436 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
+  "npm run verify:performance-acceptance",
   "git status --short --branch",
   "origin/main",
   "GitHub Actions",
@@ -452,6 +454,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:deployment-config"]).toBe(
       "node scripts/verify-deployment-config.mjs",
     );
+    expect(packageJson.scripts["verify:performance-acceptance"]).toBe(
+      "node scripts/verify-performance-acceptance-assets.mjs",
+    );
     expect(packageJson.scripts["verify:public-demo"]).toBe(
       "node scripts/verify-public-demo.mjs",
     );
@@ -481,10 +486,14 @@ describe("deployment documentation", () => {
     expect(readme).toContain("npm run verify:github-sync");
     expect(readme).toContain("npm run verify:local-demo");
     expect(readme).toContain("npm run verify:requirements");
+    expect(readme).toContain("npm run verify:performance-acceptance");
     expect(readme).toContain("npm run demo:local");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:local-demo");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:requirements");
+    expect(acceptanceTraceabilityDoc).toContain(
+      "npm run verify:performance-acceptance",
+    );
     expect(acceptanceTraceabilityDoc).toContain(
       `最后复核日期：${expectedAcceptanceReviewDate}`,
     );
@@ -494,6 +503,9 @@ describe("deployment documentation", () => {
       "npm run verify:deployment-config",
     );
     expect(packageJson.scripts.verify).toContain("npm run verify:requirements");
+    expect(packageJson.scripts.verify).toContain(
+      "npm run verify:performance-acceptance",
+    );
     expect(packageJson.scripts.verify).toContain("npm run verify:local-demo");
     expect(packageJson.scripts.verify).not.toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
@@ -606,7 +618,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(84);
+    expect(actualApiTestFiles).toBe(85);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);

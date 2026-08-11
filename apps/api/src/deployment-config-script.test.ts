@@ -109,8 +109,10 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
       engines: { node: `>=${expected.nodeVersion}` },
       scripts: {
         verify:
-          "npm run typecheck && npm run verify:deployment-config && npm run verify:local-demo",
+          "npm run typecheck && npm run verify:deployment-config && npm run verify:performance-acceptance && npm run verify:local-demo",
         "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
+        "verify:performance-acceptance":
+          "node scripts/verify-performance-acceptance-assets.mjs",
         "verify:local-demo": "node scripts/verify-local-demo.mjs",
         "demo:local": "node scripts/serve-local-demo.mjs",
         "verify:legacy-cloudbase":
@@ -245,7 +247,7 @@ describe("deployment config verifier script", () => {
       await loadDeploymentConfigModule();
     const inputs = makeValidInputs(expected);
     inputs.packageJson.scripts!.verify =
-      "npm run typecheck && npm run verify:deployment-config";
+      "npm run typecheck && npm run verify:deployment-config && npm run verify:performance-acceptance";
 
     expect(() => verifyDeploymentConfigInputs(inputs)).toThrow(
       "verify must run verify:local-demo",

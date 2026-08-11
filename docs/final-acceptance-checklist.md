@@ -16,13 +16,14 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 84 个测试文件 / 433 条测试。
+- [ ] API 测试通过，当前基线为 85 个测试文件 / 436 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 48 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
 - [ ] 源码与交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - [ ] 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - [ ] `npm run verify:deployment-config` 通过，腾讯云轻量服务器、前后端环境变量、历史资产配置和 CI Node 版本一致性校验通过。
+- [ ] `npm run verify:performance-acceptance` 通过，AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验和归档材料要求一致。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
 - [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。

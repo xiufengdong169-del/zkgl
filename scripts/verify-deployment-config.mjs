@@ -293,8 +293,17 @@ export function verifyDeploymentConfigInputs({
   if (packageJson.scripts?.["verify:deployment-config"] !== "node scripts/verify-deployment-config.mjs") {
     fail("package.json missing verify:deployment-config script");
   }
+  if (
+    packageJson.scripts?.["verify:performance-acceptance"] !==
+    "node scripts/verify-performance-acceptance-assets.mjs"
+  ) {
+    fail("package.json missing verify:performance-acceptance script");
+  }
   if (!packageJson.scripts?.verify?.includes("npm run verify:deployment-config")) {
     fail("package.json verify must run verify:deployment-config");
+  }
+  if (!packageJson.scripts?.verify?.includes("npm run verify:performance-acceptance")) {
+    fail("package.json verify must run verify:performance-acceptance");
   }
   if (!packageJson.scripts?.verify?.includes("npm run verify:local-demo")) {
     fail("package.json verify must run verify:local-demo");

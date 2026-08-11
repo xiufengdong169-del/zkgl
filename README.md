@@ -31,6 +31,7 @@ node scripts/verify-source-secret-hygiene.mjs
 npm run verify:requirements
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
+npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
@@ -76,6 +77,7 @@ npm run demo:local
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。
 - `docs/acceptance-traceability.md`：V2.2 结果型验收用例、自动化测试映射和交付前必跑命令。
 - `scripts/verify-requirement-baseline.mjs`：校验 Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口保持一致。
+- `scripts/verify-performance-acceptance-assets.mjs`：校验 AC-14 现场性能验收口径、基准数据量、P95 阈值和归档材料要求保持一致。
 - `docs/final-acceptance-checklist.md`：最终交付验收总清单，用于上线前逐项签核。
 
 ## 安全原则
@@ -117,6 +119,7 @@ Current production target is Tencent Cloud Lighthouse standalone server:
 - API readiness: `/healthz` checks the process, `/readyz` checks MySQL connectivity before production deployment is considered healthy.
 - Web: `apps/web/dist` served by Nginx over HTTPS.
 - Auth adapter: `deploy/systemd/zkgl-auth-adapter.service` listens on `127.0.0.1:3010`; production must configure `AUTH_TOKEN_VERIFIER_MODULE` before enabling `AUTH_TRUSTED_PROXY=true`.
+- AC-14 onsite performance acceptance assets are verified by `npm run verify:performance-acceptance`.
 - Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-auth-adapter.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.
 - Backup and restore drills use `scripts/create-mysql-backup.mjs` and `scripts/restore-mysql-backup.mjs`; restore drills must target a non-production database.
 - Database initialization remains empty-database initialization through `database/init/schema.sql`; there is still no database migration.

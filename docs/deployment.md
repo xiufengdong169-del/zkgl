@@ -178,6 +178,7 @@ npm run build -w @zkgl/api
 npm run build -w @zkgl/web
 node scripts/verify-requirement-baseline.mjs
 node scripts/verify-web-dist-security.mjs
+npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-server-preflight.mjs
 sudo bash scripts/deploy-lighthouse-demo.sh

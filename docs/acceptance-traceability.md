@@ -45,6 +45,7 @@ node scripts/verify-source-secret-hygiene.mjs
 npm run verify:requirements
 node scripts/verify-web-dist-security.mjs
 npm run verify:deployment-config
+npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 node scripts/verify-server-preflight.mjs
@@ -57,11 +58,12 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 84 个测试文件 / 433 条测试通过；Web 10 个测试文件 / 48 条测试通过。
+- `npm run test`：API 85 个测试文件 / 436 条测试通过；Web 10 个测试文件 / 48 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `npm run verify:requirements`：Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致，且当前 Word 不再携带旧 CloudBase 部署版标题、旧环境 ID 或旧技术路线。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
+- `npm run verify:performance-acceptance`：AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验、归档材料要求一致。
 - `node scripts/verify-server-deployment-assets.mjs`：独立服务器 systemd 与 Nginx 部署模板通过。
 - `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer 和备份恢复验收文档通过。
 - `node scripts/verify-server-preflight.mjs`：Tencent Cloud Lighthouse 上线预检资产通过。
