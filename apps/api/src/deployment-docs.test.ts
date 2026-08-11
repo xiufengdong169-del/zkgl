@@ -22,7 +22,7 @@ const requirementBaselineDoc = readFileSync(
 );
 const requirementDocxPath = fileURLToPath(
   new URL(
-    "../../../众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+    "../../../众肯科技项目全过程管理系统需求说明书_V2.2_腾讯云轻量服务器版.docx",
     import.meta.url,
   ),
 );
@@ -288,7 +288,7 @@ const initializationChecklistFragments = [
 const deliveryEntryFragments = [
   "交付与验收入口",
   "需求评审修订基线_V2.2.md",
-  "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+  "众肯科技项目全过程管理系统需求说明书_V2.2_腾讯云轻量服务器版.docx",
   "docs/architecture.md",
   "docs/deployment.md",
   "docs/operations-acceptance.md",
@@ -501,6 +501,9 @@ describe("deployment documentation", () => {
     expect(sourceSecretHygieneScript).toContain("需求评审修订基线_V2.2.md");
     expect(sourceSecretHygieneScript).toContain(
       "众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx",
+    );
+    expect(sourceSecretHygieneScript).toContain(
+      "众肯科技项目全过程管理系统需求说明书_V2.2_腾讯云轻量服务器版.docx",
     );
     expect(sourceSecretHygieneScript).toContain("word/document.xml");
     expect(cloudbaseFunctionPackageVerifier).toContain("unexpected root entries");
@@ -792,6 +795,11 @@ describe("deployment documentation", () => {
     expect(requirementDocxXml).toContain("保证金、日常采购");
     expect(requirementDocxXml).toContain("无历史数据迁移");
     expect(requirementDocxXml).toContain("初始化建表脚本");
+    expect(requirementDocxXml).toContain("腾讯云轻量服务器版");
+    expect(requirementDocxXml).toContain("193.112.79.220");
+    expect(requirementDocxXml).toContain("MySQL 8.0");
+    expect(requirementDocxXml).not.toContain("cloudbase-d7gc2b32cd4196059");
+    expect(requirementDocxXml).not.toContain("CloudBase 部署版");
     expect(requirementDocxXml).not.toMatch(/pm_\*|contract_\*|purchase_\*/);
     expect(requirementDocxXml).not.toMatch(/迁移版本|迁移脚本|首个迁移/);
   });
