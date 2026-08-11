@@ -307,7 +307,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "85 个测试文件 / 436 条测试",
+  "85 个测试文件 / 439 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -732,10 +732,10 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("npm run verify:local-demo");
     expect(publicDemoScript).toContain("http://127.0.0.1:4173/");
     expect(publicDemoScript).toContain("众肯项目管理系统");
-    expect(publicDemoScript).toContain("/projects");
-    expect(publicDemoScript).toContain("/contracts");
-    expect(publicDemoScript).toContain("/finance");
-    expect(publicDemoScript).toContain("/admin");
+    expect(publicDemoScript).toContain("apps/web/src/routes.ts");
+    expect(publicDemoScript).toContain("extractDemoRoutes");
+    expect(publicDemoScript).toContain("readDefaultDemoRoutes");
+    expect(publicDemoScript).toContain("path:");
     expect(localDemoScript).toContain("VITE_DEMO_MODE");
     expect(localDemoScript).toContain(".tmp");
     expect(localDemoScript).toContain("createDemoStaticServer");

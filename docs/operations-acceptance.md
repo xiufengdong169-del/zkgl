@@ -181,7 +181,7 @@ npm run verify:legacy-cloudbase
 - 源码和交付脚本不包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - 前端构建产物不包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验和归档材料要求一致。
-- 腾讯云轻量服务器部署资产、Nginx/systemd 模板、备份恢复脚本和服务器预检脚本一致；本地 demo 模式构建、临时 HTTP 服务和主要 SPA 路由前端壳校验通过；历史函数包仅在执行 `npm run verify:legacy-cloudbase` 时单独复核，不作为当前主部署验收项。
+- 腾讯云轻量服务器部署资产、Nginx/systemd 模板、备份恢复脚本和服务器预检脚本一致；本地 demo 模式构建、临时 HTTP 服务和全部声明的前端 SPA 路由壳校验通过；历史函数包仅在执行 `npm run verify:legacy-cloudbase` 时单独复核，不作为当前主部署验收项。
 - 生产依赖审计 `npm audit --omit=dev` 无已知漏洞。
 ## 2026-08-02 独立服务器运维补充
 

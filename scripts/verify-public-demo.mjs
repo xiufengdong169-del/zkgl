@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+const root = resolve(import.meta.dirname, "..");
 const defaultBaseUrl = "http://127.0.0.1:4173/";
-const demoRoutes = ["/", "/projects", "/contracts", "/finance", "/admin"];
+const defaultRoutesFile = resolve(root, "apps/web/src/routes.ts");
 
 const fail = (message) => {
   throw new Error(`Public demo verification failed: ${message}`);
@@ -27,6 +30,22 @@ export function buildRouteUrl(baseUrl, route) {
   const url = new URL(baseUrl.toString());
   url.pathname = route;
   return url.toString();
+}
+
+export function extractDemoRoutes(source) {
+  return [
+    ...new Set(
+      [...source.matchAll(/path:\s*["']([^"']+)["']/g)]
+        .map((match) => match[1])
+        .filter((route) => route?.startsWith("/") && !route.includes(":")),
+    ),
+  ];
+}
+
+export function readDefaultDemoRoutes({ routesFile = defaultRoutesFile } = {}) {
+  const routes = extractDemoRoutes(readFileSync(routesFile, "utf8"));
+  if (!routes.length) fail("no frontend demo routes found");
+  return routes;
 }
 
 export function extractFrontendModuleEntries(html) {
@@ -64,7 +83,7 @@ export function verifyDemoHtml(route, html) {
 export async function verifyPublicDemo({
   baseUrl = process.env.ZKGL_PUBLIC_DEMO_URL || defaultBaseUrl,
   fetchImpl = fetch,
-  routes = demoRoutes,
+  routes = readDefaultDemoRoutes(),
 } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   const checkedAssetUrls = new Set();

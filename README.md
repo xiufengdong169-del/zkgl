@@ -51,7 +51,7 @@ npm run verify:legacy-cloudbase
 npm run verify:local-demo
 ```
 
-该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并验证首页、主要 SPA 路由、前端入口 JS 模块、CSS 样式资源和全部构建静态资源均可访问。
+该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并从 `apps/web/src/routes.ts` 自动读取全部前端 SPA 路由，验证前端壳、入口 JS 模块、CSS 样式资源和全部构建静态资源均可访问。
 
 如果需要在本地电脑持续打开可视化演示界面，执行：
 

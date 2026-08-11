@@ -103,7 +103,7 @@ curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/script
 node scripts/verify-public-demo.mjs http://193.112.79.220/
 ```
 
-该命令会访问 `http://193.112.79.220/`、`/projects`、`/contracts`、`/finance`、`/admin`，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可替换命令中的 URL，或设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后执行 `npm run verify:public-demo`。不带参数的 `npm run verify:public-demo` 默认只校验本机 `http://127.0.0.1:4173/`，避免在本地演示阶段误访问远程服务器。
+该命令会从 `apps/web/src/routes.ts` 自动读取全部前端 SPA 路由并访问对应地址，确认它们返回的是“众肯项目管理系统”前端壳，而不是服务器旧页面。若演示地址不是默认 IP，可替换命令中的 URL，或设置 `ZKGL_PUBLIC_DEMO_URL=http://实际地址/` 后执行 `npm run verify:public-demo`。不带参数的 `npm run verify:public-demo` 默认只校验本机 `http://127.0.0.1:4173/`，避免在本地演示阶段误访问远程服务器。
 
 `npm run verify:local-demo` 已纳入 `npm run verify:acceptance`。如果暂时没有服务器 SSH/VNC 操作权限，但需要先单独证明演示包本身可打开，也可在本地执行：
 
@@ -111,7 +111,7 @@ node scripts/verify-public-demo.mjs http://193.112.79.220/
 npm run verify:local-demo
 ```
 
-该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `/`、`/projects`、`/contracts`、`/finance` 和 `/admin` 都能返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
+该命令会以 `VITE_DEMO_MODE=true` 构建到 `.tmp/zkgl-local-demo`，启动临时本地 HTTP 服务，并复用同一套路由检查确认 `apps/web/src/routes.ts` 中全部声明的前端 SPA 路由都能返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问；它不连接生产 MySQL，也不会覆盖正式 `apps/web/dist`。
 
 如需在本地电脑持续打开可视化界面供项目方查看，而不是只做一次自动验证，可执行：
 
