@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
-import { readFile, rm, stat } from "node:fs/promises";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
+import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { verifyPublicDemo } from "./verify-public-demo.mjs";
@@ -145,11 +145,55 @@ async function close(server) {
   );
 }
 
+async function collectRelativeFiles(rootDir, currentDir = rootDir) {
+  const entries = await readdir(currentDir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const absolute = join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectRelativeFiles(rootDir, absolute)));
+    } else if (entry.isFile()) {
+      files.push(relative(rootDir, absolute).replaceAll("\\", "/"));
+    }
+  }
+  return files;
+}
+
+export async function collectLocalDemoAssetRoutes({ dist = defaultOutDir } = {}) {
+  const normalizedDist = resolve(dist);
+  return (await collectRelativeFiles(normalizedDist))
+    .map((file) => `/${file}`)
+    .sort();
+}
+
+export async function verifyLocalDemoAssets({
+  baseUrl,
+  dist = defaultOutDir,
+  fetchImpl = fetch,
+} = {}) {
+  if (!baseUrl) throw new Error("Local demo asset verification requires baseUrl");
+  const routes = await collectLocalDemoAssetRoutes({ dist });
+  if (!routes.length) throw new Error("Local demo asset verification found no files");
+  for (const route of routes) {
+    const url = new URL(route, baseUrl).toString();
+    const response = await fetchImpl(url, { redirect: "follow" });
+    if (!response.ok) {
+      throw new Error(`Local demo asset ${route} returned HTTP ${response.status}`);
+    }
+    const content = await response.arrayBuffer();
+    if (content.byteLength === 0) {
+      throw new Error(`Local demo asset ${route} is empty`);
+    }
+  }
+  return `Local demo assets verified: ${routes.length} files`;
+}
+
 export async function verifyLocalDemo({
   outDir = defaultOutDir,
   buildDemo = buildLocalDemoBundle,
   verifyDist = verifyWebDistSecurity,
   verifyDemo = verifyPublicDemo,
+  verifyAssets = verifyLocalDemoAssets,
 } = {}) {
   await buildDemo({ outDir });
   await verifyDist({ dist: outDir });
@@ -158,6 +202,7 @@ export async function verifyLocalDemo({
   const baseUrl = await listen(server);
   try {
     await verifyDemo({ baseUrl });
+    await verifyAssets({ baseUrl, dist: outDir });
   } finally {
     await close(server);
   }

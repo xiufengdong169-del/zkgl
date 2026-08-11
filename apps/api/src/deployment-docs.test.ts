@@ -145,7 +145,7 @@ const expectedCloudbaseRegion = "ap-guangzhou";
 const expectedServerPublicIp = "193.112.79.220";
 const expectedServerOs = "Ubuntu 24.04";
 const expectedServerMysql = "MySQL 8.0";
-const expectedAcceptanceReviewDate = "2026-08-10";
+const expectedAcceptanceReviewDate = "2026-08-12";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -298,7 +298,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "83 个测试文件 / 412 条测试",
+  "83 个测试文件 / 414 条测试",
   "10 个测试文件 / 48 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -694,6 +694,8 @@ describe("deployment documentation", () => {
     expect(localDemoScript).toContain(".tmp");
     expect(localDemoScript).toContain("createDemoStaticServer");
     expect(localDemoScript).toContain("verifyPublicDemo");
+    expect(localDemoScript).toContain("collectLocalDemoAssetRoutes");
+    expect(localDemoScript).toContain("verifyLocalDemoAssets");
     expect(publicDemoScript).toContain("extractFrontendModuleEntries");
     expect(publicDemoScript).toContain("frontend module");
     expect(publicDemoScript).toContain("extractStylesheetEntries");

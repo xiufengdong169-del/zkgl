@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 type LocalDemoModule = {
+  collectLocalDemoAssetRoutes(options?: { dist?: string }): Promise<string[]>;
   createDemoStaticServer(options?: { dist?: string }): Server;
   localDemoBuildCommand(options?: { outDir?: string }): {
     command: string;
@@ -16,6 +17,12 @@ type LocalDemoModule = {
     buildDemo?: (options: { outDir: string }) => Promise<string>;
     verifyDist?: (options: { dist: string }) => Promise<string>;
     verifyDemo?: (options: { baseUrl: string }) => Promise<string>;
+    verifyAssets?: (options: { baseUrl: string; dist: string }) => Promise<string>;
+  }): Promise<string>;
+  verifyLocalDemoAssets(options?: {
+    baseUrl?: string;
+    dist?: string;
+    fetchImpl?: typeof fetch;
   }): Promise<string>;
 };
 
@@ -97,6 +104,34 @@ describe("local demo verifier script", () => {
     expect(html).toContain('<div id="app"></div>');
   });
 
+  it("collects and verifies every local demo build asset through HTTP", async () => {
+    const { collectLocalDemoAssetRoutes, createDemoStaticServer, verifyLocalDemoAssets } =
+      await loadLocalDemoModule();
+    const dist = await makeDemoDist();
+    const baseUrl = await listen(createDemoStaticServer({ dist }));
+
+    await expect(collectLocalDemoAssetRoutes({ dist })).resolves.toEqual([
+      "/assets/index.css",
+      "/assets/index.js",
+      "/index.html",
+    ]);
+    await expect(verifyLocalDemoAssets({ baseUrl, dist })).resolves.toBe(
+      "Local demo assets verified: 3 files",
+    );
+  });
+
+  it("rejects empty local demo assets served through HTTP", async () => {
+    const { createDemoStaticServer, verifyLocalDemoAssets } =
+      await loadLocalDemoModule();
+    const dist = await makeDemoDist();
+    await writeFile(join(dist, "assets", "empty.js"), "", "utf8");
+    const baseUrl = await listen(createDemoStaticServer({ dist }));
+
+    await expect(verifyLocalDemoAssets({ baseUrl, dist })).rejects.toThrow(
+      "Local demo asset /assets/empty.js is empty",
+    );
+  });
+
   it("runs build, dist security, and route verification as one local demo gate", async () => {
     const { verifyLocalDemo } = await loadLocalDemoModule();
     const dist = await makeDemoDist();
@@ -107,9 +142,19 @@ describe("local demo verifier script", () => {
     const verifyDemo = vi.fn(async (_options: { baseUrl: string }) =>
       "Public demo verified",
     );
+    const verifyAssets = vi.fn(
+      async (_options: { baseUrl: string; dist: string }) =>
+        "Local demo assets verified",
+    );
 
     await expect(
-      verifyLocalDemo({ outDir: dist, buildDemo, verifyDist, verifyDemo }),
+      verifyLocalDemo({
+        outDir: dist,
+        buildDemo,
+        verifyDist,
+        verifyDemo,
+        verifyAssets,
+      }),
     ).resolves.toMatch(/^Local demo verified: http:\/\/127\.0\.0\.1:/);
     expect(buildDemo).toHaveBeenCalledWith({ outDir: dist });
     expect(verifyDist).toHaveBeenCalledWith({ dist });
@@ -118,5 +163,9 @@ describe("local demo verifier script", () => {
     expect(firstVerifyDemoCall![0].baseUrl).toMatch(
       /^http:\/\/127\.0\.0\.1:\d+\/$/,
     );
+    expect(verifyAssets).toHaveBeenCalledWith({
+      baseUrl: firstVerifyDemoCall![0].baseUrl,
+      dist,
+    });
   });
 });
