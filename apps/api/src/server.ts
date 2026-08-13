@@ -62,7 +62,7 @@ function requestBody(request: IncomingMessage): Promise<string> {
   });
 }
 
-function errorStatus(code?: string) {
+export function errorStatus(code?: string) {
   if (code === "UNAUTHORIZED") return 401;
   if (code === "FORBIDDEN" || code?.endsWith("_FORBIDDEN")) return 403;
   if (code?.endsWith("_NOT_FOUND")) return 404;
@@ -73,8 +73,7 @@ function errorStatus(code?: string) {
     code?.endsWith("_NOT_PENDING")
   )
     return 409;
-  if (code === "VALIDATION_ERROR") return 400;
-  if (code === "NOT_IMPLEMENTED") return 501;
+  if (code === "VALIDATION_ERROR" || code === "UNKNOWN_ACTION") return 400;
   if (code === "CONFIGURATION_ERROR" || code === "INTERNAL_ERROR") return 500;
   return 400;
 }

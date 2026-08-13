@@ -5282,9 +5282,9 @@ export class MySqlActionExecutor {
         }
         default:
           throw new AppError(
-            "ACTION_PERSISTENCE_NOT_IMPLEMENTED",
-            `动作尚未接入持久化：${action}`,
-            501,
+            "ACTION_DISPATCH_CONFIGURATION_ERROR",
+            "动作分发表配置错误",
+            500,
           );
       }
     };

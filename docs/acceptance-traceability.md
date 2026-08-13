@@ -58,7 +58,7 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 86 个测试文件 / 451 条测试通过；Web 10 个测试文件 / 51 条测试通过。
+- `npm run test`：API 87 个测试文件 / 456 条测试通过；Web 10 个测试文件 / 51 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `npm run verify:requirements`：Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致，且当前 Word 不再携带旧 CloudBase 部署版标题、旧环境 ID 或旧技术路线。

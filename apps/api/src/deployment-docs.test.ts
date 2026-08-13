@@ -320,7 +320,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "86 个测试文件 / 451 条测试",
+  "87 个测试文件 / 456 条测试",
   "10 个测试文件 / 51 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -606,7 +606,7 @@ describe("deployment documentation", () => {
       "本地开发测试完成报告",
       "复核日期：2026-08-14",
       "npm run verify:acceptance",
-      "API 测试通过：86 个测试文件 / 451 条测试",
+      "API 测试通过：87 个测试文件 / 456 条测试",
       "Web 测试通过：10 个测试文件 / 51 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",
@@ -666,7 +666,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(86);
+    expect(actualApiTestFiles).toBe(87);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);

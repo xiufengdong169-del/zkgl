@@ -10,7 +10,7 @@ import {
 } from "./audit.js";
 import { AppError } from "./errors.js";
 import { authorizeAndParseAction } from "./actions.js";
-import { requireEnabledUser, requirePermission } from "./rbac.js";
+import { requireEnabledUser } from "./rbac.js";
 import { protectSensitiveResult } from "./sensitive-fields.js";
 
 export interface FunctionEvent {
@@ -99,8 +99,7 @@ export async function handle(
         requestId: id,
       };
     }
-    requirePermission(user, action);
-    throw new AppError("NOT_IMPLEMENTED", "操作尚未实现", 501);
+    throw new AppError("UNKNOWN_ACTION", "未知操作", 400);
   } catch (error) {
     const appError = appErrorFromUnknown(error);
     await recordAudit(dependencies.audit, {

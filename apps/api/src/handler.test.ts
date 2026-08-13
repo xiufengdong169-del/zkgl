@@ -167,7 +167,7 @@ describe("API handler security boundary", () => {
     );
   });
 
-  it("未实现动作返回固定错误文案而不回显客户端传入的 action", async () => {
+  it("未知动作返回固定错误文案而不回显客户端传入的 action", async () => {
     const write = vi.fn();
     const execute = vi.fn();
     const unsafeAction = 'custom.unimplemented?<script>alert("x")</script>';
@@ -191,8 +191,8 @@ describe("API handler security boundary", () => {
     expect(result).toMatchObject({
       ok: false,
       error: {
-        code: "NOT_IMPLEMENTED",
-        message: "操作尚未实现",
+        code: "UNKNOWN_ACTION",
+        message: "未知操作",
       },
       requestId: "req-not-implemented",
     });
@@ -202,7 +202,7 @@ describe("API handler security boundary", () => {
       expect.objectContaining({
         action: unsafeAction,
         outcome: "FAILED",
-        details: expect.objectContaining({ code: "NOT_IMPLEMENTED" }),
+        details: expect.objectContaining({ code: "UNKNOWN_ACTION" }),
       }),
     );
   });
