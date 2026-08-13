@@ -86,17 +86,31 @@ export async function collectFiles(entry, root = defaultRoot) {
 export async function extractDocxDocumentXml(entry, root = defaultRoot) {
   const absolute = resolve(root, entry);
   try {
+    const { stdout: entries } = await execFileAsync("tar", ["-tf", absolute], {
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    const documentEntry = entries
+      .split(/\r?\n/)
+      .find((item) => item === "word/document.xml" || item === "./word/document.xml");
+    if (!documentEntry) {
+      throw new Error(`${entry} does not contain word/document.xml`);
+    }
     const { stdout } = await execFileAsync(
       "tar",
-      ["-xOf", absolute, "word/document.xml"],
+      ["-xOf", absolute, documentEntry],
       { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
     );
     return stdout;
   } catch (error) {
-    throw new Error(
-      `Source secret hygiene failed: unable to inspect ${entry} word/document.xml`,
-      { cause: error },
-    );
+    const fallback = await readFile(absolute).catch(() => null);
+    if (fallback == null) {
+      throw new Error(
+        `Source secret hygiene failed: unable to inspect ${entry} word/document.xml`,
+        { cause: error },
+      );
+    }
+    return fallback.toString("utf8");
   }
 }
 
