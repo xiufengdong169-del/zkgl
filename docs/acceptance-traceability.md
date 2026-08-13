@@ -2,7 +2,7 @@
 
 本文档用于把《需求评审修订基线 V2.2》的关键验收项映射到当前实现与自动化测试，便于最终验收时快速复核。
 
-最后复核日期：2026-08-12。
+最后复核日期：2026-08-14。
 
 ## 2026-08-02 部署目标口径
 
@@ -58,7 +58,7 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 85 个测试文件 / 439 条测试通过；Web 10 个测试文件 / 51 条测试通过。
+- `npm run test`：API 85 个测试文件 / 440 条测试通过；Web 10 个测试文件 / 51 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `npm run verify:requirements`：Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致，且当前 Word 不再携带旧 CloudBase 部署版标题、旧环境 ID 或旧技术路线。
@@ -70,6 +70,7 @@ npm audit --omit=dev
 - `npm run verify:local-demo`：本地 demo 模式构建、临时 HTTP 服务、全部声明的前端 SPA 路由壳、前端入口 JS 模块、CSS 样式资源和全部构建静态资源校验通过，可在服务器权限未就绪时先证明可视化演示包可打开。
 - 当前主线自动化验收以腾讯云轻量服务器部署资产为准。历史函数包仅作为历史/回退资产，可按需通过 `npm run verify:legacy-cloudbase` 单独复核，不进入当前主部署验收闭环。
 - `npm audit --omit=dev`：生产依赖无已知漏洞。
+- 本地阶段完成报告见 `docs/local-development-completion-report.md`，用于区分本地自动化已完成事项与仍需在腾讯云轻量服务器真实环境完成的部署、现场压测和备份恢复演练事项。
 
 ## 接口定义一致性检查
 

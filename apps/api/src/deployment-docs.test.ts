@@ -51,6 +51,10 @@ const acceptanceTraceabilityDoc = readFileSync(
   new URL("../../../docs/acceptance-traceability.md", import.meta.url),
   "utf8",
 );
+const localDevelopmentCompletionReport = readFileSync(
+  new URL("../../../docs/local-development-completion-report.md", import.meta.url),
+  "utf8",
+);
 const apiSourceDir = fileURLToPath(new URL("./", import.meta.url));
 const webSourceDir = fileURLToPath(new URL("../../web/src", import.meta.url));
 const envExample = readFileSync(
@@ -153,7 +157,7 @@ const expectedCloudbaseRegion = "ap-guangzhou";
 const expectedServerPublicIp = "193.112.79.220";
 const expectedServerOs = "Ubuntu 24.04";
 const expectedServerMysql = "MySQL 8.0";
-const expectedAcceptanceReviewDate = "2026-08-12";
+const expectedAcceptanceReviewDate = "2026-08-14";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -300,6 +304,7 @@ const deliveryEntryFragments = [
   "docs/performance-acceptance-template.md",
   "docs/backup-recovery-acceptance-template.md",
   "docs/acceptance-traceability.md",
+  "docs/local-development-completion-report.md",
   "docs/final-acceptance-checklist.md",
   "V2.2 结果型验收用例",
   "交付前必跑命令",
@@ -307,7 +312,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "85 个测试文件 / 439 条测试",
+  "85 个测试文件 / 440 条测试",
   "10 个测试文件 / 51 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -546,6 +551,7 @@ describe("deployment documentation", () => {
       operationsAcceptanceDoc,
       acceptanceTraceabilityDoc,
       finalAcceptanceChecklist,
+      localDevelopmentCompletionReport,
     ]) {
       expect(doc).toContain("npm run verify:acceptance");
     }
@@ -578,6 +584,33 @@ describe("deployment documentation", () => {
         fragment,
       );
     }
+  });
+
+  it("documents the current local development completion baseline", () => {
+    for (const fragment of [
+      "本地开发测试完成报告",
+      "复核日期：2026-08-14",
+      "npm run verify:acceptance",
+      "API 测试通过：85 个测试文件 / 440 条测试",
+      "Web 测试通过：10 个测试文件 / 51 条测试",
+      "本项目仍按全新开发口径执行，不存在数据库迁移",
+      "腾讯云轻量服务器正式部署",
+      "AC-14 现场性能验收",
+      "备份恢复演练",
+      "用户浏览器可视化演示访问",
+    ]) {
+      expect(
+        localDevelopmentCompletionReport,
+        `local completion report missing ${fragment}`,
+      ).toContain(fragment);
+    }
+    expect(readme).toContain("docs/local-development-completion-report.md");
+    expect(finalAcceptanceChecklist).toContain(
+      "docs/local-development-completion-report.md",
+    );
+    expect(acceptanceTraceabilityDoc).toContain(
+      "docs/local-development-completion-report.md",
+    );
   });
 
   it("keeps acceptance traceability aligned with requirement baseline AC cases", () => {

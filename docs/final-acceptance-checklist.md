@@ -12,11 +12,12 @@
 - [ ] AC-14 现场性能验收记录模板见 `docs/performance-acceptance-template.md`。
 - [ ] 备份恢复验收记录模板见 `docs/backup-recovery-acceptance-template.md`。
 - [ ] V2.2 结果型验收用例与自动化测试映射见 `docs/acceptance-traceability.md`。
+- [ ] 本地开发测试完成情况见 `docs/local-development-completion-report.md`，并确认本地自动化验收与仍需真实环境完成的事项边界清晰。
 
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 85 个测试文件 / 439 条测试。
+- [ ] API 测试通过，当前基线为 85 个测试文件 / 440 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 51 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -30,6 +31,7 @@
 - [ ] `npm run verify:local-demo` 通过：demo 模式前端包可在临时 HTTP 服务下打开，`apps/web/src/routes.ts` 中全部声明的前端 SPA 路由均返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问。
 - [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
+- [ ] `docs/local-development-completion-report.md` 已记录最近一次本地 `npm run verify:acceptance` 通过结果、测试基线和后续真实环境验收事项。
 
 ## 3. GitHub 版本管理
 
