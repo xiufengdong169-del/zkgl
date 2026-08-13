@@ -32,6 +32,14 @@ const markdownBaseline = [
   "无历史数据迁移",
   "prj_*",
   "con_*",
+  "腾讯云轻量应用服务器生产环境",
+  "腾讯云轻量应用服务器技术路线",
+  "193.112.79.220",
+  "Ubuntu 24.04",
+  "服务器本机 MySQL 8.0",
+  "Nginx",
+  "systemd",
+  "CloudBase 仅作为身份认证与 UID 来源",
   ...acceptanceCodes,
 ].join("\n");
 
@@ -155,5 +163,35 @@ describe("requirement baseline verifier script", () => {
         extractDocx: async () => wordBaselineXml,
       }),
     ).rejects.toThrow("docs/acceptance-traceability.md does not cover AC-01 through AC-15");
+  });
+
+  it("rejects Markdown baselines that still use the old CloudBase performance resource wording", async () => {
+    const { currentMarkdownBaseline, verifyRequirementBaseline } =
+      await loadRequirementBaselineModule();
+
+    await expect(
+      verifyRequirementBaseline({
+        readText: async (relativePath) =>
+          relativePath === currentMarkdownBaseline
+            ? `${markdownBaseline}\n生产级 CloudBase 资源`
+            : readTextFor(relativePath),
+        extractDocx: async () => wordBaselineXml,
+      }),
+    ).rejects.toThrow(`${currentMarkdownBaseline} still contains 生产级 CloudBase 资源`);
+  });
+
+  it("rejects Markdown baselines that still describe CloudBase as the primary deployment architecture", async () => {
+    const { currentMarkdownBaseline, verifyRequirementBaseline } =
+      await loadRequirementBaselineModule();
+
+    await expect(
+      verifyRequirementBaseline({
+        readText: async (relativePath) =>
+          relativePath === currentMarkdownBaseline
+            ? `${markdownBaseline}\nCloudBase MySQL\nCloudBase 技术路线`
+            : readTextFor(relativePath),
+        extractDocx: async () => wordBaselineXml,
+      }),
+    ).rejects.toThrow(`${currentMarkdownBaseline} still contains CloudBase MySQL`);
   });
 });

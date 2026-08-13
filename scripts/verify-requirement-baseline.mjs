@@ -113,8 +113,28 @@ export async function verifyRequirementBaseline({
     "con_*",
     "AC-01",
     "AC-15",
+    "腾讯云轻量应用服务器生产环境",
+    "腾讯云轻量应用服务器技术路线",
+    "193.112.79.220",
+    "Ubuntu 24.04",
+    "服务器本机 MySQL 8.0",
+    "Nginx",
+    "systemd",
+    "CloudBase 仅作为身份认证与 UID 来源",
   ]) {
     assertContains(markdownBaseline, fragment, currentMarkdownBaseline);
+  }
+
+  for (const fragment of [
+    "生产级 CloudBase 资源",
+    "CloudBase 静态网站托管",
+    "CloudBase MySQL",
+    "CloudBase 云存储",
+    "CloudBase 定时触发器",
+    "Node.js + TypeScript 云函数 API",
+    "CloudBase 技术路线",
+  ]) {
+    assertNotContains(markdownBaseline, fragment, currentMarkdownBaseline);
   }
 
   for (const fragment of [
