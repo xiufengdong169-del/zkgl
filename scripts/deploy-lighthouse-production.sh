@@ -11,6 +11,7 @@ ZKGL_BRANCH="${ZKGL_BRANCH:-main}"
 ZKGL_APP_ROOT="${ZKGL_APP_ROOT:-/opt/zkgl}"
 ZKGL_CURRENT_DIR="${ZKGL_CURRENT_DIR:-${ZKGL_APP_ROOT}/current}"
 ZKGL_ENV_FILE="${ZKGL_ENV_FILE:-/etc/zkgl/zkgl-api.env}"
+ZKGL_ENV_DIR="$(dirname "${ZKGL_ENV_FILE}")"
 ZKGL_NGINX_SITE="${ZKGL_NGINX_SITE:-/etc/nginx/sites-available/zkgl.conf}"
 ZKGL_PUBLIC_HOST="${ZKGL_PUBLIC_HOST:-193.112.79.220}"
 ZKGL_PUBLIC_ORIGIN="${ZKGL_PUBLIC_ORIGIN:-https://${ZKGL_PUBLIC_HOST}}"
@@ -54,10 +55,18 @@ fi
 
 echo "==> Preparing system user and directories"
 id -u zkgl >/dev/null 2>&1 || useradd --system --home "${ZKGL_APP_ROOT}" --shell /usr/sbin/nologin --create-home zkgl
-mkdir -p "${ZKGL_APP_ROOT}" /etc/zkgl /var/backups/zkgl/mysql
+install -d -m 0755 -o zkgl -g zkgl "${ZKGL_APP_ROOT}"
+if [ ! -d "${ZKGL_ENV_DIR}" ]; then
+  install -d -m 0750 -o root -g zkgl "${ZKGL_ENV_DIR}"
+elif [ "${ZKGL_ENV_DIR}" = "/etc/zkgl" ]; then
+  chown root:zkgl "${ZKGL_ENV_DIR}"
+  chmod 0750 "${ZKGL_ENV_DIR}"
+fi
+install -d -m 0750 -o zkgl -g zkgl /var/backups/zkgl/mysql
 chown -R zkgl:zkgl "${ZKGL_APP_ROOT}" /var/backups/zkgl
 
 if [ ! -f "${ZKGL_ENV_FILE}" ]; then
+  umask 0137
   cat > "${ZKGL_ENV_FILE}" <<'ENVEOF'
 DEPLOY_TARGET_HOST=193.112.79.220
 DEPLOY_TARGET_REGION=guangzhou
@@ -82,9 +91,11 @@ DB_USER=zkgl_app
 DB_PASSWORD=
 CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 ENVEOF
-  chmod 600 "${ZKGL_ENV_FILE}"
+  umask 0022
   echo "Created ${ZKGL_ENV_FILE}; fill DB_PASSWORD, API_ALLOWED_ORIGINS, and AUTH_TOKEN_VERIFIER_MODULE, then rerun." >&2
 fi
+chown root:zkgl "${ZKGL_ENV_FILE}"
+chmod 0640 "${ZKGL_ENV_FILE}"
 
 echo "==> Fetching ${ZKGL_REPO_URL} ${ZKGL_BRANCH}"
 if [ ! -d "${ZKGL_CURRENT_DIR}/.git" ]; then

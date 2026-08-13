@@ -115,6 +115,10 @@ function validInputs() {
       "ZKGL_TLS_CERT",
       "ZKGL_TLS_KEY",
       "https://github.com/xiufengdong169-del/zkgl.git",
+      "install -d -m 0750 -o root -g zkgl",
+      "umask 0137",
+      "chown root:zkgl \"${ZKGL_ENV_FILE}\"",
+      "chmod 0640 \"${ZKGL_ENV_FILE}\"",
       "npm run verify:acceptance",
       "node scripts/verify-server-env.mjs",
       "VITE_API_BASE_URL",
@@ -140,6 +144,8 @@ function validInputs() {
       "API_ALLOWED_ORIGINS still contains a placeholder",
       "TLS certificate files are missing",
       "AUTH_TRUSTED_PROXY must be true",
+      "env file permissions must be 0640",
+      "env file group must be zkgl",
     ].join("\n"),
     verifierTemplate: [
       "export async function verifyAccessToken",
@@ -288,6 +294,20 @@ describe("server deployment asset verifier script", () => {
 
     expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
       "scripts/deploy-lighthouse-production.sh missing systemctl enable --now zkgl-auth-adapter",
+    );
+  });
+
+  it("rejects a production deploy script that does not lock down the server env file", async () => {
+    const { verifyServerDeploymentAssetInputs } =
+      await loadServerDeploymentAssetsModule();
+    const inputs = validInputs();
+    inputs.productionDeployScript = inputs.productionDeployScript.replace(
+      "chmod 0640 \"${ZKGL_ENV_FILE}\"",
+      "chmod 0644 \"${ZKGL_ENV_FILE}\"",
+    );
+
+    expect(() => verifyServerDeploymentAssetInputs(inputs)).toThrow(
+      "scripts/deploy-lighthouse-production.sh missing chmod 0640 \"${ZKGL_ENV_FILE}\"",
     );
   });
 

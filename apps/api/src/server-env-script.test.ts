@@ -10,6 +10,13 @@ type ServerEnvModule = {
       tlsKey?: string;
     },
   ): string;
+  verifyServerEnvFileSecurity(
+    envFile?: string,
+    options?: {
+      statFile?: (path: string) => { mode: number; uid: number; gid: number };
+      readGroupFile?: (path: string, encoding: BufferEncoding) => string;
+    },
+  ): string;
 };
 
 async function loadServerEnvModule() {
@@ -105,5 +112,31 @@ describe("server environment verifier script", () => {
         fileExists: (path) => path === "/etc/zkgl/cloudbase-token-verifier.mjs",
       }),
     ).toThrow("TLS certificate files are missing");
+  });
+
+  it("rejects an env file that is readable outside the zkgl service group", async () => {
+    const { verifyServerEnvFileSecurity } = await loadServerEnvModule();
+    const readGroupFile = () => "root:x:0:\nzkgl:x:998:\n";
+
+    expect(
+      verifyServerEnvFileSecurity("/etc/zkgl/zkgl-api.env", {
+        statFile: () => ({ mode: 0o100640, uid: 0, gid: 998 }),
+        readGroupFile,
+      }),
+    ).toBe("Server environment file permissions verified");
+
+    expect(() =>
+      verifyServerEnvFileSecurity("/etc/zkgl/zkgl-api.env", {
+        statFile: () => ({ mode: 0o100644, uid: 0, gid: 998 }),
+        readGroupFile,
+      }),
+    ).toThrow("env file permissions must be 0640");
+
+    expect(() =>
+      verifyServerEnvFileSecurity("/etc/zkgl/zkgl-api.env", {
+        statFile: () => ({ mode: 0o100640, uid: 0, gid: 0 }),
+        readGroupFile,
+      }),
+    ).toThrow("env file group must be zkgl");
   });
 });

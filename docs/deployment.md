@@ -211,7 +211,13 @@ DB_PASSWORD （在服务器本地填写，不写入文档）
 CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 ```
 
-`DB_PASSWORD` 必须在服务器环境文件中填写，禁止写入 Git 仓库、前端构建变量或文档示例。
+`DB_PASSWORD` 必须在服务器环境文件中填写，禁止写入 Git 仓库、前端构建变量或文档示例。生产服务器上 `/etc/zkgl` 目录应为 `root:zkgl 0750`，`/etc/zkgl/zkgl-api.env` 应为 `root:zkgl 0640`，确保 systemd 可加载服务端变量，同时避免其他本机用户读取数据库密码和认证配置。
+
+```bash
+sudo install -d -m 0750 -o root -g zkgl /etc/zkgl
+sudo chown root:zkgl /etc/zkgl/zkgl-api.env
+sudo chmod 0640 /etc/zkgl/zkgl-api.env
+```
 
 为避免 Windows 工作区把 Ubuntu 部署脚本改成 CRLF，仓库 `.gitattributes` 已强制 `*.sh`、`*.service`、`*.timer` 和 `*.conf` 使用 LF 换行；`node scripts/verify-server-deployment-assets.mjs` 会校验该约束。
 
@@ -223,7 +229,7 @@ CLOUDBASE_ENV_ID=cloudbase-d7gc2b32cd4196059
 npm run verify:server-env -- /etc/zkgl/zkgl-api.env
 ```
 
-该命令会检查必填服务端变量、`API_ALLOWED_ORIGINS` 占位、`AUTH_TRUSTED_PROXY`、`AUTH_TOKEN_VERIFIER_MODULE` 真实文件、example verifier 禁用和 HTTPS 证书文件。
+该命令会检查必填服务端变量、`API_ALLOWED_ORIGINS` 占位、`AUTH_TRUSTED_PROXY`、`AUTH_TOKEN_VERIFIER_MODULE` 真实文件、example verifier 禁用、HTTPS 证书文件，以及 `/etc/zkgl/zkgl-api.env` 是否保持 `root:zkgl 0640` 权限。
 
 ### MySQL 8.0 空库初始化
 

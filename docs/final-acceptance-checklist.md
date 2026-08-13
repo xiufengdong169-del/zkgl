@@ -57,6 +57,7 @@
 - [ ] API 由 `deploy/systemd/zkgl-api.service` 托管，监听 `127.0.0.1:3000`，`curl http://127.0.0.1:3000/healthz` 正常，且 `curl http://127.0.0.1:3000/readyz` 能通过 MySQL 就绪检查。
 - [ ] 认证适配由 `deploy/systemd/zkgl-auth-adapter.service` 托管，监听 `127.0.0.1:3010`，`AUTH_TOKEN_VERIFIER_MODULE` 已指向服务器本地真实 verifier，不能使用 `deploy/auth/cloudbase-token-verifier.example.mjs`，`curl http://127.0.0.1:3010/healthz` 正常。
 - [ ] 正式部署前执行 `npm run verify:server-env -- /etc/zkgl/zkgl-api.env`（脚本路径 `scripts/verify-server-env.mjs`），确认服务端变量、认证 verifier、`AUTH_TRUSTED_PROXY` 和 HTTPS 证书均满足上线条件。
+- [ ] `/etc/zkgl` 目录权限为 `root:zkgl 0750`，`/etc/zkgl/zkgl-api.env` 权限为 `root:zkgl 0640`，避免数据库密码和认证配置被其他本机用户读取。
 - [ ] Nginx 使用 `deploy/nginx/zkgl.conf` 托管 `apps/web/dist`，通过 HTTPS 暴露站点，并通过 `auth_request` 调用本机认证适配服务。
 - [ ] 正式部署可使用 `scripts/deploy-lighthouse-production.sh` 执行；脚本必须在服务器环境文件、HTTPS 证书、`VITE_API_BASE_URL` 和认证 verifier 就绪后运行，并先执行 `npm run verify:acceptance`。
 - [ ] 如需先看公网界面演示，可在服务器执行 `scripts/deploy-lighthouse-demo.sh`，或直接执行 `curl -fsSL https://raw.githubusercontent.com/xiufengdong169-del/zkgl/main/scripts/bootstrap-lighthouse-demo.sh | sudo bash`；演示使用 `deploy/nginx/zkgl-demo-http.conf` 发布 HTTP 静态演示页，不代理 `/api`，不启用 `AUTH_TRUSTED_PROXY=true`，不作为正式上线口径；发布后执行 `node scripts/verify-public-demo.mjs http://193.112.79.220/` 确认公网地址已返回众肯系统前端壳。未显式传入 URL 的 `npm run verify:public-demo` 默认只校验本机 `http://127.0.0.1:4173/`，避免本地演示阶段误访问远程服务器。
@@ -126,7 +127,7 @@
 - [ ] Nginx 提供 HTTPS、静态前端托管和 `/api` 反向代理。
 - [ ] systemd 和 Nginx 使用仓库模板 `deploy/systemd/zkgl-api.service`、`deploy/systemd/zkgl-auth-adapter.service`、`deploy/systemd/zkgl-reminder.service`、`deploy/systemd/zkgl-reminder.timer`、`deploy/systemd/zkgl-export-worker.service`、`deploy/systemd/zkgl-export-worker.timer`、`deploy/systemd/zkgl-mysql-backup.service`、`deploy/systemd/zkgl-mysql-backup.timer`、`deploy/nginx/zkgl.conf` 和正式部署脚本 `scripts/deploy-lighthouse-production.sh` 作为上线基线；`.gitattributes` 强制 Ubuntu 部署脚本和 Nginx/systemd 模板使用 LF 换行。
 - [ ] `VITE_API_BASE_URL` 已配置为生产 HTTPS `/api` 地址后重新构建前端，且不包含账号密码、查询参数或片段。
-- [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库。
+- [ ] `/etc/zkgl/zkgl-api.env` 仅保存在服务器，包含真实 `DB_PASSWORD`，未写入 Git 仓库，且保持 `root:zkgl 0640` 权限。
 - [ ] 上线前已启用 `deploy/systemd/zkgl-auth-adapter.service`，并配置 `AUTH_TOKEN_VERIFIER_MODULE` 指向服务器本地真实 verifier；认证适配层校验 `Authorization: Bearer ...` 后才向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，只有认证适配层完成并由 Nginx 清除外部伪造头后，才允许在服务器本地环境文件改为 `true`。
 - [ ] CloudBase 函数包仅作为历史交付包和可回退适配保留，不再作为主部署验收口径。
 

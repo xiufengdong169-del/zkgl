@@ -753,6 +753,8 @@ describe("deployment documentation", () => {
     expect(deploymentDoc).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
     expect(deploymentDoc).toContain("AUTH_TOKEN_VERIFIER_MODULE");
     expect(deploymentDoc).toContain("npm run verify:server-env");
+    expect(deploymentDoc).toContain("root:zkgl 0750");
+    expect(deploymentDoc).toContain("root:zkgl 0640");
     expect(deploymentDoc).toContain("拒绝把 `.example.` 文件作为生产 verifier 使用");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(deploymentDoc).toContain("deploy/systemd/zkgl-export-worker.timer");
@@ -773,6 +775,8 @@ describe("deployment documentation", () => {
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-auth-adapter.service");
     expect(finalAcceptanceChecklist).toContain("deploy/auth/cloudbase-token-verifier.example.mjs");
     expect(finalAcceptanceChecklist).toContain("npm run verify:server-env");
+    expect(finalAcceptanceChecklist).toContain("root:zkgl 0750");
+    expect(finalAcceptanceChecklist).toContain("root:zkgl 0640");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-reminder.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/systemd/zkgl-export-worker.timer");
     expect(finalAcceptanceChecklist).toContain("deploy/nginx/zkgl.conf");
@@ -846,6 +850,8 @@ describe("deployment documentation", () => {
     );
     expect(serverEnvScript).toContain("AUTH_TOKEN_VERIFIER_MODULE must not point to an example verifier");
     expect(serverEnvScript).toContain("TLS certificate files are missing");
+    expect(serverEnvScript).toContain("env file permissions must be 0640");
+    expect(serverEnvScript).toContain("env file group must be zkgl");
   });
 
   it("keeps new-system empty-database initialization guidance aligned", () => {

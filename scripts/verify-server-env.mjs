@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const defaultEnvFile = process.env.ZKGL_ENV_FILE || "/etc/zkgl/zkgl-api.env";
@@ -28,6 +28,48 @@ const requiredKeys = [
 const fail = (message) => {
   throw new Error(`Server environment verification failed: ${message}`);
 };
+
+const expectedEnvFilePermissionMessagePrefix = "env file permissions must be 0640";
+const expectedEnvFileGroupMessagePrefix = "env file group must be zkgl";
+const formatOctalMode = (mode) => (mode & 0o777).toString(8).padStart(4, "0");
+
+function resolveGroupId(groupName, readGroupFile = readFileSync) {
+  const source = readGroupFile("/etc/group", "utf8");
+  for (const rawLine of source.split(/\r?\n/)) {
+    const [name, , gid] = rawLine.split(":");
+    if (name === groupName && gid) return Number(gid);
+  }
+  fail(`env file group ${groupName} does not exist in /etc/group`);
+}
+
+export function verifyServerEnvFileSecurity(
+  envFile = defaultEnvFile,
+  {
+    statFile = statSync,
+    readGroupFile = readFileSync,
+    expectedMode = 0o640,
+    expectedOwnerUid = 0,
+    expectedGroupName = "zkgl",
+  } = {},
+) {
+  const stats = statFile(envFile);
+  const actualMode = stats.mode & 0o777;
+  if (actualMode !== expectedMode) {
+    fail(
+      `${expectedEnvFilePermissionMessagePrefix}: ${envFile} is ${formatOctalMode(stats.mode)}`,
+    );
+  }
+  if (typeof stats.uid === "number" && stats.uid !== expectedOwnerUid) {
+    fail(`env file owner uid must be root(0): ${envFile}`);
+  }
+  if (expectedGroupName && typeof stats.gid === "number") {
+    const expectedGroupId = resolveGroupId(expectedGroupName, readGroupFile);
+    if (stats.gid !== expectedGroupId) {
+      fail(`${expectedEnvFileGroupMessagePrefix}: ${envFile}`);
+    }
+  }
+  return "Server environment file permissions verified";
+}
 
 export function parseEnvFile(source) {
   const values = new Map();
@@ -84,10 +126,13 @@ export function verifyServerEnvFile({
   envFile = defaultEnvFile,
   readFile = readFileSync,
   fileExists = existsSync,
+  statFile = statSync,
+  readGroupFile = readFileSync,
   tlsCert = defaultTlsCert,
   tlsKey = defaultTlsKey,
 } = {}) {
   if (!fileExists(envFile)) fail(`env file is missing: ${envFile}`);
+  verifyServerEnvFileSecurity(envFile, { statFile, readGroupFile });
   const values = parseEnvFile(readFile(envFile, "utf8"));
   return verifyServerEnvValues(values, { fileExists, tlsCert, tlsKey });
 }
