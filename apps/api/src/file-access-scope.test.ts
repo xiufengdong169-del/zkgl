@@ -83,7 +83,7 @@ function expiredExportDownloadConnection() {
               classification: "INTERNAL",
               exportExpiresAt: "2000-01-01T00:00:00.000Z",
               versionId: "v-export",
-              storageKey: "cloud://exports/expired.csv",
+              storageKey: "cloud://cloudbase-d7gc2b32cd4196059/private/exports/expired.csv",
             },
           ],
           [],

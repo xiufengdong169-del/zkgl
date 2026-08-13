@@ -17,7 +17,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 87 个测试文件 / 457 条测试。
+- [ ] API 测试通过，当前基线为 87 个测试文件 / 464 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 52 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -26,7 +26,8 @@
 - [ ] `npm run verify:deployment-config` 通过，腾讯云轻量服务器、前后端环境变量、历史资产配置和 CI Node 版本一致性校验通过。
 - [ ] `npm run verify:performance-acceptance` 通过，AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验和归档材料要求一致。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
-- [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、备份保留策略和验收文档一致。
+- [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、对象恢复清单校验器、备份保留策略和验收文档一致。
+- [ ] `npm run verify:object-restore` 通过（脚本路径 `scripts/verify-object-restore-manifest.mjs`），项目附件与后台导出文件恢复清单示例覆盖 `private/files`、`private/exports`、HTTPS 下载抽查、敏感附件拒绝和过期导出拒绝证据。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
 - [ ] `npm run verify:local-demo` 通过：demo 模式前端包可在临时 HTTP 服务下打开，`apps/web/src/routes.ts` 中全部声明的前端 SPA 路由均返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问。
 - [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。
@@ -105,8 +106,8 @@
 
 - [ ] 腾讯云轻量服务器 MySQL 8.0 通过 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，计划时间为 02:30，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制；备份文件不得写出 `BACKUP_MYSQL_DIR`。
 - [ ] 关键发布、初始化脚本重建或生产配置变更前执行 `scripts/create-mysql-backup.mjs` 手工备份，并运行 `node scripts/verify-backup-assets.mjs`。
-- [ ] 项目附件启用平台保护能力或定期备份。
-- [ ] 上线前完成一次数据库和附件恢复演练，并按 `docs/backup-recovery-acceptance-template.md` 归档恢复记录。
+- [ ] 项目附件和后台导出文件启用平台保护能力或定期备份；恢复清单按 `docs/object-restore-manifest.example.json` 格式填写，并通过 `npm run verify:object-restore -- 正式清单.json`。
+- [ ] 上线前完成一次数据库、项目附件和后台导出文件恢复演练，并按 `docs/backup-recovery-acceptance-template.md` 归档恢复记录。
 - [ ] 数据库恢复演练使用 `scripts/restore-mysql-backup.mjs` 恢复 `.sql` 备份到独立验证库，`RESTORE_DB_NAME` 不等于生产 `DB_NAME`，且设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION`。
 - [ ] 上线后至少每半年执行一次恢复验证。
 - [ ] 不为节省免费额度而关闭安全、审计日志或备份恢复能力。

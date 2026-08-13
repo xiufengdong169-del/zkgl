@@ -178,6 +178,7 @@ const verificationCommands = [
   "npm run verify:performance-acceptance",
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
+  "npm run verify:object-restore",
   "node scripts/verify-server-preflight.mjs",
   "npm run verify:local-demo",
   "npm audit --omit=dev",
@@ -322,7 +323,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "87 个测试文件 / 457 条测试",
+  "87 个测试文件 / 464 条测试",
   "10 个测试文件 / 52 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -441,6 +442,11 @@ const backupRecoveryAcceptanceTemplateFragments = [
   "过期导出文件被拒绝",
   "systemctl status zkgl-mysql-backup.timer",
   "node scripts/verify-backup-assets.mjs",
+  "npm run verify:object-restore",
+  "docs/object-restore-manifest.example.json",
+  "scripts/verify-object-restore-manifest.mjs",
+  "private/files",
+  "private/exports",
   "scripts/restore-mysql-backup.mjs",
   "是否通过备份恢复验收",
 ];
@@ -487,6 +493,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:server-env"]).toBe(
       "node scripts/verify-server-env.mjs",
     );
+    expect(packageJson.scripts["verify:object-restore"]).toBe(
+      "node scripts/verify-object-restore-manifest.mjs",
+    );
     expect(githubVerifyWorkflow).toContain("npm ci");
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
@@ -529,6 +538,7 @@ describe("deployment documentation", () => {
       "npm run verify:performance-acceptance",
     );
     expect(packageJson.scripts.verify).toContain("npm run verify:local-demo");
+    expect(packageJson.scripts.verify).toContain("npm run verify:object-restore");
     expect(packageJson.scripts.verify).not.toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
@@ -608,7 +618,7 @@ describe("deployment documentation", () => {
       "本地开发测试完成报告",
       "复核日期：2026-08-14",
       "npm run verify:acceptance",
-      "API 测试通过：87 个测试文件 / 457 条测试",
+      "API 测试通过：87 个测试文件 / 464 条测试",
       "Web 测试通过：10 个测试文件 / 52 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",
@@ -843,6 +853,8 @@ describe("deployment documentation", () => {
     );
     expect(backupAssetVerifier).toContain("mysqldump");
     expect(backupAssetVerifier).toContain("OnCalendar=*-*-* 02:30:00");
+    expect(backupAssetVerifier).toContain("scripts/verify-object-restore-manifest.mjs");
+    expect(backupAssetVerifier).toContain("docs/object-restore-manifest.example.json");
     expect(serverPreflightVerifier).toContain(expectedServerPublicIp);
     expect(serverPreflightVerifier).toContain("Tencent Cloud Lighthouse");
     expect(serverPreflightVerifier).toContain(

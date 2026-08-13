@@ -262,13 +262,13 @@ describe("export task worker", () => {
     const result = await processPendingProjectExportTasks(connection as never, {
       uploadFile: async (cloudPath, content) => {
         uploads.push({ cloudPath, content });
-        return "cloud://exports/DC-2026-0007.csv";
+        return "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv";
       },
     });
 
     expect(result).toEqual({ processed: 1, completed: 1, failed: 0 });
     expect(uploads).toHaveLength(1);
-    expect(uploads[0]!.cloudPath).toBe("exports/DC-2026-0007.csv");
+    expect(uploads[0]!.cloudPath).toBe("private/exports/DC-2026-0007.csv");
     expect(uploads[0]!.content.toString("utf8")).toContain('"\'=ZK-001"');
     const projectQuery = connection.calls.find((call) => call.sql.includes("FROM prj_project p"));
     expect(projectQuery!.sql).toContain("p.id IN (?)");
@@ -295,7 +295,7 @@ describe("export task worker", () => {
     const result = await processPendingProjectExportTasks(connection as never, {
       uploadFile: async (cloudPath, content) => {
         uploads.push({ cloudPath, content });
-        return "cloud://exports/DC-2026-0007.csv";
+        return "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv";
       },
     });
 
@@ -326,7 +326,7 @@ describe("export task worker", () => {
     const result = await processPendingProjectExportTasks(connection as never, {
       uploadFile: async (cloudPath, content) => {
         uploads.push({ cloudPath, content });
-        return "cloud://exports/DC-2026-0007.csv";
+        return "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv";
       },
     });
 
@@ -357,7 +357,7 @@ describe("export task worker", () => {
     const result = await processPendingProjectExportTasks(connection as never, {
       uploadFile: async (cloudPath, content) => {
         uploads.push({ cloudPath, content });
-        return "cloud://exports/DC-2026-0007.csv";
+        return "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv";
       },
     });
 
@@ -399,7 +399,7 @@ describe("export task worker", () => {
     const result = await processPendingProjectExportTasks(connection as never, {
       uploadFile: async (cloudPath, content) => {
         uploads.push({ cloudPath, content });
-        return "cloud://exports/DC-2026-0007.csv";
+        return "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv";
       },
     });
 

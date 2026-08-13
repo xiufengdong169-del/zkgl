@@ -36,6 +36,7 @@ function validInputs() {
     "scripts/verify-server-env.mjs",
     "scripts/create-mysql-backup.mjs",
     "scripts/restore-mysql-backup.mjs",
+    "scripts/verify-object-restore-manifest.mjs",
     "scripts/verify-performance-acceptance-assets.mjs",
     "node scripts/verify-server-preflight.mjs",
   ].join("\n");
@@ -46,6 +47,7 @@ function validInputs() {
         verify: [
           "node scripts/verify-server-deployment-assets.mjs",
           "node scripts/verify-backup-assets.mjs",
+          "npm run verify:object-restore",
           "npm run verify:performance-acceptance",
           "node scripts/verify-server-preflight.mjs",
         ].join(" && "),
@@ -95,7 +97,7 @@ describe("server preflight verifier script", () => {
     inputs.rootPackageJson = JSON.stringify({
       scripts: {
         verify:
-          "node scripts/verify-server-deployment-assets.mjs && node scripts/verify-backup-assets.mjs && npm run verify:performance-acceptance",
+          "node scripts/verify-server-deployment-assets.mjs && node scripts/verify-backup-assets.mjs && npm run verify:object-restore && npm run verify:performance-acceptance",
       },
     });
 

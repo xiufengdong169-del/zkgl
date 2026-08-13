@@ -310,6 +310,7 @@ curl http://127.0.0.1:3010/healthz
 ```bash
 node scripts/create-mysql-backup.mjs
 node scripts/verify-backup-assets.mjs
+npm run verify:object-restore
 ```
 
 恢复演练必须恢复到独立验证库，`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`，`RESTORE_BACKUP_FILE` 必须指向 `.sql` 备份文件。演练时在服务器本地临时设置：
@@ -319,6 +320,12 @@ RESTORE_BACKUP_FILE=/var/backups/zkgl/mysql/某次备份.sql
 RESTORE_DB_NAME=zkgl_restore_verify
 RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION
 node scripts/restore-mysql-backup.mjs
+```
+
+附件和后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式填写，并由 `scripts/verify-object-restore-manifest.mjs` 校验。项目附件对象路径必须位于 `private/files/...`，后台导出文件对象路径必须位于 `private/exports/...`；每条抽查记录需包含 sha256、大小、恢复点时间、数据库记录匹配结论、对象恢复结论和 HTTPS 临时下载地址。正式清单填写后执行：
+
+```bash
+npm run verify:object-restore -- 正式清单.json
 ```
 
 ### Nginx HTTPS 反向代理

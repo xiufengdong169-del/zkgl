@@ -126,14 +126,14 @@ AC-14 需要在腾讯云轻量应用服务器生产环境、正常企业网络�
 
 1. 腾讯云轻量服务器 MySQL 8.0 启用 `deploy/systemd/zkgl-mysql-backup.service` 与 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，备份至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
 2. 每次关键发布、初始化脚本重建或生产配置变更前，先执行一次 `scripts/create-mysql-backup.mjs` 手工备份，并执行 `node scripts/verify-backup-assets.mjs` 复核备份资产；备份文件名必须由安全 `DB_NAME` 生成，且不得写出 `BACKUP_MYSQL_DIR`。
-3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口。
+3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口；附件与后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式记录，并执行 `scripts/verify-object-restore-manifest.mjs`（或 `npm run verify:object-restore`）校验。
 4. 明确备份责任人、恢复责任人、备份保留策略、恢复目标环境和恢复演练记录保存位置。
 
 上线前恢复演练：
 
 1. 选择最近一次 `.sql` 数据库备份，通过 `scripts/restore-mysql-backup.mjs` 恢复到独立验证环境；`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`，并必须设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION`，不得覆盖生产环境。
 2. 抽查项目、合同、开票、收款、付款、合作方结算、保证金、文件元数据和审计日志是否可读取。
-3. 抽查至少 3 个项目附件或后台导出文件，确认对象存储文件与数据库文件记录能够对应。
+3. 抽查至少 3 个项目附件和至少 1 个后台导出文件，确认对象存储文件与数据库文件记录能够对应；项目附件路径必须位于 `private/files/...`，后台导出路径必须位于 `private/exports/...`。
 4. 记录恢复开始时间、完成时间、恢复人、验证人、异常项、处理结论和截图。
 
 持续要求：
@@ -163,6 +163,7 @@ npm run verify:deployment-config
 npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+npm run verify:object-restore
 node scripts/verify-server-preflight.mjs
 npm run verify:local-demo
 npm audit --omit=dev

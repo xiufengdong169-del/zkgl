@@ -48,6 +48,7 @@ npm run verify:deployment-config
 npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+npm run verify:object-restore
 node scripts/verify-server-preflight.mjs
 npm run verify:local-demo
 npm audit --omit=dev
@@ -58,14 +59,15 @@ npm audit --omit=dev
 - `npm run verify:acceptance`：通过。
 - `npm run verify`：通过。
 - `npm run typecheck`：通过。
-- `npm run test`：API 87 个测试文件 / 457 条测试通过；Web 10 个测试文件 / 52 条测试通过。
+- `npm run test`：API 87 个测试文件 / 464 条测试通过；Web 10 个测试文件 / 52 条测试通过。
 - `npm run build`：通过。
 - `node scripts/verify-source-secret-hygiene.mjs`：源码与交付脚本未包含非空数据库密码、Secret、私钥或带凭证的 MySQL URL。
 - `npm run verify:requirements`：Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致，且当前 Word 不再携带旧 CloudBase 部署版标题、旧环境 ID 或旧技术路线。
 - `node scripts/verify-web-dist-security.mjs`：前端构建产物未包含后端数据库变量、SecretKey、API Secret 或私钥标记。
 - `npm run verify:performance-acceptance`：AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验、归档材料要求一致。
 - `node scripts/verify-server-deployment-assets.mjs`：独立服务器 systemd 与 Nginx 部署模板通过。
-- `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer 和备份恢复验收文档通过。
+- `node scripts/verify-backup-assets.mjs`：MySQL 8.0 备份脚本、备份 timer、对象恢复清单校验器和备份恢复验收文档通过。
+- `npm run verify:object-restore`：项目附件与后台导出文件恢复清单示例通过，覆盖 `private/files`、`private/exports`、HTTPS 下载抽查、敏感附件拒绝和过期导出拒绝证据。
 - `node scripts/verify-server-preflight.mjs`：Tencent Cloud Lighthouse 上线预检资产通过。
 - `npm run verify:local-demo`：本地 demo 模式构建、临时 HTTP 服务、全部声明的前端 SPA 路由壳、前端入口 JS 模块、CSS 样式资源和全部构建静态资源校验通过，可在服务器权限未就绪时先证明可视化演示包可打开。
 - 当前主线自动化验收以腾讯云轻量服务器部署资产为准。历史函数包仅作为历史/回退资产，可按需通过 `npm run verify:legacy-cloudbase` 单独复核，不进入当前主部署验收闭环。

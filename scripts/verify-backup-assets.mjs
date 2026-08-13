@@ -21,6 +21,9 @@ export async function readBackupAssets(root = defaultRoot) {
     restoreScript,
     backupService,
     backupTimer,
+    objectRestoreVerifier,
+    objectRestoreManifest,
+    packageJson,
     deploymentDoc,
     operationsDoc,
     backupTemplate,
@@ -31,6 +34,9 @@ export async function readBackupAssets(root = defaultRoot) {
     readText("scripts/restore-mysql-backup.mjs"),
     readText("deploy/systemd/zkgl-mysql-backup.service"),
     readText("deploy/systemd/zkgl-mysql-backup.timer"),
+    readText("scripts/verify-object-restore-manifest.mjs"),
+    readText("docs/object-restore-manifest.example.json"),
+    readText("package.json"),
     readText("docs/deployment.md"),
     readText("docs/operations-acceptance.md"),
     readText("docs/backup-recovery-acceptance-template.md"),
@@ -42,6 +48,9 @@ export async function readBackupAssets(root = defaultRoot) {
     restoreScript,
     backupService,
     backupTimer,
+    objectRestoreVerifier,
+    objectRestoreManifest,
+    packageJson,
     deploymentDoc,
     operationsDoc,
     backupTemplate,
@@ -55,6 +64,9 @@ export function verifyBackupAssetInputs({
   restoreScript,
   backupService,
   backupTimer,
+  objectRestoreVerifier,
+  objectRestoreManifest,
+  packageJson,
   deploymentDoc,
   operationsDoc,
   backupTemplate,
@@ -95,6 +107,46 @@ export function verifyBackupAssetInputs({
     "scripts/restore-mysql-backup.mjs",
   );
   includesAll(
+    objectRestoreVerifier,
+    [
+      "zkgl-object-restore-manifest.v1",
+      "PROJECT_ATTACHMENT",
+      "EXPORT_FILE",
+      "private/files",
+      "private/exports",
+      "temporaryDownloadUrl must use HTTPS",
+      "SENSITIVE_ATTACHMENT_DENIED",
+      "EXPIRED_EXPORT_DENIED",
+    ],
+    "scripts/verify-object-restore-manifest.mjs",
+  );
+  includesAll(
+    objectRestoreManifest,
+    [
+      "zkgl-object-restore-manifest.v1",
+      "PROJECT_ATTACHMENT",
+      "EXPORT_FILE",
+      "private/files",
+      "private/exports",
+      "temporaryDownloadUrl",
+      "databaseRecordMatched",
+      "objectRestored",
+      "SENSITIVE_ATTACHMENT_DENIED",
+      "EXPIRED_EXPORT_DENIED",
+    ],
+    "docs/object-restore-manifest.example.json",
+  );
+  const scripts = JSON.parse(packageJson).scripts ?? {};
+  if (
+    scripts["verify:object-restore"] !==
+    "node scripts/verify-object-restore-manifest.mjs"
+  ) {
+    fail("package.json missing verify:object-restore script");
+  }
+  if (!String(scripts.verify ?? "").includes("npm run verify:object-restore")) {
+    fail("package.json verify must run verify:object-restore");
+  }
+  includesAll(
     backupService,
     [
       "Type=oneshot",
@@ -126,11 +178,15 @@ export function verifyBackupAssetInputs({
       [
         "scripts/create-mysql-backup.mjs",
         "scripts/restore-mysql-backup.mjs",
+        "scripts/verify-object-restore-manifest.mjs",
+        "docs/object-restore-manifest.example.json",
         "deploy/systemd/zkgl-mysql-backup.service",
         "deploy/systemd/zkgl-mysql-backup.timer",
         "BACKUP_RETENTION_DAYS",
         "BACKUP_MYSQL_DIR",
         ".sql",
+        "private/files",
+        "private/exports",
       ],
       context,
     );

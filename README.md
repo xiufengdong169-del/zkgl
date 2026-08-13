@@ -34,6 +34,7 @@ npm run verify:deployment-config
 npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
+npm run verify:object-restore
 node scripts/verify-server-preflight.mjs
 npm run verify:local-demo
 npm audit --omit=dev
@@ -75,10 +76,12 @@ npm run demo:local
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
 - `docs/performance-acceptance-template.md`：AC-14 现场性能验收记录模板，用于归档 30 用户压测结果。
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。
+- `docs/object-restore-manifest.example.json`：附件与后台导出文件恢复清单示例，配合 `npm run verify:object-restore` 校验恢复演练证据格式。
 - `docs/acceptance-traceability.md`：V2.2 结果型验收用例、自动化测试映射和交付前必跑命令。
 - `docs/local-development-completion-report.md`：本地开发测试完成报告，记录本地自动化验收结果、已完成范围和仍需真实环境完成的事项。
 - `scripts/verify-requirement-baseline.mjs`：校验 Markdown 基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口保持一致。
 - `scripts/verify-performance-acceptance-assets.mjs`：校验 AC-14 现场性能验收口径、基准数据量、P95 阈值和归档材料要求保持一致。
+- `scripts/verify-object-restore-manifest.mjs`：校验备份恢复演练中的项目附件、后台导出文件、HTTPS 下载抽查、敏感附件拒绝和过期导出拒绝证据清单。
 - `docs/final-acceptance-checklist.md`：最终交付验收总清单，用于上线前逐项签核。
 
 ## 安全原则
@@ -143,7 +146,7 @@ Current production target is Tencent Cloud Lighthouse standalone server:
 - Auth adapter: `deploy/systemd/zkgl-auth-adapter.service` listens on `127.0.0.1:3010`; production must configure `AUTH_TOKEN_VERIFIER_MODULE` before enabling `AUTH_TRUSTED_PROXY=true`.
 - AC-14 onsite performance acceptance assets are verified by `npm run verify:performance-acceptance`.
 - Deployment assets: `deploy/systemd/zkgl-api.service`, `deploy/systemd/zkgl-auth-adapter.service`, `deploy/systemd/zkgl-reminder.service`, `deploy/systemd/zkgl-reminder.timer`, `deploy/systemd/zkgl-export-worker.service`, `deploy/systemd/zkgl-export-worker.timer`, `deploy/systemd/zkgl-mysql-backup.service`, `deploy/systemd/zkgl-mysql-backup.timer`, and `deploy/nginx/zkgl.conf`, verified by `node scripts/verify-server-deployment-assets.mjs`, `node scripts/verify-backup-assets.mjs`, and `node scripts/verify-server-preflight.mjs`.
-- Backup and restore drills use `scripts/create-mysql-backup.mjs` and `scripts/restore-mysql-backup.mjs`; restore drills must target a non-production database.
+- Backup and restore drills use `scripts/create-mysql-backup.mjs` and `scripts/restore-mysql-backup.mjs`; restore drills must target a non-production database. Attachment/export restore evidence is recorded with the `docs/object-restore-manifest.example.json` format and verified by `npm run verify:object-restore`.
 - Database initialization remains empty-database initialization through `database/init/schema.sql`; there is still no database migration.
 
 See `docs/deployment.md` for the authoritative server deployment checklist. The CloudBase function package scripts remain in the repository as historical delivery artifacts and fallback adapters, not as the current primary deployment target.

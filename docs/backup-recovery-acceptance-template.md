@@ -23,7 +23,7 @@
 | 腾讯云轻量 MySQL 8.0 自动备份 | `deploy/systemd/zkgl-mysql-backup.service` 与 `deploy/systemd/zkgl-mysql-backup.timer` 每日 02:30 执行 `scripts/create-mysql-backup.mjs`，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制；备份文件不得写出 `BACKUP_MYSQL_DIR` |  |  |
 | 独立验证库恢复脚本 | `scripts/restore-mysql-backup.mjs`，`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`，`RESTORE_BACKUP_FILE` 必须为 `.sql` 文件，且必须设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION` |  |  |
 | 关键发布前手工备份 | 发布、初始化脚本重建或生产配置变更前执行 |  |  |
-| 附件备份或平台保护能力 | 附件恢复点与数据库恢复点可对应同一业务时间窗口 |  |  |
+| 附件备份或平台保护能力 | 附件恢复点与数据库恢复点可对应同一业务时间窗口；恢复证据按 `docs/object-restore-manifest.example.json` 格式记录，并通过 `scripts/verify-object-restore-manifest.mjs` 校验 |  |  |
 | 审计日志和安全能力 | 不得为节省额度关闭审计日志、安全配置或备份恢复能力 |  |  |
 
 ## 3. 恢复点记录
@@ -52,6 +52,14 @@
 | 敏感附件 | 未授权账号下载被拒绝并留下访问日志 |  |  |
 | 后台导出文件 | 未过期导出文件可下载，过期导出文件被拒绝 |  |  |
 
+恢复清单要求：
+
+- 项目附件对象路径必须位于 `private/files/...`，至少 3 条记录。
+- 后台导出文件对象路径必须位于 `private/exports/...`，至少 1 条记录。
+- 每条记录填写 `sha256`、`sizeBytes`、数据库记录匹配结论、对象恢复结论和 HTTPS 临时下载地址。
+- 敏感附件拒绝和过期导出拒绝均需记录审计日志匹配结论。
+- 示例格式见 `docs/object-restore-manifest.example.json`，正式演练清单可复制该文件后填入真实记录，再运行 `npm run verify:object-restore -- 正式清单.json`。
+
 ## 6. 异常与处理结论
 
 | 异常项 | 影响范围 | 处理措施 | 责任人 | 复验结果 |
@@ -64,6 +72,7 @@
 - [ ] `scripts/create-mysql-backup.mjs` 手工备份执行记录。
 - [ ] `scripts/restore-mysql-backup.mjs` 独立验证库恢复执行记录。
 - [ ] `node scripts/verify-backup-assets.mjs` 执行结果。
+- [ ] `npm run verify:object-restore -- 正式清单.json` 执行结果。
 - [ ] 手工备份记录截图。
 - [ ] 数据库恢复任务截图或平台记录。
 - [ ] 附件或对象存储恢复记录。
@@ -85,4 +94,4 @@
 | 技术负责人签字 |  |
 ## 2026-08-02 独立服务器备份恢复补充
 
-当前生产数据库位于 Tencent Cloud Lighthouse 独立服务器 `193.112.79.220` 的 MySQL 8.0。备份恢复演练需记录 MySQL 备份文件、附件/导出对象存储备份、恢复目标环境、恢复耗时，以及恢复后业务抽查结果。真实数据库密码只允许保存在服务器本地环境文件或运维密钥库，不写入本模板。
+当前生产数据库位于 Tencent Cloud Lighthouse 独立服务器 `193.112.79.220` 的 MySQL 8.0。备份恢复演练需记录 MySQL 备份文件、附件/导出对象存储备份、恢复目标环境、恢复耗时，以及恢复后业务抽查结果。真实数据库密码只允许保存在服务器本地环境文件或运维密钥库，不写入本模板。后台导出文件必须作为私有对象保存到 `private/exports/...`，不得使用公开对象路径。

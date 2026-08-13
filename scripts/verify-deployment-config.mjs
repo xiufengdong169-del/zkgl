@@ -309,6 +309,15 @@ export function verifyDeploymentConfigInputs({
     fail("package.json verify must run verify:local-demo");
   }
   if (
+    packageJson.scripts?.["verify:object-restore"] !==
+    "node scripts/verify-object-restore-manifest.mjs"
+  ) {
+    fail("package.json missing verify:object-restore script");
+  }
+  if (!packageJson.scripts?.verify?.includes("npm run verify:object-restore")) {
+    fail("package.json verify must run verify:object-restore");
+  }
+  if (
     packageJson.scripts?.verify?.includes("npm run build:function") ||
     packageJson.scripts?.verify?.includes("verify-cloudbase-function-packages")
   ) {

@@ -161,7 +161,7 @@ export async function processPendingProjectExportTasks(
         ],
       );
       const buffer = buildProjectExportCsv(rows, "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6");
-      const cloudPath = `exports/${task.taskCode}.csv`;
+      const cloudPath = `private/exports/${task.taskCode}.csv`;
       const storageKey = await dependencies.uploadFile(cloudPath, buffer);
       const hash = createHash("sha256").update(buffer).digest("hex");
       const [file] = await connection.execute<ResultSetHeader>(

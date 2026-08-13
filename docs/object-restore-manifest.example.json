@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "zkgl-object-restore-manifest.v1",
+  "drillName": "V2.2 backup restore object evidence example",
+  "restorePointAt": "2026-08-14T02:30:00.000+08:00",
+  "databaseBackupFile": "/var/backups/zkgl/mysql/zkgl-2026-08-14T02-30-00-000Z.sql",
+  "objects": [
+    {
+      "type": "PROJECT_ATTACHMENT",
+      "projectId": "project-001",
+      "fileId": "file-001",
+      "storageKey": "cloud://cloudbase-d7gc2b32cd4196059/private/files/file-001/v1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sizeBytes": 102400,
+      "backupSnapshotAt": "2026-08-14T02:30:00.000+08:00",
+      "restoredSnapshotAt": "2026-08-14T03:10:00.000+08:00",
+      "temporaryDownloadUrl": "https://download.example.invalid/private/files/file-001",
+      "databaseRecordMatched": true,
+      "objectRestored": true
+    },
+    {
+      "type": "PROJECT_ATTACHMENT",
+      "projectId": "project-002",
+      "fileId": "file-002",
+      "storageKey": "cloud://cloudbase-d7gc2b32cd4196059/private/files/file-002/v1/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.docx",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sizeBytes": 204800,
+      "backupSnapshotAt": "2026-08-14T02:30:00.000+08:00",
+      "restoredSnapshotAt": "2026-08-14T03:11:00.000+08:00",
+      "temporaryDownloadUrl": "https://download.example.invalid/private/files/file-002",
+      "databaseRecordMatched": true,
+      "objectRestored": true
+    },
+    {
+      "type": "PROJECT_ATTACHMENT",
+      "projectId": "project-003",
+      "fileId": "file-003",
+      "storageKey": "cloud://cloudbase-d7gc2b32cd4196059/private/files/file-003/v2/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.xlsx",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "sizeBytes": 307200,
+      "backupSnapshotAt": "2026-08-14T02:30:00.000+08:00",
+      "restoredSnapshotAt": "2026-08-14T03:12:00.000+08:00",
+      "temporaryDownloadUrl": "https://download.example.invalid/private/files/file-003",
+      "databaseRecordMatched": true,
+      "objectRestored": true
+    },
+    {
+      "type": "EXPORT_FILE",
+      "exportTaskCode": "DC-2026-0007",
+      "fileId": "export-file-001",
+      "storageKey": "cloud://cloudbase-d7gc2b32cd4196059/private/exports/DC-2026-0007.csv",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "sizeBytes": 40960,
+      "backupSnapshotAt": "2026-08-14T02:30:00.000+08:00",
+      "restoredSnapshotAt": "2026-08-14T03:13:00.000+08:00",
+      "temporaryDownloadUrl": "https://download.example.invalid/private/exports/DC-2026-0007.csv",
+      "databaseRecordMatched": true,
+      "objectRestored": true
+    }
+  ],
+  "accessChecks": [
+    {
+      "type": "SENSITIVE_ATTACHMENT_DENIED",
+      "fileId": "file-sensitive-001",
+      "unauthorizedDenied": true,
+      "auditLogMatched": true
+    },
+    {
+      "type": "EXPIRED_EXPORT_DENIED",
+      "exportTaskCode": "DC-2026-0001",
+      "expiredDownloadDenied": true,
+      "auditLogMatched": true
+    }
+  ]
+}

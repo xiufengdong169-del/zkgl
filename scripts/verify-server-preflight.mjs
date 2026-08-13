@@ -31,6 +31,7 @@ const requiredFiles = [
   "scripts/verify-server-env.mjs",
   "scripts/verify-server-deployment-assets.mjs",
   "scripts/verify-backup-assets.mjs",
+  "scripts/verify-object-restore-manifest.mjs",
   "scripts/verify-performance-acceptance-assets.mjs",
   "database/init/schema.sql",
 ];
@@ -94,6 +95,7 @@ export function verifyServerPreflightInputs({
     [
       "node scripts/verify-server-deployment-assets.mjs",
       "node scripts/verify-backup-assets.mjs",
+      "npm run verify:object-restore",
       "npm run verify:performance-acceptance",
       "node scripts/verify-server-preflight.mjs",
     ],
