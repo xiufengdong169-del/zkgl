@@ -8,6 +8,7 @@ const projectAttachmentStoragePathPattern =
   /^private\/files\/[a-zA-Z0-9_-]+\/v[1-9][0-9]*\/([a-f0-9]{64})\.[a-z0-9]+$/;
 const exportStoragePathPattern = /^private\/exports\/[A-Za-z0-9_-]+\.csv$/;
 const temporaryDownloadUrlHttpsMessage = "temporaryDownloadUrl must use HTTPS";
+const defaultMaxSnapshotDriftMinutes = 60;
 
 const fail = (message) => {
   throw new Error(`Object restore manifest verification failed: ${message}`);
@@ -25,6 +26,7 @@ function requireIsoDate(value, context) {
   if (!/\d{4}-\d{2}-\d{2}T/.test(value)) {
     fail(`${context} must include date and time`);
   }
+  return time;
 }
 
 function requireHttpsUrl(value, context) {
@@ -45,7 +47,7 @@ function privateStoragePath(storageKey) {
   return cloudMatch ? cloudMatch[1] : storageKey;
 }
 
-function verifyObjectRecord(record, index) {
+function verifyObjectRecord(record, index, restorePointTime, maxSnapshotDriftMinutes) {
   const context = `objects[${index}]`;
   const type = requireString(record, "type", context);
   const storageKey = requireString(record, "storageKey", context);
@@ -55,8 +57,18 @@ function verifyObjectRecord(record, index) {
   if (!Number.isInteger(record.sizeBytes) || record.sizeBytes <= 0) {
     fail(`${context}.sizeBytes must be a positive integer`);
   }
-  requireIsoDate(requireString(record, "backupSnapshotAt", context), `${context}.backupSnapshotAt`);
+  const backupSnapshotTime = requireIsoDate(
+    requireString(record, "backupSnapshotAt", context),
+    `${context}.backupSnapshotAt`,
+  );
   requireIsoDate(requireString(record, "restoredSnapshotAt", context), `${context}.restoredSnapshotAt`);
+  const driftMinutes =
+    Math.abs(backupSnapshotTime - restorePointTime) / (60 * 1000);
+  if (driftMinutes > maxSnapshotDriftMinutes) {
+    fail(
+      `${context}.backupSnapshotAt must be within ${maxSnapshotDriftMinutes} minutes of restorePointAt`,
+    );
+  }
   requireHttpsUrl(
     requireString(record, "temporaryDownloadUrl", context),
     `${context}.temporaryDownloadUrl`,
@@ -117,10 +129,20 @@ export function verifyObjectRestoreManifest(manifest) {
   if (manifest.schemaVersion !== "zkgl-object-restore-manifest.v1") {
     fail("schemaVersion must be zkgl-object-restore-manifest.v1");
   }
-  requireIsoDate(
+  const restorePointTime = requireIsoDate(
     requireString(manifest, "restorePointAt", "manifest"),
     "manifest.restorePointAt",
   );
+  const maxSnapshotDriftMinutes = Number(
+    manifest.maxSnapshotDriftMinutes ?? defaultMaxSnapshotDriftMinutes,
+  );
+  if (
+    !Number.isInteger(maxSnapshotDriftMinutes) ||
+    maxSnapshotDriftMinutes < 0 ||
+    maxSnapshotDriftMinutes > 1440
+  ) {
+    fail("maxSnapshotDriftMinutes must be an integer between 0 and 1440");
+  }
   const databaseBackupFile = requireString(
     manifest,
     "databaseBackupFile",
@@ -132,7 +154,12 @@ export function verifyObjectRestoreManifest(manifest) {
   if (!Array.isArray(manifest.objects)) fail("objects must be an array");
   const counts = new Map();
   manifest.objects.forEach((record, index) => {
-    const type = verifyObjectRecord(record, index);
+    const type = verifyObjectRecord(
+      record,
+      index,
+      restorePointTime,
+      maxSnapshotDriftMinutes,
+    );
     counts.set(type, (counts.get(type) ?? 0) + 1);
   });
   if ((counts.get("PROJECT_ATTACHMENT") ?? 0) < 3) {

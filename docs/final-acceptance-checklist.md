@@ -17,7 +17,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 87 个测试文件 / 464 条测试。
+- [ ] API 测试通过，当前基线为 87 个测试文件 / 465 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 52 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -27,7 +27,7 @@
 - [ ] `npm run verify:performance-acceptance` 通过，AC-14 现场性能验收资产、基准数据量、P95 阈值、并发与越权校验和归档材料要求一致。
 - [ ] `node scripts/verify-server-deployment-assets.mjs` 通过，API 服务、提醒 timer、导出 worker timer 和 Nginx 模板与独立服务器上线要求一致。
 - [ ] `node scripts/verify-backup-assets.mjs` 通过，MySQL 8.0 备份脚本、备份 timer、对象恢复清单校验器、备份保留策略和验收文档一致。
-- [ ] `npm run verify:object-restore` 通过（脚本路径 `scripts/verify-object-restore-manifest.mjs`），项目附件与后台导出文件恢复清单示例覆盖 `private/files`、`private/exports`、HTTPS 下载抽查、敏感附件拒绝和过期导出拒绝证据。
+- [ ] `npm run verify:object-restore` 通过（脚本路径 `scripts/verify-object-restore-manifest.mjs`），项目附件与后台导出文件恢复清单示例覆盖 `private/files`、`private/exports`、同一业务时间窗口、HTTPS 下载抽查、敏感附件拒绝和过期导出拒绝证据。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
 - [ ] `npm run verify:local-demo` 通过：demo 模式前端包可在临时 HTTP 服务下打开，`apps/web/src/routes.ts` 中全部声明的前端 SPA 路由均返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问。
 - [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。

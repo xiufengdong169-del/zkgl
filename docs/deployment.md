@@ -322,7 +322,7 @@ RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION
 node scripts/restore-mysql-backup.mjs
 ```
 
-附件和后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式填写，并由 `scripts/verify-object-restore-manifest.mjs` 校验。项目附件对象路径必须位于 `private/files/...`，后台导出文件对象路径必须位于 `private/exports/...`；每条抽查记录需包含 sha256、大小、恢复点时间、数据库记录匹配结论、对象恢复结论和 HTTPS 临时下载地址。正式清单填写后执行：
+附件和后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式填写，并由 `scripts/verify-object-restore-manifest.mjs` 校验。项目附件对象路径必须位于 `private/files/...`，后台导出文件对象路径必须位于 `private/exports/...`；每条抽查记录需包含 sha256、大小、恢复点时间、数据库记录匹配结论、对象恢复结论和 HTTPS 临时下载地址。`backupSnapshotAt` 与 `restorePointAt` 默认需处于 60 分钟内的同一业务时间窗口，可通过 `maxSnapshotDriftMinutes` 调整。正式清单填写后执行：
 
 ```bash
 npm run verify:object-restore -- 正式清单.json

@@ -57,6 +57,7 @@
 - 项目附件对象路径必须位于 `private/files/...`，至少 3 条记录。
 - 后台导出文件对象路径必须位于 `private/exports/...`，至少 1 条记录。
 - 每条记录填写 `sha256`、`sizeBytes`、数据库记录匹配结论、对象恢复结论和 HTTPS 临时下载地址。
+- `backupSnapshotAt` 与 `restorePointAt` 应处于同一业务时间窗口；默认 `maxSnapshotDriftMinutes` 为 60 分钟。
 - 敏感附件拒绝和过期导出拒绝均需记录审计日志匹配结论。
 - 示例格式见 `docs/object-restore-manifest.example.json`，正式演练清单可复制该文件后填入真实记录，再运行 `npm run verify:object-restore -- 正式清单.json`。
 

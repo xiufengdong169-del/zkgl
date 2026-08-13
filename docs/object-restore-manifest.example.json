@@ -2,6 +2,7 @@
   "schemaVersion": "zkgl-object-restore-manifest.v1",
   "drillName": "V2.2 backup restore object evidence example",
   "restorePointAt": "2026-08-14T02:30:00.000+08:00",
+  "maxSnapshotDriftMinutes": 60,
   "databaseBackupFile": "/var/backups/zkgl/mysql/zkgl-2026-08-14T02-30-00-000Z.sql",
   "objects": [
     {

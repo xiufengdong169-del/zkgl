@@ -126,7 +126,7 @@ AC-14 需要在腾讯云轻量应用服务器生产环境、正常企业网络�
 
 1. 腾讯云轻量服务器 MySQL 8.0 启用 `deploy/systemd/zkgl-mysql-backup.service` 与 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，备份至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
 2. 每次关键发布、初始化脚本重建或生产配置变更前，先执行一次 `scripts/create-mysql-backup.mjs` 手工备份，并执行 `node scripts/verify-backup-assets.mjs` 复核备份资产；备份文件名必须由安全 `DB_NAME` 生成，且不得写出 `BACKUP_MYSQL_DIR`。
-3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口；附件与后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式记录，并执行 `scripts/verify-object-restore-manifest.mjs`（或 `npm run verify:object-restore`）校验。
+3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口；附件与后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式记录，并执行 `scripts/verify-object-restore-manifest.mjs`（或 `npm run verify:object-restore`）校验，默认要求对象备份点与数据库恢复点偏移不超过 60 分钟。
 4. 明确备份责任人、恢复责任人、备份保留策略、恢复目标环境和恢复演练记录保存位置。
 
 上线前恢复演练：

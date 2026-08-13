@@ -79,6 +79,8 @@ function validInputs() {
       "private/files",
       "private/exports",
       "temporaryDownloadUrl must use HTTPS",
+      "maxSnapshotDriftMinutes",
+      "backupSnapshotAt must be within",
       "SENSITIVE_ATTACHMENT_DENIED",
       "EXPIRED_EXPORT_DENIED",
     ].join("\n"),
@@ -89,6 +91,7 @@ function validInputs() {
       "private/files",
       "private/exports",
       "temporaryDownloadUrl",
+      "maxSnapshotDriftMinutes",
       "databaseRecordMatched",
       "objectRestored",
       "SENSITIVE_ATTACHMENT_DENIED",
@@ -189,6 +192,7 @@ describe("object restore manifest verifier script", () => {
     return {
       schemaVersion: "zkgl-object-restore-manifest.v1",
       restorePointAt: "2026-08-14T02:30:00.000+08:00",
+      maxSnapshotDriftMinutes: 60,
       databaseBackupFile: "/var/backups/zkgl/mysql/zkgl.sql",
       objects: [
         {
@@ -269,6 +273,17 @@ describe("object restore manifest verifier script", () => {
     missingAccess.accessChecks = [];
     expect(() => verifyObjectRestoreManifest(missingAccess)).toThrow(
       "SENSITIVE_ATTACHMENT_DENIED",
+    );
+  });
+
+  it("rejects object restore evidence from a different backup time window", async () => {
+    const { verifyObjectRestoreManifest } =
+      await loadObjectRestoreManifestModule();
+    const manifest = validManifest();
+    manifest.objects[0]!.backupSnapshotAt = "2026-08-14T05:00:00.000+08:00";
+
+    expect(() => verifyObjectRestoreManifest(manifest)).toThrow(
+      "backupSnapshotAt must be within 60 minutes of restorePointAt",
     );
   });
 });
