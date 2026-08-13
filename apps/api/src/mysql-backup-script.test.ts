@@ -13,6 +13,7 @@ type MysqlBackupModule = {
     backupDirectory: string;
     retentionDays: number;
   };
+  safeBackupDatabaseName(database: string): string;
   backupFilePath(config: { backupDirectory: string; database: string }, now: Date): string;
   pruneOldBackups(config: { backupDirectory: string; retentionDays: number }, now: Date): Promise<number>;
 };
@@ -64,6 +65,24 @@ describe("mysql backup script", () => {
         new Date("2026-08-02T02:30:00.000Z"),
       ),
     ).toMatch(/zkgl-2026-08-02T02-30-00-000Z\.sql$/);
+  });
+
+  it("rejects unsafe database names before composing backup file paths", async () => {
+    const { backupFilePath, safeBackupDatabaseName } = await loadMysqlBackupModule();
+
+    expect(safeBackupDatabaseName("zkgl_prod-01")).toBe("zkgl_prod-01");
+    expect(() =>
+      backupFilePath(
+        { backupDirectory: "/var/backups/zkgl/mysql", database: "../zkgl" },
+        new Date("2026-08-02T02:30:00.000Z"),
+      ),
+    ).toThrow("DB_NAME may only contain letters, numbers, underscore, or hyphen");
+    expect(() =>
+      backupFilePath(
+        { backupDirectory: "/var/backups/zkgl/mysql", database: "zkgl/prod" },
+        new Date("2026-08-02T02:30:00.000Z"),
+      ),
+    ).toThrow("DB_NAME may only contain letters, numbers, underscore, or hyphen");
   });
 
   it("prunes only expired SQL backup files", async () => {

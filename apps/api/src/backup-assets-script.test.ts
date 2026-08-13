@@ -26,6 +26,8 @@ function validInputs() {
     "deploy/systemd/zkgl-mysql-backup.service",
     "deploy/systemd/zkgl-mysql-backup.timer",
     "BACKUP_RETENTION_DAYS",
+    "BACKUP_MYSQL_DIR",
+    ".sql",
   ].join("\n");
   return {
     backupScript: [
@@ -38,6 +40,8 @@ function validInputs() {
       "BACKUP_RETENTION_DAYS",
       "/var/backups/zkgl/mysql",
       "MYSQL_PWD",
+      "safeBackupDatabaseName",
+      "Backup file path must stay inside BACKUP_MYSQL_DIR",
     ].join("\n"),
     restoreScript: [
       "mysqlRestoreConfig",
@@ -46,6 +50,7 @@ function validInputs() {
       "RESTORE_CONFIRM",
       "I_UNDERSTAND_THIS_IS_NOT_PRODUCTION",
       "RESTORE_DB_NAME must not equal production DB_NAME",
+      "RESTORE_BACKUP_FILE must point to a .sql backup file",
       "createReadStream",
       "MYSQL_PWD",
       "mysql",

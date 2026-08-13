@@ -297,7 +297,7 @@ curl http://127.0.0.1:3010/healthz
 
 ### MySQL 备份
 
-服务器本地备份脚本为 `scripts/create-mysql-backup.mjs`，默认输出目录为 `/var/backups/zkgl/mysql`，默认保留 30 天。脚本读取 `/etc/zkgl/zkgl-api.env` 中的数据库连接变量，通过 `mysqldump --single-transaction --routines --triggers --events` 生成一致性备份文件；真实数据库密码不得写入命令行、Git 仓库或文档示例。
+服务器本地备份脚本为 `scripts/create-mysql-backup.mjs`，默认输出目录为 `/var/backups/zkgl/mysql`，默认保留 30 天。脚本读取 `/etc/zkgl/zkgl-api.env` 中的数据库连接变量，通过 `mysqldump --single-transaction --routines --triggers --events` 生成一致性备份文件；真实数据库密码不得写入命令行、Git 仓库或文档示例。备份文件名会校验 `DB_NAME` 仅包含字母、数字、下划线或连字符，并拒绝写出 `BACKUP_MYSQL_DIR` 目录外。
 
 手工发布前备份命令：
 
@@ -306,7 +306,7 @@ node scripts/create-mysql-backup.mjs
 node scripts/verify-backup-assets.mjs
 ```
 
-恢复演练必须恢复到独立验证库，`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`。演练时在服务器本地临时设置：
+恢复演练必须恢复到独立验证库，`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`，`RESTORE_BACKUP_FILE` 必须指向 `.sql` 备份文件。演练时在服务器本地临时设置：
 
 ```bash
 RESTORE_BACKUP_FILE=/var/backups/zkgl/mysql/某次备份.sql

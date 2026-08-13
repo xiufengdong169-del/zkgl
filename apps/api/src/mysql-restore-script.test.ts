@@ -57,6 +57,17 @@ describe("mysql restore script", () => {
     ).toThrow("RESTORE_DB_NAME must not equal production DB_NAME");
   });
 
+  it("rejects non-SQL restore inputs before invoking mysql", async () => {
+    const { mysqlRestoreConfig } = await loadMysqlRestoreModule();
+
+    expect(() =>
+      mysqlRestoreConfig({
+        ...validRestoreEnvironment,
+        RESTORE_BACKUP_FILE: "backups/zkgl.txt",
+      } as NodeJS.ProcessEnv),
+    ).toThrow("RESTORE_BACKUP_FILE must point to a .sql backup file");
+  });
+
   it("builds mysql restore arguments without embedding credentials", async () => {
     const { mysqlRestoreArgs, mysqlRestoreConfig } =
       await loadMysqlRestoreModule();

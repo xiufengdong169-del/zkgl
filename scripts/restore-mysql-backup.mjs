@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { access } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 function requiredEnvironment(environment, name) {
@@ -13,8 +13,12 @@ function requiredEnvironment(environment, name) {
 export function mysqlRestoreConfig(environment = process.env) {
   const productionDatabase = requiredEnvironment(environment, "DB_NAME");
   const targetDatabase = requiredEnvironment(environment, "RESTORE_DB_NAME");
+  const backupFile = resolve(requiredEnvironment(environment, "RESTORE_BACKUP_FILE"));
   if (targetDatabase === productionDatabase) {
     throw new Error("RESTORE_DB_NAME must not equal production DB_NAME");
+  }
+  if (extname(backupFile).toLowerCase() !== ".sql") {
+    throw new Error("RESTORE_BACKUP_FILE must point to a .sql backup file");
   }
   if (environment.RESTORE_CONFIRM !== "I_UNDERSTAND_THIS_IS_NOT_PRODUCTION") {
     throw new Error("RESTORE_CONFIRM is required before restoring a backup");
@@ -26,7 +30,7 @@ export function mysqlRestoreConfig(environment = process.env) {
     password: requiredEnvironment(environment, "DB_PASSWORD"),
     productionDatabase,
     targetDatabase,
-    backupFile: resolve(requiredEnvironment(environment, "RESTORE_BACKUP_FILE")),
+    backupFile,
   };
 }
 

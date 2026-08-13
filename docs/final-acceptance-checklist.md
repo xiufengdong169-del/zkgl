@@ -17,7 +17,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 86 个测试文件 / 447 条测试。
+- [ ] API 测试通过，当前基线为 86 个测试文件 / 449 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 51 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -101,11 +101,11 @@
 
 ## 9. 备份恢复与运维
 
-- [ ] 腾讯云轻量服务器 MySQL 8.0 通过 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，计划时间为 02:30，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制。
+- [ ] 腾讯云轻量服务器 MySQL 8.0 通过 `deploy/systemd/zkgl-mysql-backup.timer` 每日自动备份，计划时间为 02:30，至少保留 30 天，保留天数由 `BACKUP_RETENTION_DAYS` 控制；备份文件不得写出 `BACKUP_MYSQL_DIR`。
 - [ ] 关键发布、初始化脚本重建或生产配置变更前执行 `scripts/create-mysql-backup.mjs` 手工备份，并运行 `node scripts/verify-backup-assets.mjs`。
 - [ ] 项目附件启用平台保护能力或定期备份。
 - [ ] 上线前完成一次数据库和附件恢复演练，并按 `docs/backup-recovery-acceptance-template.md` 归档恢复记录。
-- [ ] 数据库恢复演练使用 `scripts/restore-mysql-backup.mjs` 恢复到独立验证库，`RESTORE_DB_NAME` 不等于生产 `DB_NAME`，且设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION`。
+- [ ] 数据库恢复演练使用 `scripts/restore-mysql-backup.mjs` 恢复 `.sql` 备份到独立验证库，`RESTORE_DB_NAME` 不等于生产 `DB_NAME`，且设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION`。
 - [ ] 上线后至少每半年执行一次恢复验证。
 - [ ] 不为节省免费额度而关闭安全、审计日志或备份恢复能力。
 

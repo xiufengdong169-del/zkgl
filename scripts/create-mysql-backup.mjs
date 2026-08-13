@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import { resolve, join } from "node:path";
+import { isAbsolute, relative, resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const defaultBackupDirectory = "/var/backups/zkgl/mysql";
@@ -29,8 +29,29 @@ function timestamp(now = new Date()) {
   return now.toISOString().replace(/[:.]/g, "-");
 }
 
+export function safeBackupDatabaseName(database) {
+  const value = String(database || "").trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error("DB_NAME may only contain letters, numbers, underscore, or hyphen for backup filenames");
+  }
+  return value;
+}
+
+function assertInsideDirectory(directory, filePath) {
+  const relativePath = relative(directory, filePath);
+  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error("Backup file path must stay inside BACKUP_MYSQL_DIR");
+  }
+}
+
 export function backupFilePath(config, now = new Date()) {
-  return resolve(config.backupDirectory, `${config.database}-${timestamp(now)}.sql`);
+  const backupDirectory = resolve(config.backupDirectory);
+  const outputFile = resolve(
+    backupDirectory,
+    `${safeBackupDatabaseName(config.database)}-${timestamp(now)}.sql`,
+  );
+  assertInsideDirectory(backupDirectory, outputFile);
+  return outputFile;
 }
 
 function run(command, args, options) {
