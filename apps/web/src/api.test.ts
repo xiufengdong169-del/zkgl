@@ -10,7 +10,7 @@ vi.mock("./cloudbase", () => ({
   },
 }));
 
-async function loadApi(baseUrl = "https://api.example.com/zkgl") {
+async function loadApi(baseUrl = "https://api.example.com/api") {
   vi.stubEnv("VITE_API_BASE_URL", baseUrl);
   return import("./api");
 }
@@ -38,13 +38,13 @@ describe("callApi", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { callApi } = await loadApi(" https://api.example.com/zkgl ");
+    const { callApi } = await loadApi(" https://api.example.com/api ");
     await expect(
       callApi("project.detail", { projectId: "p-1" }),
     ).resolves.toEqual({ id: "p-1" });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.example.com/zkgl",
+      "https://api.example.com/api",
       expect.objectContaining({
         method: "POST",
         headers: {
@@ -117,6 +117,28 @@ describe("callApi", () => {
 
       const { callApi } = await loadApi(baseUrl);
       await expect(callApi("project.detail", { projectId: "p-1" })).rejects.toThrow();
+      expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("生产 API 地址必须指向干净的 /api 入口", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const [baseUrl, message] of [
+      ["https://api.example.com", "API 地址必须以 /api 结尾"],
+      ["https://api.example.com/api?token=secret", "API 地址不得包含查询参数或片段"],
+      ["https://api.example.com/api#fragment", "API 地址不得包含查询参数或片段"],
+      ["https://user:pass@api.example.com/api", "API 地址不得包含账号或密码"],
+    ] as const) {
+      vi.resetModules();
+      cloudbaseMocks.getAccessToken.mockReset();
+
+      const { callApi } = await loadApi(baseUrl);
+      await expect(callApi("project.detail", { projectId: "p-1" })).rejects.toThrow(
+        message,
+      );
       expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
     }
     expect(fetchMock).not.toHaveBeenCalled();

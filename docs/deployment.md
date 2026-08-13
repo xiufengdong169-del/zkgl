@@ -69,7 +69,7 @@ tcb fn deploy zkgl-export-worker --yes
 
 ## 前端发布
 
-前端必须在正式域名和 `/api` 反向代理地址确认后重新构建，避免浏览器产物中缺少 API 地址或使用不受信任协议。
+前端必须在正式域名和 `/api` 反向代理地址确认后重新构建，避免浏览器产物中缺少 API 地址或使用不受信任协议。生产 `VITE_API_BASE_URL` 必须是 HTTPS 地址、路径以 `/api` 结尾，且不得包含账号密码、查询参数或片段。
 
 ```powershell
 $env:VITE_CLOUDBASE_ENV_ID="cloudbase-d7gc2b32cd4196059"
@@ -152,7 +152,7 @@ npm run demo:local
 - 数据库：服务器已安装 MySQL 8.0。
 - API 运行方式：Node.js 进程监听 `127.0.0.1:3000`，由 systemd 托管。
 - 入口代理：Nginx 对外提供 HTTPS，并将 `/api` 反向代理到本机 API。
-- 前端发布：`apps/web/dist` 由 Nginx 静态站点托管；`VITE_API_BASE_URL` 必须配置为正式 HTTPS API 地址。
+- 前端发布：`apps/web/dist` 由 Nginx 静态站点托管；`VITE_API_BASE_URL` 必须配置为正式 HTTPS `/api` 地址，且不得包含账号密码、查询参数或片段。
 
 CloudBase 不再作为主部署平台。现有 `cloudbaserc.json`、`functions/zkgl-api`、`functions/zkgl-reminder`、`functions/zkgl-export-worker` 仅作为历史 CloudBase 交付包和可回退适配保留；后续正式上线验收以本节轻量服务器部署为准。
 
@@ -323,7 +323,7 @@ node scripts/restore-mysql-backup.mjs
 - 将 `/api` 代理到 `http://127.0.0.1:3000/api`；
 - 对外部请求清除 `X-ZKGL-CloudBase-UID`，该头只能由受信任认证适配层注入；
 - 设置静态资源缓存，但不得缓存 `/api` 响应；
-- 生产域名确定后，将前端 `VITE_API_BASE_URL` 设置为 `https://正式域名/api` 后重新构建。
+- 生产域名确定后，将前端 `VITE_API_BASE_URL` 设置为干净的 `https://正式域名/api` 后重新构建，不得包含账号密码、查询参数或片段。
 
 示例片段：
 

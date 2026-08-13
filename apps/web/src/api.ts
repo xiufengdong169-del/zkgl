@@ -13,6 +13,9 @@ function trustedApiBaseUrl() {
     throw new Error('API 地址无效')
   }
   if (url.protocol !== 'https:') throw new Error('API 地址协议不受信任')
+  if (url.username || url.password) throw new Error('API 地址不得包含账号或密码')
+  if (url.search || url.hash) throw new Error('API 地址不得包含查询参数或片段')
+  if (!url.pathname.endsWith('/api')) throw new Error('API 地址必须以 /api 结尾')
   return url.toString()
 }
 

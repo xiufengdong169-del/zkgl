@@ -247,6 +247,8 @@ const frontendDeploymentFragments = [
   "apps/web/dist",
   "Nginx",
   "HTTPS",
+  "/api",
+  "不得包含账号密码、查询参数或片段",
   "session.get",
 ];
 const cloudbaseCliPrerequisiteFragments = [
@@ -321,7 +323,7 @@ const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
   "87 个测试文件 / 457 条测试",
-  "10 个测试文件 / 51 条测试",
+  "10 个测试文件 / 52 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "npm run verify:performance-acceptance",
@@ -607,7 +609,7 @@ describe("deployment documentation", () => {
       "复核日期：2026-08-14",
       "npm run verify:acceptance",
       "API 测试通过：87 个测试文件 / 457 条测试",
-      "Web 测试通过：10 个测试文件 / 51 条测试",
+      "Web 测试通过：10 个测试文件 / 52 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",
       "AC-14 现场性能验收",
@@ -919,6 +921,16 @@ describe("deployment documentation", () => {
         `deployment docs missing frontend deployment item ${fragment}`,
       ).toContain(fragment);
     }
+    for (const doc of [
+      finalAcceptanceChecklist,
+      operationsAcceptanceDoc,
+      localDevelopmentCompletionReport,
+    ]) {
+      expect(doc).toContain("VITE_API_BASE_URL");
+      expect(doc).toContain("/api");
+    }
+    expect(finalAcceptanceChecklist).toContain("账号密码、查询参数或片段");
+    expect(operationsAcceptanceDoc).toContain("账号密码、查询参数或片段");
   });
 
   it("documents CloudBase CLI prerequisite before deployment commands", () => {

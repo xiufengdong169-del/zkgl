@@ -25,7 +25,7 @@ npm run verify:acceptance
 
 - TypeScript 类型检查通过。
 - API 测试通过：87 个测试文件 / 457 条测试。
-- Web 测试通过：10 个测试文件 / 51 条测试。
+- Web 测试通过：10 个测试文件 / 52 条测试。
 - 前端生产构建通过。
 - 源码与交付脚本敏感信息扫描通过。
 - Markdown 需求基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致性校验通过。
@@ -54,7 +54,7 @@ npm run verify:acceptance
 
 以下事项不应在本地阶段冒充完成：
 
-1. 腾讯云轻量服务器正式部署：Nginx HTTPS、systemd 服务、生产 API、正式 `VITE_API_BASE_URL`、服务器本地环境文件和真实认证 verifier。
+1. 腾讯云轻量服务器正式部署：Nginx HTTPS、systemd 服务、生产 API、正式 HTTPS `/api` `VITE_API_BASE_URL`、服务器本地环境文件和真实认证 verifier。
 2. 生产 MySQL 空库初始化：在服务器 MySQL 8.0 上执行 `database/init/schema.sql`，并配置真实账号、权限和系统参数。
 3. AC-14 现场性能验收：在真实服务器、正常企业网络和基准数据量下执行 30 用户混合压测并归档日志。
 4. 备份恢复演练：数据库与附件恢复到非生产验证环境，并按模板归档恢复结果。

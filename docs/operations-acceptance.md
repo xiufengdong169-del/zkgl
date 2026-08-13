@@ -189,7 +189,7 @@ npm run verify:legacy-cloudbase
 
 1. `zkgl-api` 与 `zkgl-auth-adapter` systemd 服务已启用，`curl http://127.0.0.1:3000/healthz` 和 `curl http://127.0.0.1:3010/healthz` 返回健康状态；`curl http://127.0.0.1:3000/readyz` 返回 API 与 MySQL 就绪状态。
 2. Nginx 已通过 HTTPS 托管前端，并将 `/api` 反向代理到本机 API。
-3. 前端生产包使用正式 HTTPS `VITE_API_BASE_URL` 重新构建。
+3. 前端生产包使用正式 HTTPS `/api` `VITE_API_BASE_URL` 重新构建，且该地址不包含账号密码、查询参数或片段。
 4. 服务器环境文件仅保存在 `/etc/zkgl/zkgl-api.env`，真实数据库密码不进入 Git、文档示例或浏览器构建产物。
 5. MySQL 8.0 以空库执行 `database/init/schema.sql` 初始化；本项目仍不存在数据库迁移。
 6. 上线前必须启用 `deploy/systemd/zkgl-auth-adapter.service` 并配置 `AUTH_TOKEN_VERIFIER_MODULE`；可参考 `deploy/auth/cloudbase-token-verifier.example.mjs` 创建服务器本地真实 verifier，并用 `scripts/verify-server-env.mjs` 预检服务器环境文件，但不得直接把 example 文件作为生产 verifier；受信任认证适配层校验 `Authorization: Bearer ...` 后再向本机 API 注入 `X-ZKGL-CloudBase-UID`；`AUTH_TRUSTED_PROXY` 默认保持 `false`，认证适配层、Nginx 清除外部伪造头和联调验证完成后才允许改为 `true`。
