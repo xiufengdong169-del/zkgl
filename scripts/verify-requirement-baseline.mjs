@@ -26,10 +26,21 @@ export async function readTextFile(relativePath, root = defaultRoot) {
 }
 
 export async function extractDocxDocumentXml(relativePath, root = defaultRoot) {
+  const archive = resolve(root, relativePath);
   try {
+    const { stdout: entries } = await execFileAsync("tar", ["-tf", archive], {
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    const documentEntry = entries
+      .split(/\r?\n/)
+      .find((entry) => entry === "word/document.xml" || entry === "./word/document.xml");
+    if (!documentEntry) {
+      throw new Error(`${relativePath} does not contain word/document.xml`);
+    }
     const { stdout } = await execFileAsync(
       "tar",
-      ["-xOf", resolve(root, relativePath), "word/document.xml"],
+      ["-xOf", archive, documentEntry],
       { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
     );
     return stdout;

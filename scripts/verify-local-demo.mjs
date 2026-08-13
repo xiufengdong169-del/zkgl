@@ -28,7 +28,9 @@ function npmCommand() {
 }
 
 function outDirForVite(outDir) {
-  return normalize(resolve(outDir)).replaceAll("\\", "/");
+  const value = String(outDir);
+  if (/^[A-Za-z]:[\\/]/.test(value)) return value.replaceAll("\\", "/");
+  return normalize(resolve(value)).replaceAll("\\", "/");
 }
 
 export function localDemoBuildCommand({ outDir = defaultOutDir } = {}) {

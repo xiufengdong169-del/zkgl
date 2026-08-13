@@ -26,11 +26,19 @@ const requirementDocxPath = fileURLToPath(
     import.meta.url,
   ),
 );
-const requirementDocxXml = execFileSync(
-  "tar",
-  ["-xOf", requirementDocxPath, "word/document.xml"],
-  { encoding: "utf8" },
-);
+function readDocxDocumentXml(docxPath: string) {
+  const entries = execFileSync("tar", ["-tf", docxPath], { encoding: "utf8" });
+  const documentEntry = entries
+    .split(/\r?\n/)
+    .find((entry) => entry === "word/document.xml" || entry === "./word/document.xml");
+  if (!documentEntry) {
+    throw new Error(`${docxPath} does not contain word/document.xml`);
+  }
+  return execFileSync("tar", ["-xOf", docxPath, documentEntry], {
+    encoding: "utf8",
+  });
+}
+const requirementDocxXml = readDocxDocumentXml(requirementDocxPath);
 const operationsAcceptanceDoc = readFileSync(
   new URL("../../../docs/operations-acceptance.md", import.meta.url),
   "utf8",
@@ -312,7 +320,7 @@ const deliveryEntryFragments = [
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "85 个测试文件 / 440 条测试",
+  "85 个测试文件 / 441 条测试",
   "10 个测试文件 / 51 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
@@ -591,7 +599,7 @@ describe("deployment documentation", () => {
       "本地开发测试完成报告",
       "复核日期：2026-08-14",
       "npm run verify:acceptance",
-      "API 测试通过：85 个测试文件 / 440 条测试",
+      "API 测试通过：85 个测试文件 / 441 条测试",
       "Web 测试通过：10 个测试文件 / 51 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",

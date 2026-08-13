@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it } from "vitest";
 
 type RequirementBaselineModule = {
   currentMarkdownBaseline: string;
   currentWordBaseline: string;
   extractAcceptanceCaseCodes(source: string): string[];
+  extractDocxDocumentXml(relativePath: string, root?: string): Promise<string>;
   extractDocxVisibleText(documentXml: string): string;
   verifyRequirementBaseline(options?: {
     root?: string;
@@ -29,6 +34,14 @@ const markdownBaseline = [
   "con_*",
   ...acceptanceCodes,
 ].join("\n");
+
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  while (tempDirs.length) {
+    await rm(tempDirs.pop()!, { recursive: true, force: true });
+  }
+});
 
 const wordBaselineXml = [
   "腾讯云轻量服务器版",
@@ -84,6 +97,26 @@ describe("requirement baseline verifier script", () => {
     expect(extractDocxVisibleText("plain fallback text")).toBe(
       "plain fallback text",
     );
+  });
+
+  it("extracts Word document XML when archive entries are prefixed with ./", async () => {
+    const { extractDocxDocumentXml } = await loadRequirementBaselineModule();
+    const root = await mkdtemp(join(tmpdir(), "zkgl-docx-"));
+    tempDirs.push(root);
+    await mkdir(join(root, "word"));
+    await writeFile(
+      join(root, "word", "document.xml"),
+      "<w:document>ok</w:document>",
+      "utf8",
+    );
+    execFileSync("tar", ["-cf", "sample.docx", "./word/document.xml"], {
+      cwd: root,
+      stdio: "ignore",
+    });
+
+    const xml = await extractDocxDocumentXml("sample.docx", root);
+
+    expect(xml).toContain("<w:document>ok</w:document>");
   });
 
   it("verifies the current Markdown and Word requirement baselines are aligned", async () => {
