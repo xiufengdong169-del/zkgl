@@ -504,6 +504,9 @@ describe("deployment documentation", () => {
     expect(readme).toContain("npm run verify:performance-acceptance");
     expect(readme).toContain("npm run demo:local");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-sync");
+    expect(acceptanceTraceabilityDoc).toContain("npm run verify:github-actions");
+    expect(acceptanceTraceabilityDoc).toContain("github.com:443");
+    expect(acceptanceTraceabilityDoc).toContain("README.md");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:local-demo");
     expect(acceptanceTraceabilityDoc).toContain("npm run verify:requirements");
     expect(acceptanceTraceabilityDoc).toContain(

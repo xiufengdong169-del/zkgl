@@ -92,3 +92,11 @@ npm run verify:github-sync
 
 The command verifies that local `main` tracks `origin/main`, the working tree is clean, and the remote repository is `https://github.com/xiufengdong169-del/zkgl`.
 
+After the push is visible on GitHub, run:
+
+```powershell
+npm run verify:github-actions
+```
+
+This checks that the GitHub Actions `Acceptance verification` workflow succeeded for the current `main` commit. If anonymous GitHub API calls are rate-limited, set a read-only `GITHUB_TOKEN` and rerun the command. If Windows can open GitHub in the browser but `git push` times out on `github.com:443`, use the one-off proxy push pattern documented in `README.md` rather than saving a personal proxy into repository config.
+
