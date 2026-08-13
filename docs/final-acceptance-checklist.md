@@ -17,7 +17,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 85 个测试文件 / 441 条测试。
+- [ ] API 测试通过，当前基线为 86 个测试文件 / 445 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 51 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -39,6 +39,7 @@
 - [ ] `git status --short --branch` 显示本地与 `origin/main` 一致，且工作区干净。
 - [ ] 每个交付改动均已提交并推送到 `https://github.com/xiufengdong169-del/zkgl`。
 - [ ] GitHub Actions 工作流 `.github/workflows/verify.yml` 已在 push 或 pull request 上执行 `npm run verify:acceptance` 并通过。
+- [ ] 如需本地复核 GitHub Actions 结果，执行 `npm run verify:github-actions`；若 GitHub 匿名 API 限流，设置具备仓库只读权限的 `GITHUB_TOKEN` 后重试。
 
 ## 4. 数据库与初始化
 

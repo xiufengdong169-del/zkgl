@@ -109,6 +109,14 @@ npm run verify:github-sync
 
 This verifies that the current branch is `main`, `origin` points to `https://github.com/xiufengdong169-del/zkgl`, the working tree is clean, and local `main` matches the latest `origin/main`.
 
+To check the GitHub Actions acceptance result for the current `main` commit, run:
+
+```powershell
+npm run verify:github-actions
+```
+
+This command queries GitHub for the latest `Acceptance verification` check on the current commit. If GitHub rate limits anonymous API calls, set `GITHUB_TOKEN` with repository read access and rerun it.
+
 ## 2026-08-02 deployment target update
 
 Current production target is Tencent Cloud Lighthouse standalone server:
