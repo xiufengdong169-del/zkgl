@@ -497,6 +497,8 @@ describe("deployment documentation", () => {
     expect(githubSyncScript).toContain("fetch");
     expect(githubSyncScript).toContain("origin/main");
     expect(readme).toContain("npm run verify:github-sync");
+    expect(readme).toContain("git -c http.proxy=http://127.0.0.1:7078");
+    expect(readme).toContain("Failed to connect to github.com port 443");
     expect(readme).toContain("npm run verify:local-demo");
     expect(readme).toContain("npm run verify:requirements");
     expect(readme).toContain("npm run verify:performance-acceptance");
@@ -511,6 +513,8 @@ describe("deployment documentation", () => {
       `最后复核日期：${expectedAcceptanceReviewDate}`,
     );
     expect(finalAcceptanceChecklist).toContain("npm run verify:github-sync");
+    expect(finalAcceptanceChecklist).toContain("git -c http.proxy=...");
+    expect(finalAcceptanceChecklist).toContain("github.com:443");
     expect(finalAcceptanceChecklist).toContain("npm run demo:local");
     expect(packageJson.scripts.verify).toContain(
       "npm run verify:deployment-config",

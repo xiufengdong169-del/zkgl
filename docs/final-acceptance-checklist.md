@@ -40,6 +40,7 @@
 - [ ] 每个交付改动均已提交并推送到 `https://github.com/xiufengdong169-del/zkgl`。
 - [ ] GitHub Actions 工作流 `.github/workflows/verify.yml` 已在 push 或 pull request 上执行 `npm run verify:acceptance` 并通过。
 - [ ] 如需本地复核 GitHub Actions 结果，执行 `npm run verify:github-actions`；若 GitHub 匿名 API 限流，设置具备仓库只读权限的 `GITHUB_TOKEN` 后重试。
+- [ ] 如 Windows 浏览器可访问 GitHub 但 `git push` 直连 `github.com:443` 超时，先检查用户代理；如启用本机代理，可使用一次性 `git -c http.proxy=... -c https.proxy=... push origin main` 完成同步，不把个人代理写入仓库配置。
 
 ## 4. 数据库与初始化
 

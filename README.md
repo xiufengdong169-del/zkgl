@@ -117,6 +117,19 @@ npm run verify:github-actions
 
 This command queries GitHub for the latest `Acceptance verification` check on the current commit. If GitHub rate limits anonymous API calls, set `GITHUB_TOKEN` with repository read access and rerun it.
 
+If Windows can open GitHub in the browser but `git push` times out with `Failed to connect to github.com port 443`, check the user proxy first:
+
+```powershell
+Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' |
+  Select-Object ProxyEnable,ProxyServer,AutoConfigURL
+```
+
+When a local proxy is enabled, keep the repository configuration unchanged and use a one-off push through that proxy, for example:
+
+```powershell
+git -c http.proxy=http://127.0.0.1:7078 -c https.proxy=http://127.0.0.1:7078 push origin main
+```
+
 ## 2026-08-02 deployment target update
 
 Current production target is Tencent Cloud Lighthouse standalone server:
