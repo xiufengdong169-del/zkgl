@@ -227,7 +227,7 @@ npm run verify:server-env -- /etc/zkgl/zkgl-api.env
 
 ### MySQL 8.0 空库初始化
 
-本项目是全新开发程序，不存在数据库迁移步骤。首次上线使用空库初始化：
+本项目是全新开发程序，不存在数据库迁移步骤。首次上线使用空库初始化；`database/init/schema.sql` 不得包含 `DROP`、`TRUNCATE`、`ALTER TABLE`、`CREATE DATABASE` 或 `USE` 等破坏性、迁移式或绑定具体库名的语句。
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE zkgl CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"

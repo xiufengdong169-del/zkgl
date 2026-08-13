@@ -443,6 +443,21 @@ describe("empty database initialization schema", () => {
     expect(existsSync(migrationDir)).toBe(false);
   });
 
+  it("空库初始化脚本不包含破坏性或迁移式数据库语句", () => {
+    const forbiddenStatements = [
+      /\bDROP\s+(?:DATABASE|TABLE|VIEW|PROCEDURE|FUNCTION|TRIGGER)\b/i,
+      /\bTRUNCATE\s+TABLE\b/i,
+      /\bALTER\s+TABLE\b/i,
+      /\bRENAME\s+TABLE\b/i,
+      /\bCREATE\s+DATABASE\b/i,
+      /^\s*USE\s+/i,
+    ];
+
+    for (const pattern of forbiddenStatements) {
+      expect(schema, `schema.sql must not contain ${pattern}`).not.toMatch(pattern);
+    }
+  });
+
   it("内部账号与人员、CloudBase UID 均为一对一映射", () => {
     expect(schema).toMatch(/cloudbase_uid VARCHAR\(128\) NOT NULL UNIQUE/);
     expect(schema).toContain("UNIQUE KEY uk_iam_user_employee (employee_id)");
