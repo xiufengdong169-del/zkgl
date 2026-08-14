@@ -25,7 +25,7 @@
 8. 系统参数确认：提醒提前天数、导出文件保留天数、同步导出阈值等参数。
 9. 验收演示账号：至少准备管理员、公司负责人、项目经理、财务、普通项目成员和无权访问用户各 1 个，用于验证菜单权限、审批、数据范围和旧会话停用。
 
-以上资料可按 `docs/initialization-data.example.json` 格式准备，并由 `scripts/verify-initialization-data.mjs` 统一校验字段完整性、唯一性、岗位/角色覆盖和是否误填明文密码。正式联调前执行：
+以上资料可按 `docs/initialization-data.example.json` 格式准备，并由 `scripts/verify-initialization-data.mjs` 统一校验字段完整性、唯一性、岗位/角色覆盖和是否误填明文密码。角色代码、审批模板代码、编号规则代码和系统参数 key 必须与 `database/init/schema.sql` 的空库种子保持一致，例如 `MARKET_BUSINESS`、`BID_STAFF`、`CONTRACT_APPROVAL`、`INVOICE_APPLICATION`、`PROJECT_PAYMENT`、`PROJECT_CLOSE` 和 `reminder.contract_expiry_days`。正式联调前执行：
 
 ```bash
 npm run verify:initialization-data -- 正式初始化资料.json

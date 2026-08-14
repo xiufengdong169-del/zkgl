@@ -1,10 +1,31 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+const schema = readFileSync(
+  new URL("../../../database/init/schema.sql", import.meta.url),
+  "utf8",
+);
+const initializationExample = JSON.parse(
+  readFileSync(
+    new URL("../../../docs/initialization-data.example.json", import.meta.url),
+    "utf8",
+  ),
+) as {
+  roles: Array<{ roleCode: string }>;
+  roleAssignments: Array<{ roleCode: string }>;
+  approvalAmountThresholds: Array<{ businessType: string }>;
+  systemParameters: Array<{ paramKey: string }>;
+  numberRules: Array<{ ruleCode: string }>;
+};
 
 type InitializationManifest = Record<string, unknown>;
 
 type InitializationDataModule = {
   verifyInitializationData(manifest: InitializationManifest): string;
 };
+
+const extractSeededCodes = (source: string, pattern: RegExp, group = 1) =>
+  [...new Set([...source.matchAll(pattern)].map((match) => match[group]!))].sort();
 
 async function loadInitializationDataModule() {
   // @ts-expect-error script module is outside the TypeScript source root.
@@ -140,20 +161,20 @@ function makeValidManifest(): InitializationManifest {
     roles: [
       { roleCode: "ADMIN", roleName: "系统管理员" },
       { roleCode: "COMPANY_PRINCIPAL", roleName: "公司负责人" },
-      { roleCode: "BUSINESS", roleName: "经营人员" },
+      { roleCode: "MARKET_BUSINESS", roleName: "经营人员" },
       { roleCode: "PROJECT_MANAGER", roleName: "项目经理" },
       { roleCode: "PROJECT_MEMBER", roleName: "项目成员" },
-      { roleCode: "BIDDER", roleName: "投标方" },
+      { roleCode: "BID_STAFF", roleName: "投标方" },
       { roleCode: "FINANCE", roleName: "财务资金" },
       { roleCode: "EMPLOYEE", roleName: "普通员工" },
     ],
     roleAssignments: [
       { employeeCode: "E-ADMIN", roleCode: "ADMIN" },
       { employeeCode: "E-CEO", roleCode: "COMPANY_PRINCIPAL" },
-      { employeeCode: "E-BIZ", roleCode: "BUSINESS" },
+      { employeeCode: "E-BIZ", roleCode: "MARKET_BUSINESS" },
       { employeeCode: "E-PM", roleCode: "PROJECT_MANAGER" },
       { employeeCode: "E-MEMBER", roleCode: "PROJECT_MEMBER" },
-      { employeeCode: "E-BID", roleCode: "BIDDER" },
+      { employeeCode: "E-BID", roleCode: "BID_STAFF" },
       { employeeCode: "E-FIN", roleCode: "FINANCE" },
       { employeeCode: "E-NONE", roleCode: "EMPLOYEE" },
     ],
@@ -162,17 +183,25 @@ function makeValidManifest(): InitializationManifest {
       { positionCode: "COMPANY_PRINCIPAL", employeeCode: "E-CEO", effectiveFrom: "2026-08-14" },
       { positionCode: "FINANCE_REVIEWER", employeeCode: "E-FIN", effectiveFrom: "2026-08-14" },
       { positionCode: "PROJECT_MANAGER", employeeCode: "E-PM", effectiveFrom: "2026-08-14" },
+      { positionCode: "AUTHORIZED_MANAGER", employeeCode: "E-CEO", effectiveFrom: "2026-08-14" },
+      { positionCode: "OPERATIONS_MANAGER", employeeCode: "E-BIZ", effectiveFrom: "2026-08-14" },
     ],
     approvalAmountThresholds: [
-      "CONTRACT",
+      "MARKET_REGISTRATION",
+      "PROJECT_ESTABLISHMENT",
+      "BID_APPLICATION",
+      "CONTRACT_APPROVAL",
       "CONTRACT_CHANGE",
-      "INVOICE",
-      "PAYMENT",
-      "PARTNER_SETTLEMENT",
-      "DEPOSIT",
       "PROJECT_START",
       "PROJECT_CHANGE",
       "PROJECT_ACCEPTANCE",
+      "INVOICE_APPLICATION",
+      "EXPENSE_REIMBURSEMENT",
+      "PROJECT_PAYMENT",
+      "PARTNER_SETTLEMENT",
+      "DEPOSIT_PAYMENT",
+      "DEPOSIT_LOSS",
+      "DAILY_PURCHASE",
       "PROJECT_CLOSE",
     ].map((businessType) => ({
       businessType,
@@ -181,15 +210,24 @@ function makeValidManifest(): InitializationManifest {
       approvalPositionCode: "COMPANY_PRINCIPAL",
     })),
     numberRules: [
-      "LEAD",
+      "PROJECT_APPLICATION",
       "PROJECT",
-      "CONTRACT",
+      "COUNTERPARTY",
+      "LEAD",
+      "VISIT",
       "BID",
+      "CONTRACT",
+      "CONTRACT_CHANGE",
+      "INVOICE_APPLICATION",
+      "RECEIPT",
+      "REIMBURSEMENT",
       "PAYMENT",
-      "SETTLEMENT",
+      "EXPORT_TASK",
+      "PARTNER_PLAN",
+      "PARTNER_SETTLEMENT",
       "DEPOSIT",
-      "CLOSE",
-      "EXPORT",
+      "DAILY_PURCHASE",
+      "PROJECT_CLOSE",
     ].map((ruleCode) => ({
       ruleCode,
       prefix: `${ruleCode}-`,
@@ -197,10 +235,10 @@ function makeValidManifest(): InitializationManifest {
       nextSerial: 1,
     })),
     systemParameters: [
-      { paramKey: "reminder.contract_expire_days", paramValue: "30" },
+      { paramKey: "reminder.contract_expiry_days", paramValue: "30" },
       { paramKey: "reminder.bid_deadline_days", paramValue: "3" },
       { paramKey: "export.retention_days", paramValue: "7" },
-      { paramKey: "export.sync_threshold_rows", paramValue: "1000" },
+      { paramKey: "approval.amount_unit", paramValue: "CNY" },
     ],
     demoAccounts: [
       { purpose: "ADMIN", employeeCode: "E-ADMIN" },
@@ -220,6 +258,65 @@ describe("initialization data verifier script", () => {
     expect(verifyInitializationData(makeValidManifest())).toBe(
       "Initialization data verified",
     );
+  });
+
+  it("keeps the example manifest aligned with empty-database seed codes", () => {
+    const seededRoleCodes = extractSeededCodes(
+      schema,
+      /(?:\(|,)\s*'([A-Z_]+)'\s*,\s*'[^']*'\s*,\s*'ENABLED'\s*,NOW\(3\),NOW\(3\)/g,
+    );
+    const seededParameterKeys = extractSeededCodes(
+      schema,
+      /\('([a-z]+\.[a-z0-9_.]+)',/g,
+    );
+    const seededNumberRuleCodes = extractSeededCodes(
+      schema,
+      /\('([A-Z_]+)',\s*'[^']+',\s*YEAR\(CURRENT_DATE\),\s*0\)/g,
+    );
+    const seededApprovalBusinessTypes = extractSeededCodes(
+      schema,
+      /\('([^']+)',\s*'[^']+',\s*'([A-Z_]+)',\s*0,\s*0\)/g,
+    );
+
+    expect(seededRoleCodes).toEqual([
+      "ADMIN",
+      "BID_STAFF",
+      "COMPANY_PRINCIPAL",
+      "EMPLOYEE",
+      "FINANCE",
+      "MARKET_BUSINESS",
+      "PROJECT_MANAGER",
+      "PROJECT_MEMBER",
+    ]);
+    for (const role of initializationExample.roles) {
+      expect(seededRoleCodes, `manifest role ${role.roleCode} is not seeded`).toContain(
+        role.roleCode,
+      );
+    }
+    for (const assignment of initializationExample.roleAssignments) {
+      expect(
+        seededRoleCodes,
+        `manifest assignment role ${assignment.roleCode} is not seeded`,
+      ).toContain(assignment.roleCode);
+    }
+    for (const parameter of initializationExample.systemParameters) {
+      expect(
+        seededParameterKeys,
+        `manifest parameter ${parameter.paramKey} is not seeded`,
+      ).toContain(parameter.paramKey);
+    }
+    for (const threshold of initializationExample.approvalAmountThresholds) {
+      expect(
+        seededApprovalBusinessTypes,
+        `manifest approval business ${threshold.businessType} is not seeded`,
+      ).toContain(threshold.businessType);
+    }
+    for (const rule of initializationExample.numberRules) {
+      expect(
+        seededNumberRuleCodes,
+        `manifest number rule ${rule.ruleCode} is not seeded`,
+      ).toContain(rule.ruleCode);
+    }
   });
 
   it("rejects plaintext password fields in account initialization data", async () => {

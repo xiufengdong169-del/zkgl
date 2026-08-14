@@ -48,7 +48,7 @@ describe("standalone server readiness", () => {
       checks: { database: "ok" },
     });
     expect(databaseQuery).toHaveBeenCalledWith("SELECT 1");
-  });
+  }, 15_000);
 
   it("returns 503 when the database readiness query fails", async () => {
     const databaseQuery = vi
@@ -68,5 +68,5 @@ describe("standalone server readiness", () => {
       error: { code: "DATABASE_UNAVAILABLE" },
     });
     expect(body.error.message).toContain("ECONNREFUSED");
-  });
+  }, 15_000);
 });

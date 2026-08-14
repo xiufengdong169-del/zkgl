@@ -17,7 +17,7 @@
 ## 2. 代码与自动化验证
 
 - [ ] 执行 `npm run verify:acceptance` 并通过。
-- [ ] API 测试通过，当前基线为 88 个测试文件 / 469 条测试。
+- [ ] API 测试通过，当前基线为 88 个测试文件 / 470 条测试。
 - [ ] Web 测试通过，当前基线为 10 个测试文件 / 52 条测试。
 - [ ] TypeScript 类型检查通过。
 - [ ] 前端生产构建通过。
@@ -50,7 +50,7 @@
 - [ ] 当前新开发阶段不存在数据库迁移目录、迁移表或迁移执行器。
 - [ ] `database/init/schema.sql` 不包含 `DROP`、`TRUNCATE`、`ALTER TABLE`、`CREATE DATABASE` 或 `USE` 等破坏性、迁移式或绑定具体库名的语句。
 - [ ] 基础角色、权限、审批模板、岗位、编号规则、系统参数和敏感字段授权已由初始化脚本提供。
-- [ ] 上线初始化资料清单已按 `docs/initialization-data.example.json` 格式准备并通过 `npm run verify:initialization-data -- 正式初始化资料.json`：部门、人员、CloudBase UID、角色分配、审批岗位任职、审批金额阈值、编号规则、系统参数和验收演示账号均齐备，且不包含明文密码。
+- [ ] 上线初始化资料清单已按 `docs/initialization-data.example.json` 格式准备并通过 `npm run verify:initialization-data -- 正式初始化资料.json`：部门、人员、CloudBase UID、角色分配、审批岗位任职、审批金额阈值、编号规则、系统参数和验收演示账号均齐备，角色/审批模板/编号规则/系统参数代码与 `database/init/schema.sql` 空库种子一致，且不包含明文密码。
 
 ## 5. 腾讯云轻量应用服务器部署
 

@@ -131,7 +131,7 @@ AC-14 需要在腾讯云轻量应用服务器生产环境、正常企业网络�
 
 ## 上线初始化资料验收
 
-正式联调前，上线初始化资料应按 `docs/initialization-data.example.json` 格式准备，并通过 `scripts/verify-initialization-data.mjs` 校验。资料至少覆盖部门、人员、CloudBase UID、角色分配、审批岗位、审批金额阈值、编号规则、系统参数和验收演示账号，且不得包含明文密码。
+正式联调前，上线初始化资料应按 `docs/initialization-data.example.json` 格式准备，并通过 `scripts/verify-initialization-data.mjs` 校验。资料至少覆盖部门、人员、CloudBase UID、角色分配、审批岗位、审批金额阈值、编号规则、系统参数和验收演示账号；角色代码、审批模板代码、编号规则代码和系统参数 key 必须与 `database/init/schema.sql` 空库种子一致，且不得包含明文密码。
 
 上线前恢复演练：
 
