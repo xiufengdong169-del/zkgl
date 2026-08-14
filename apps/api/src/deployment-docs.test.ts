@@ -179,6 +179,7 @@ const verificationCommands = [
   "node scripts/verify-server-deployment-assets.mjs",
   "node scripts/verify-backup-assets.mjs",
   "npm run verify:object-restore",
+  "npm run verify:initialization-data",
   "node scripts/verify-server-preflight.mjs",
   "npm run verify:local-demo",
   "npm audit --omit=dev",
@@ -304,6 +305,8 @@ const initializationChecklistFragments = [
   "系统参数确认",
   "验收演示账号",
   "无权访问用户",
+  "docs/initialization-data.example.json",
+  "npm run verify:initialization-data",
 ];
 const deliveryEntryFragments = [
   "交付与验收入口",
@@ -317,17 +320,19 @@ const deliveryEntryFragments = [
   "docs/acceptance-traceability.md",
   "docs/local-development-completion-report.md",
   "docs/final-acceptance-checklist.md",
+  "docs/initialization-data.example.json",
   "V2.2 结果型验收用例",
   "交付前必跑命令",
 ];
 const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
-  "87 个测试文件 / 465 条测试",
+  "88 个测试文件 / 469 条测试",
   "10 个测试文件 / 52 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "npm run verify:performance-acceptance",
+  "npm run verify:initialization-data",
   "git status --short --branch",
   "origin/main",
   "GitHub Actions",
@@ -335,6 +340,7 @@ const finalAcceptanceChecklistFragments = [
   "database/init/schema.sql",
   "不存在数据库迁移",
   "上线初始化资料清单",
+  "docs/initialization-data.example.json",
   "193.112.79.220",
   "Ubuntu 24.04",
   "MySQL 8.0",
@@ -496,6 +502,9 @@ describe("deployment documentation", () => {
     expect(packageJson.scripts["verify:object-restore"]).toBe(
       "node scripts/verify-object-restore-manifest.mjs",
     );
+    expect(packageJson.scripts["verify:initialization-data"]).toBe(
+      "node scripts/verify-initialization-data.mjs",
+    );
     expect(githubVerifyWorkflow).toContain("npm ci");
     expect(githubVerifyWorkflow).toContain("npm run verify:acceptance");
     expect(githubVerifyWorkflow).toContain("push:");
@@ -539,6 +548,9 @@ describe("deployment documentation", () => {
     );
     expect(packageJson.scripts.verify).toContain("npm run verify:local-demo");
     expect(packageJson.scripts.verify).toContain("npm run verify:object-restore");
+    expect(packageJson.scripts.verify).toContain(
+      "npm run verify:initialization-data",
+    );
     expect(packageJson.scripts.verify).not.toContain(
       "node scripts/verify-cloudbase-function-packages.mjs",
     );
@@ -552,6 +564,7 @@ describe("deployment documentation", () => {
     expect(deploymentConfigVerifier).toContain("DB_PASSWORD");
     expect(deploymentConfigVerifier).toContain("zkglDailyReminder");
     expect(deploymentConfigVerifier).toContain("zkglExportWorker");
+    expect(deploymentConfigVerifier).toContain("verify:initialization-data");
     expect(sourceSecretHygieneScript).toContain('"docs"');
     expect(sourceSecretHygieneScript).toContain('"deploy"');
     expect(sourceSecretHygieneScript).toContain("需求评审修订基线_V2.2.md");
@@ -618,7 +631,7 @@ describe("deployment documentation", () => {
       "本地开发测试完成报告",
       "复核日期：2026-08-14",
       "npm run verify:acceptance",
-      "API 测试通过：87 个测试文件 / 465 条测试",
+      "API 测试通过：88 个测试文件 / 469 条测试",
       "Web 测试通过：10 个测试文件 / 52 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",
@@ -678,7 +691,7 @@ describe("deployment documentation", () => {
     const actualApiTestFiles = countTestFiles(apiSourceDir);
     const actualWebTestFiles = countTestFiles(webSourceDir);
 
-    expect(actualApiTestFiles).toBe(87);
+    expect(actualApiTestFiles).toBe(88);
     expect(actualWebTestFiles).toBe(10);
     for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);

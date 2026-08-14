@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "zkgl-initialization-data.v1",
+  "organizationName": "众肯科技",
+  "passwordsIncluded": false,
+  "departments": [
+    { "code": "D-ADMIN", "name": "总经办", "enabled": true },
+    { "code": "D-BIZ", "name": "市场商务部", "enabled": true },
+    { "code": "D-PROJECT", "name": "项目交付部", "enabled": true },
+    { "code": "D-FIN", "name": "财务资金部", "enabled": true }
+  ],
+  "employees": [
+    { "employeeCode": "E-ADMIN", "name": "系统管理员", "employeeType": "INTERNAL", "departmentCode": "D-ADMIN", "positionName": "系统管理员", "managerEmployeeCode": "", "enabled": true },
+    { "employeeCode": "E-CEO", "name": "公司负责人", "employeeType": "INTERNAL", "departmentCode": "D-ADMIN", "positionName": "公司负责人", "managerEmployeeCode": "", "enabled": true },
+    { "employeeCode": "E-BIZ", "name": "市场商务", "employeeType": "INTERNAL", "departmentCode": "D-BIZ", "positionName": "经营负责人", "managerEmployeeCode": "E-CEO", "enabled": true },
+    { "employeeCode": "E-PM", "name": "项目经理", "employeeType": "INTERNAL", "departmentCode": "D-PROJECT", "positionName": "项目经理", "managerEmployeeCode": "E-CEO", "enabled": true },
+    { "employeeCode": "E-MEMBER", "name": "项目成员", "employeeType": "INTERNAL", "departmentCode": "D-PROJECT", "positionName": "项目成员", "managerEmployeeCode": "E-PM", "enabled": true },
+    { "employeeCode": "E-BID", "name": "投标人员", "employeeType": "INTERNAL", "departmentCode": "D-BIZ", "positionName": "投标人员", "managerEmployeeCode": "E-BIZ", "enabled": true },
+    { "employeeCode": "E-FIN", "name": "财务资金", "employeeType": "INTERNAL", "departmentCode": "D-FIN", "positionName": "财务复核人", "managerEmployeeCode": "E-CEO", "enabled": true },
+    { "employeeCode": "E-NONE", "name": "无权访问用户", "employeeType": "INTERNAL", "departmentCode": "D-PROJECT", "positionName": "普通员工", "managerEmployeeCode": "E-PM", "enabled": true }
+  ],
+  "cloudbaseIdentities": [
+    { "username": "admin@example.invalid", "cloudbaseUid": "cb-admin-001", "employeeCode": "E-ADMIN", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "ceo@example.invalid", "cloudbaseUid": "cb-ceo-001", "employeeCode": "E-CEO", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "biz@example.invalid", "cloudbaseUid": "cb-biz-001", "employeeCode": "E-BIZ", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "pm@example.invalid", "cloudbaseUid": "cb-pm-001", "employeeCode": "E-PM", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "member@example.invalid", "cloudbaseUid": "cb-member-001", "employeeCode": "E-MEMBER", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "bid@example.invalid", "cloudbaseUid": "cb-bid-001", "employeeCode": "E-BID", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "finance@example.invalid", "cloudbaseUid": "cb-fin-001", "employeeCode": "E-FIN", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" },
+    { "username": "none@example.invalid", "cloudbaseUid": "cb-none-001", "employeeCode": "E-NONE", "initialPasswordDelivery": "CloudBase 控制台一次性设置，线下交付" }
+  ],
+  "roles": [
+    { "roleCode": "ADMIN", "roleName": "系统管理员" },
+    { "roleCode": "COMPANY_PRINCIPAL", "roleName": "公司负责人" },
+    { "roleCode": "BUSINESS", "roleName": "市场商务" },
+    { "roleCode": "PROJECT_MANAGER", "roleName": "项目经理" },
+    { "roleCode": "PROJECT_MEMBER", "roleName": "项目成员" },
+    { "roleCode": "BIDDER", "roleName": "投标人员" },
+    { "roleCode": "FINANCE", "roleName": "财务资金" },
+    { "roleCode": "EMPLOYEE", "roleName": "普通员工" }
+  ],
+  "roleAssignments": [
+    { "employeeCode": "E-ADMIN", "roleCode": "ADMIN" },
+    { "employeeCode": "E-CEO", "roleCode": "COMPANY_PRINCIPAL" },
+    { "employeeCode": "E-BIZ", "roleCode": "BUSINESS" },
+    { "employeeCode": "E-PM", "roleCode": "PROJECT_MANAGER" },
+    { "employeeCode": "E-MEMBER", "roleCode": "PROJECT_MEMBER" },
+    { "employeeCode": "E-BID", "roleCode": "BIDDER" },
+    { "employeeCode": "E-FIN", "roleCode": "FINANCE" }
+  ],
+  "approvalPositionAssignments": [
+    { "positionCode": "BUSINESS_OWNER", "employeeCode": "E-BIZ", "effectiveFrom": "2026-08-14" },
+    { "positionCode": "COMPANY_PRINCIPAL", "employeeCode": "E-CEO", "effectiveFrom": "2026-08-14" },
+    { "positionCode": "FINANCE_REVIEWER", "employeeCode": "E-FIN", "effectiveFrom": "2026-08-14" },
+    { "positionCode": "PROJECT_MANAGER", "employeeCode": "E-PM", "effectiveFrom": "2026-08-14" }
+  ],
+  "approvalAmountThresholds": [
+    { "businessType": "CONTRACT", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "COMPANY_PRINCIPAL" },
+    { "businessType": "CONTRACT_CHANGE", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "COMPANY_PRINCIPAL" },
+    { "businessType": "INVOICE", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "FINANCE_REVIEWER" },
+    { "businessType": "PAYMENT", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "FINANCE_REVIEWER" },
+    { "businessType": "PARTNER_SETTLEMENT", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "FINANCE_REVIEWER" },
+    { "businessType": "DEPOSIT", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "FINANCE_REVIEWER" },
+    { "businessType": "PROJECT_START", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "COMPANY_PRINCIPAL" },
+    { "businessType": "PROJECT_CHANGE", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "COMPANY_PRINCIPAL" },
+    { "businessType": "PROJECT_ACCEPTANCE", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "PROJECT_MANAGER" },
+    { "businessType": "PROJECT_CLOSE", "minAmount": 0, "currency": "CNY", "approvalPositionCode": "COMPANY_PRINCIPAL" }
+  ],
+  "numberRules": [
+    { "ruleCode": "LEAD", "prefix": "XS", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "PROJECT", "prefix": "XM", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "CONTRACT", "prefix": "HT", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "BID", "prefix": "TB", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "PAYMENT", "prefix": "FK", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "SETTLEMENT", "prefix": "JS", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "DEPOSIT", "prefix": "BZJ", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "CLOSE", "prefix": "JX", "yearPattern": "YYYY", "nextSerial": 1 },
+    { "ruleCode": "EXPORT", "prefix": "DC", "yearPattern": "YYYY", "nextSerial": 1 }
+  ],
+  "systemParameters": [
+    { "paramKey": "reminder.contract_expire_days", "paramValue": "30" },
+    { "paramKey": "reminder.bid_deadline_days", "paramValue": "7" },
+    { "paramKey": "export.retention_days", "paramValue": "7" },
+    { "paramKey": "export.sync_threshold_rows", "paramValue": "0" }
+  ],
+  "demoAccounts": [
+    { "purpose": "ADMIN", "employeeCode": "E-ADMIN" },
+    { "purpose": "COMPANY_PRINCIPAL", "employeeCode": "E-CEO" },
+    { "purpose": "PROJECT_MANAGER", "employeeCode": "E-PM" },
+    { "purpose": "FINANCE", "employeeCode": "E-FIN" },
+    { "purpose": "PROJECT_MEMBER", "employeeCode": "E-MEMBER" },
+    { "purpose": "UNAUTHORIZED_USER", "employeeCode": "E-NONE" }
+  ]
+}

@@ -129,6 +129,10 @@ AC-14 需要在腾讯云轻量应用服务器生产环境、正常企业网络�
 3. 项目附件启用平台保护能力或定期备份，数据库恢复点与附件恢复点需要能对应到同一业务时间窗口；附件与后台导出文件恢复证据按 `docs/object-restore-manifest.example.json` 格式记录，并执行 `scripts/verify-object-restore-manifest.mjs`（或 `npm run verify:object-restore`）校验，默认要求对象备份点与数据库恢复点偏移不超过 60 分钟。
 4. 明确备份责任人、恢复责任人、备份保留策略、恢复目标环境和恢复演练记录保存位置。
 
+## 上线初始化资料验收
+
+正式联调前，上线初始化资料应按 `docs/initialization-data.example.json` 格式准备，并通过 `scripts/verify-initialization-data.mjs` 校验。资料至少覆盖部门、人员、CloudBase UID、角色分配、审批岗位、审批金额阈值、编号规则、系统参数和验收演示账号，且不得包含明文密码。
+
 上线前恢复演练：
 
 1. 选择最近一次 `.sql` 数据库备份，通过 `scripts/restore-mysql-backup.mjs` 恢复到独立验证环境；`RESTORE_DB_NAME` 不得等于生产 `DB_NAME`，并必须设置 `RESTORE_CONFIRM=I_UNDERSTAND_THIS_IS_NOT_PRODUCTION`，不得覆盖生产环境。
@@ -164,6 +168,7 @@ npm run verify:performance-acceptance
 node scripts/verify-server-deployment-assets.mjs
 node scripts/verify-backup-assets.mjs
 npm run verify:object-restore
+npm run verify:initialization-data
 node scripts/verify-server-preflight.mjs
 npm run verify:local-demo
 npm audit --omit=dev

@@ -318,6 +318,15 @@ export function verifyDeploymentConfigInputs({
     fail("package.json verify must run verify:object-restore");
   }
   if (
+    packageJson.scripts?.["verify:initialization-data"] !==
+    "node scripts/verify-initialization-data.mjs"
+  ) {
+    fail("package.json missing verify:initialization-data script");
+  }
+  if (!packageJson.scripts?.verify?.includes("npm run verify:initialization-data")) {
+    fail("package.json verify must run verify:initialization-data");
+  }
+  if (
     packageJson.scripts?.verify?.includes("npm run build:function") ||
     packageJson.scripts?.verify?.includes("verify-cloudbase-function-packages")
   ) {
