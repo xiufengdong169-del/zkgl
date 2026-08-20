@@ -66,6 +66,7 @@ npm run demo:local
 如需切换到本地完整 API + MySQL 联调，先按 `docs/local-user-testing.md` 准备 MySQL 8.0、空库初始化、服务端环境变量和本机 API 地址，然后执行：
 
 ```powershell
+node scripts/generate-initialization-sql.mjs docs/initialization-data.example.json > .tmp\initialization-data.sql
 npm run check:local-fullstack
 ```
 

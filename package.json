@@ -28,6 +28,7 @@
     "verify:github-sync": "node scripts/verify-github-sync.mjs",
     "verify:local-demo": "node scripts/verify-local-demo.mjs",
     "verify:local-user-testing": "node scripts/verify-local-user-testing-doc.mjs",
+    "generate:initialization-sql": "node scripts/generate-initialization-sql.mjs",
     "check:local-fullstack": "node scripts/check-local-fullstack-readiness.mjs",
     "verify:performance-acceptance": "node scripts/verify-performance-acceptance-assets.mjs",
     "verify:requirements": "node scripts/verify-requirement-baseline.mjs",

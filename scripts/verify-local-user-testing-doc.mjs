@@ -40,6 +40,8 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
       "http://127.0.0.1:3000/api",
       "VITE_ALLOW_LOCAL_HTTP_API=true",
       "npm run check:local-fullstack",
+      "npm run generate:initialization-sql",
+      "node scripts/generate-initialization-sql.mjs docs/initialization-data.example.json > .tmp\\initialization-data.sql",
       "/healthz",
       "/readyz",
     ],
@@ -70,6 +72,12 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
     "node scripts/check-local-fullstack-readiness.mjs"
   ) {
     fail("package.json missing check:local-fullstack script");
+  }
+  if (
+    packageJson.scripts?.["generate:initialization-sql"] !==
+    "node scripts/generate-initialization-sql.mjs"
+  ) {
+    fail("package.json missing generate:initialization-sql script");
   }
 
   return "Local user testing handoff verified";

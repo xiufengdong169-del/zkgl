@@ -23,6 +23,9 @@ type InitializationManifest = Record<string, unknown>;
 type InitializationDataModule = {
   verifyInitializationData(manifest: InitializationManifest): string;
 };
+type InitializationSqlModule = {
+  generateInitializationSql(manifest: InitializationManifest): string;
+};
 
 const extractSeededCodes = (source: string, pattern: RegExp, group = 1) =>
   [...new Set([...source.matchAll(pattern)].map((match) => match[group]!))].sort();
@@ -30,6 +33,11 @@ const extractSeededCodes = (source: string, pattern: RegExp, group = 1) =>
 async function loadInitializationDataModule() {
   // @ts-expect-error script module is outside the TypeScript source root.
   return (await import("../../../scripts/verify-initialization-data.mjs")) as InitializationDataModule;
+}
+
+async function loadInitializationSqlModule() {
+  // @ts-expect-error script module is outside the TypeScript source root.
+  return (await import("../../../scripts/generate-initialization-sql.mjs")) as InitializationSqlModule;
 }
 
 function makeValidManifest(): InitializationManifest {
@@ -349,6 +357,39 @@ describe("initialization data verifier script", () => {
 
     expect(() => verifyInitializationData(manifest)).toThrow(
       "references unknown department D-MISSING",
+    );
+  });
+
+  it("generates idempotent SQL for local or launch initialization without password material", async () => {
+    const { generateInitializationSql } = await loadInitializationSqlModule();
+
+    const sql = generateInitializationSql(makeValidManifest());
+
+    expect(sql).toContain("START TRANSACTION;");
+    expect(sql).toContain("COMMIT;");
+    expect(sql).toContain("INSERT INTO org_department");
+    expect(sql).toContain("INSERT INTO org_employee");
+    expect(sql).toContain("INSERT INTO iam_user");
+    expect(sql).toContain("INSERT IGNORE INTO iam_user_role");
+    expect(sql).toContain("INSERT INTO org_position_assignment");
+    expect(sql).toContain("UPDATE wf_template_node");
+    expect(sql).toContain("INSERT INTO sys_number_rule");
+    expect(sql).toContain("INSERT INTO sys_parameter");
+    expect(sql).toContain("ON DUPLICATE KEY UPDATE");
+    expect(sql).toContain("'uid-admin'");
+    expect(sql).toContain("'admin@example.test'");
+    expect(sql).not.toContain("initialPasswordDelivery");
+    expect(sql).not.toContain("please-change-me");
+  });
+
+  it("refuses to generate SQL when initialization data fails validation", async () => {
+    const { generateInitializationSql } = await loadInitializationSqlModule();
+    const manifest = makeValidManifest();
+    const identities = manifest.cloudbaseIdentities as Array<Record<string, unknown>>;
+    identities[0]!.password = "plaintext";
+
+    expect(() => generateInitializationSql(manifest)).toThrow(
+      "must not include password fields",
     );
   });
 });

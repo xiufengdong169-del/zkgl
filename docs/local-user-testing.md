@@ -83,6 +83,17 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 7. API `/healthz` 和 `/readyz` 均可访问，其中 `/readyz` 必须能通过 MySQL `SELECT 1` 检查。
 8. 认证适配或本地受控测试身份方案。
 
+项目方初始化资料可先生成 SQL，确认后再导入空库：
+
+```powershell
+node scripts/generate-initialization-sql.mjs docs/initialization-data.example.json > .tmp\initialization-data.sql
+mysql -h 127.0.0.1 -P 3306 -u zkgl_app -p zkgl < .tmp\initialization-data.sql
+```
+
+如只在终端预览生成内容，也可以执行 `npm run generate:initialization-sql -- docs/initialization-data.example.json`。
+
+生成脚本只写入部门、人员、CloudBase UID 到内部账号映射、角色分配、审批岗位任职、审批金额阈值、编号规则和系统参数；不会生成或保存初始密码。
+
 准备完成后可执行本地完整联调预检：
 
 ```powershell
