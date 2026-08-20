@@ -790,6 +790,7 @@ async function submitChange(item: ChangeRecord) {
           >整改期限<input
             v-model="acceptance.rectificationDueOn"
             type="date"
+            :min="acceptance.acceptedOn"
             required /></label></template
       ><button :disabled="saving">
         {{ saving ? "保存中…" : "创建并提交验收审批" }}</button

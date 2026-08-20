@@ -230,6 +230,17 @@ describe("frontend API action usage", () => {
       "['PENDING_SIGNATURE', 'PERFORMING', 'COMPLETED'].includes",
     );
   });
+
+  it("keeps conditional acceptance rectification due date no earlier than the acceptance date", () => {
+    const deliveryView = readFileSync(
+      join(webSourceDir, "views", "DeliveryView.vue"),
+      "utf8",
+    );
+
+    expect(deliveryView).toContain('v-model="acceptance.rectificationDueOn"');
+    expect(deliveryView).toContain(':min="acceptance.acceptedOn"');
+  });
+
   it("keeps audit outcome filter options aligned with persisted backend values", () => {
     const adminView = readFileSync(
       join(webSourceDir, "views", "AdminView.vue"),

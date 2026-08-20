@@ -113,6 +113,16 @@ export const acceptanceResultInput = z
         path: ["remainingIssues"],
         message: "有条件通过必须填写遗留问题和整改期限",
       });
+    if (
+      v.result === "CONDITIONAL" &&
+      v.rectificationDueOn &&
+      v.rectificationDueOn < v.acceptedOn
+    )
+      c.addIssue({
+        code: "custom",
+        path: ["rectificationDueOn"],
+        message: "整改期限不得早于验收日期",
+      });
   });
 export const projectChangeInput = z.object({
   projectId: z.string().min(1),

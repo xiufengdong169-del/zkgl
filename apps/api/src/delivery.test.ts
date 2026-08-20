@@ -53,5 +53,12 @@ describe("project delivery", () => {
         rectificationDueOn: "2026-07-20",
       }).result,
     ).toBe("CONDITIONAL");
+    expect(() =>
+      acceptanceResultInput.parse({
+        ...base,
+        remainingIssues: "补文档",
+        rectificationDueOn: "2026-07-12",
+      }),
+    ).toThrow("整改期限不得早于验收日期");
   });
 });
