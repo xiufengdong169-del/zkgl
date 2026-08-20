@@ -251,6 +251,35 @@ describe("openTrustedDownloadUrl", () => {
 });
 
 describe("demoCallApi sample data", () => {
+  it("uses seeded V2.2 administrator role and visual action permissions", async () => {
+    const { demoCallApi } = await import("./demo");
+    const session = await demoCallApi<{
+      roleCodes: string[];
+      permissionCodes: string[];
+      dataScopes: Array<{ type: string }>;
+    }>("session.get");
+
+    expect(session.roleCodes).toEqual(["ADMIN"]);
+    expect(session.roleCodes).not.toContain("SYSTEM_ADMIN");
+    expect(session.roleCodes).not.toContain("COMPANY_MANAGER");
+    expect(session.dataScopes).toContainEqual({ type: "ALL" });
+    for (const permission of [
+      "system.admin",
+      "project.application.create",
+      "partner.plan.create",
+      "deposit.create",
+      "partner.settlement.create",
+      "deposit.event.create",
+      "project.close.create",
+      "payment.application.create",
+      "project.close.openItem.complete",
+      "project.export",
+      "file.download",
+    ]) {
+      expect(session.permissionCodes).toContain(permission);
+    }
+  });
+
   it("returns non-empty sample lists for the visual demo module pages", async () => {
     const { demoCallApi } = await import("./demo");
 

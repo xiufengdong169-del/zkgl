@@ -71,6 +71,7 @@ describe("auth store", () => {
 
     expect(auth.authenticated).toBe(true);
     expect(auth.user?.id).toBe("demo-admin");
+    expect(auth.user?.roleCodes).toEqual(["ADMIN"]);
     expect(auth.user?.permissionCodes).toContain("system.admin");
     expect(authMocks.signInWithPassword).not.toHaveBeenCalled();
     expect(authMocks.callApi).not.toHaveBeenCalled();

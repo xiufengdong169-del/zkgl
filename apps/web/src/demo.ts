@@ -5,7 +5,11 @@ export const demoMode = String(import.meta.env.VITE_DEMO_MODE || '').toLowerCase
 const allPermissions = [
   'crm.counterparty.read', 'lead.read', 'project.read', 'approval.task.read',
   'bid.application.read', 'contract.read', 'project.delivery.read', 'finance.read',
-  'settlement.read', 'file.read', 'report.financial.read', 'system.admin'
+  'settlement.read', 'file.read', 'report.financial.read', 'system.admin',
+  'project.application.create', 'partner.plan.create', 'deposit.create',
+  'partner.settlement.create', 'deposit.event.create', 'project.close.create',
+  'payment.application.create', 'project.close.openItem.complete', 'project.export',
+  'file.download'
 ]
 
 export const demoUser: SessionUser = {
@@ -14,7 +18,7 @@ export const demoUser: SessionUser = {
   employeeId: 'emp-demo-admin',
   departmentId: 'dept-demo',
   enabled: true,
-  roleCodes: ['SYSTEM_ADMIN', 'COMPANY_MANAGER'],
+  roleCodes: ['ADMIN'],
   permissionCodes: allPermissions,
   sensitiveFieldAccess: {},
   dataScopes: [{ type: 'ALL' }]
