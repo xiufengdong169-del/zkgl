@@ -376,4 +376,38 @@ describe("demoCallApi sample data", () => {
       taskCode: "DC-DEMO",
     });
   });
+
+  it("keeps active and downloadable demo dates after the local acceptance review date", async () => {
+    const { demoCallApi } = await import("./demo");
+    const reviewDate = "2026-08-20";
+    const bids = await demoCallApi<{ items: Array<{ deadlineAt: string; status: string }> }>(
+      "bid.application.list",
+    );
+    const leads = await demoCallApi<{ items: Array<{ nextFollowUpAt: string; status: string }> }>(
+      "lead.list",
+    );
+    const expenses = await demoCallApi<{
+      purchases: Array<{ expectedOn: string; status: string }>;
+    }>("finance.expenseApplications");
+    const exportTasks = await demoCallApi<{
+      items: Array<{ expiresAt: string; isExpired: boolean }>;
+    }>("report.exportTasks");
+
+    expect(bids.items[0]).toMatchObject({ status: "IN_PROGRESS" });
+    expect(Date.parse(bids.items[0]!.deadlineAt)).toBeGreaterThan(
+      Date.parse(reviewDate),
+    );
+    expect(leads.items[0]).toMatchObject({ status: "FOLLOWING" });
+    expect(Date.parse(leads.items[0]!.nextFollowUpAt)).toBeGreaterThan(
+      Date.parse(reviewDate),
+    );
+    expect(expenses.purchases[0]).toMatchObject({ status: "APPROVED" });
+    expect(Date.parse(expenses.purchases[0]!.expectedOn)).toBeGreaterThan(
+      Date.parse(reviewDate),
+    );
+    expect(exportTasks.items[0]).toMatchObject({ isExpired: false });
+    expect(Date.parse(exportTasks.items[0]!.expiresAt)).toBeGreaterThan(
+      Date.parse(reviewDate),
+    );
+  });
 });

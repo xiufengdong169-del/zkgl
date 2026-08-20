@@ -109,7 +109,7 @@ const bidApplications = [
     projectId: 'p-003',
     code: 'TB-2026-001',
     projectName: '产业园投标与合同履约项目',
-    deadlineAt: '2026-08-20 17:00',
+    deadlineAt: '2026-08-28 17:00',
     status: 'IN_PROGRESS'
   }
 ]
@@ -242,7 +242,7 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
   } as T
   if (action === 'crm.counterparty.list') return list(customers)
   if (action === 'lead.list') return list([
-    { id: 'l-001', code: 'XS-2026-001', projectName: '白云片区全过程咨询机会', customerId: 'c-001', ownerId: 'emp-demo-admin', successProbability: 70, status: 'FOLLOWING', nextFollowUpAt: '2026-08-15' }
+    { id: 'l-001', code: 'XS-2026-001', projectName: '白云片区全过程咨询机会', customerId: 'c-001', ownerId: 'emp-demo-admin', successProbability: 70, status: 'FOLLOWING', nextFollowUpAt: '2026-08-25' }
   ])
   if (action === 'contract.list') return list(contracts)
   if (action === 'contract.summary') return { incomeAmount: '3200000.00', expenseAmount: '680000.00', expiringCount: 1 } as T
@@ -269,7 +269,7 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
   if (action === 'finance.operations') return financeOperations as T
   if (action === 'finance.expenseApplications') return {
     reimbursements: [{ id: 'rb-001', projectId: 'p-001', code: 'BX-2026-001', reason: '项目现场差旅', paymentRecipient: '演示经理', receivingAccount: '************9012', totalAmount: '3600.00', approvalStatus: 'APPROVED', paymentStatus: 'UNPAID', hasPaymentApplication: 0 }],
-    purchases: [{ id: 'dp-001', code: 'CG-2026-001', purchaseType: 'OFFICE', itemDescription: '项目驻场资料打印', quantity: '1.0000', budgetAmount: '2600.00', expectedOn: '2026-08-15', status: 'APPROVED', contractRelated: 0, projectId: 'p-001', supplierName: '广州城建投资有限公司', receivingAccount: '************3456', hasPaymentApplication: 0 }]
+    purchases: [{ id: 'dp-001', code: 'CG-2026-001', purchaseType: 'OFFICE', itemDescription: '项目驻场资料打印', quantity: '1.0000', budgetAmount: '2600.00', expectedOn: '2026-08-25', status: 'APPROVED', contractRelated: 0, projectId: 'p-001', supplierName: '广州城建投资有限公司', receivingAccount: '************3456', hasPaymentApplication: 0 }]
   } as T
   if (action === 'settlement.summary') return { planCount: 1, settledAmount: '126000.00', occupiedDeposit: '50000.00', pendingCloseCount: 1 } as T
   if (action === 'project.close.list') return {
@@ -288,7 +288,7 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
   } as T
   if (action === 'report.receivables') return list([{ id: 'rec-001', contractCode: 'HT-2026-001', contractName: '广州智慧园区咨询合同', projectName: '广州智慧园区全过程咨询', dueOn: '2026-09-30', contractAmount: 3200000, receivedAmount: 780000, outstandingAmount: 2420000, overdue: 0 }])
   if (action === 'report.exportTasks') return list([
-    { id: 'ex-1', taskCode: 'DC-2026-001', exportType: 'PROJECT', estimatedRows: 128, status: 'COMPLETED', failureReason: null, fileId: 'demo-file-1', createdAt: '2026-08-10 09:30', completedAt: '2026-08-10 09:31', expiresAt: '2026-08-17', isExpired: false, logicalName: '项目台账演示.xlsx', sizeBytes: 20480 }
+    { id: 'ex-1', taskCode: 'DC-2026-001', exportType: 'PROJECT', estimatedRows: 128, status: 'COMPLETED', failureReason: null, fileId: 'demo-file-1', createdAt: '2026-08-10 09:30', completedAt: '2026-08-10 09:31', expiresAt: '2026-09-17', isExpired: false, logicalName: '项目台账演示.xlsx', sizeBytes: 20480 }
   ])
   if (action.endsWith('.summary') || action === 'finance.summary') return { projectCount: projects.length, totalAmount: '3200000.00', pendingAmount: '680000.00' } as T
   if (action.includes('.detail')) return { id: 'demo-detail', code: 'DEMO', name: '演示详情', project: projects[0], customer: customers[0], items: [] } as T
