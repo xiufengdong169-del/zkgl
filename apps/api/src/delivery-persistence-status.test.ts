@@ -200,9 +200,16 @@ function acceptanceResultConnection(acceptanceStatus = "PENDING_ACCEPTANCE") {
 
 describe("delivery persistence acceptance result guards", () => {
   it("records acceptance results without advancing failed projects to accepted", async () => {
-    for (const [result, expectedAcceptanceStatus, expectedProjectStatus] of [
-      ["PASSED", "COMPLETED", "ACCEPTED"],
-      ["FAILED", "FAILED", "PENDING_ACCEPTANCE"],
+    for (const [
+      result,
+      expectedAcceptanceStatus,
+      expectedProjectStatus,
+      remainingIssues,
+      rectificationDueOn,
+    ] of [
+      ["PASSED", "COMPLETED", "ACCEPTED", null, null],
+      ["CONDITIONAL", "COMPLETED", "ACCEPTED", "补充归档资料", "2026-08-30"],
+      ["FAILED", "FAILED", "PENDING_ACCEPTANCE", null, null],
     ] as const) {
       const connection = acceptanceResultConnection();
       const executor = new MySqlActionExecutor({
@@ -217,6 +224,8 @@ describe("delivery persistence acceptance result guards", () => {
             acceptedOn: "2026-08-20",
             acceptanceOrganization: "客户验收组",
             result,
+            remainingIssues,
+            rectificationDueOn,
           },
           user,
         ),
@@ -233,8 +242,8 @@ describe("delivery persistence acceptance result guards", () => {
         "2026-08-20",
         "客户验收组",
         result,
-        null,
-        null,
+        remainingIssues,
+        rectificationDueOn,
         expectedAcceptanceStatus,
         user.id,
         `acc-${result}`,
