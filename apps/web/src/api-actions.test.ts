@@ -238,7 +238,12 @@ describe("frontend API action usage", () => {
     );
 
     expect(deliveryView).toContain('v-model="acceptance.rectificationDueOn"');
-    expect(deliveryView).toContain(':min="acceptance.acceptedOn"');
+    expect(
+      [...deliveryView.matchAll(/v-model="acceptance\.rectificationDueOn"/g)],
+    ).toHaveLength(2);
+    expect([...deliveryView.matchAll(/:min="acceptance\.acceptedOn"/g)]).toHaveLength(
+      2,
+    );
   });
 
   it("keeps audit outcome filter options aligned with persisted backend values", () => {
