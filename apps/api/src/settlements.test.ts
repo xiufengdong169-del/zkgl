@@ -5,7 +5,10 @@ import {
   depositEventInput,
   depositMetrics,
   freezeSettlementSnapshot,
+  partnerPlanInput,
+  partnerPlanVersionInput,
   roundHalfUpFraction,
+  settlementCreateInput,
   validateProjectClose,
   validateRatioTotal,
   validateSpecialCloseFinalApprover,
@@ -29,6 +32,33 @@ describe("partner settlement and close", () => {
   });
   it("合作比例合计不得超过100%", () =>
     expect(() => validateRatioTotal(900_000n, 100_001n)).toThrow());
+  it("合作方案生效区间和结算周期必须按时间顺序填写", () => {
+    const plan = {
+      projectId: "p1",
+      partnerId: "partner-1",
+      settlementMethod: "RATIO",
+      ratio: 0.2,
+      calculationBasis: "ACTUAL_RECEIPTS",
+      deductibleCostScope: [],
+      effectiveFrom: "2026-08-10",
+      effectiveTo: "2026-08-09",
+    } as const;
+
+    expect(() => partnerPlanInput.parse(plan)).toThrow(
+      "方案失效日期不得早于生效日期",
+    );
+    expect(() =>
+      partnerPlanVersionInput.parse({ ...plan, planId: "plan-1" }),
+    ).toThrow("方案失效日期不得早于生效日期");
+    expect(() =>
+      settlementCreateInput.parse({
+        planId: "plan-1",
+        periodStartOn: "2026-08-10",
+        periodEndOn: "2026-08-09",
+        deductionAmount: 0,
+      }),
+    ).toThrow("结算结束日期不得早于开始日期");
+  });
   it("AC-11 历史结算快照不受方案修改影响", () => {
     const source = { ratioPpm: 200_000, rule: { basis: "ACTUAL_RECEIPTS" } };
     const snapshot = freezeSettlementSnapshot(source);

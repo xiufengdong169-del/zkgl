@@ -2,48 +2,87 @@ import type { SettlementBasis } from "@zkgl/shared";
 import { z } from "zod";
 import { AppError } from "./errors.js";
 
-export const partnerPlanInput = z
-  .object({
-    projectId: z.string().min(1),
-    partnerId: z.string().min(1),
-    settlementMethod: z.enum(["FIXED", "RATIO"]),
-    fixedAmount: z.number().nonnegative().nullable().optional(),
-    ratio: z.number().min(0).max(1).nullable().optional(),
-    calculationBasis: z.enum([
-      "FIXED",
-      "CONTRACT_REVENUE_EX_TAX",
-      "ACTUAL_RECEIPTS",
-      "PROJECT_GROSS_PROFIT",
-    ]),
-    deductibleCostScope: z.array(z.string()).default([]),
-    upperLimit: z.number().nonnegative().nullable().optional(),
-    lowerLimit: z.number().nonnegative().nullable().optional(),
-    effectiveFrom: z.iso.date(),
-    effectiveTo: z.iso.date().nullable().optional(),
-    conditions: z.string().trim().nullable().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.settlementMethod === "FIXED" && value.fixedAmount == null)
-      ctx.addIssue({
-        code: "custom",
-        path: ["fixedAmount"],
-        message: "固定金额方案必须填写金额",
-      });
-    if (value.settlementMethod === "RATIO" && value.ratio == null)
-      ctx.addIssue({
-        code: "custom",
-        path: ["ratio"],
-        message: "比例方案必须填写比例",
-      });
-  });
+const partnerPlanFields = {
+  projectId: z.string().min(1),
+  partnerId: z.string().min(1),
+  settlementMethod: z.enum(["FIXED", "RATIO"]),
+  fixedAmount: z.number().nonnegative().nullable().optional(),
+  ratio: z.number().min(0).max(1).nullable().optional(),
+  calculationBasis: z.enum([
+    "FIXED",
+    "CONTRACT_REVENUE_EX_TAX",
+    "ACTUAL_RECEIPTS",
+    "PROJECT_GROSS_PROFIT",
+  ]),
+  deductibleCostScope: z.array(z.string()).default([]),
+  upperLimit: z.number().nonnegative().nullable().optional(),
+  lowerLimit: z.number().nonnegative().nullable().optional(),
+  effectiveFrom: z.iso.date(),
+  effectiveTo: z.iso.date().nullable().optional(),
+  conditions: z.string().trim().nullable().optional(),
+};
 
-export const settlementCreateInput = z.object({
-  planId: z.string().min(1),
-  periodStartOn: z.iso.date(),
-  periodEndOn: z.iso.date(),
-  deductionAmount: z.number().nonnegative().default(0),
-  invoiceRequirement: z.string().trim().nullable().optional(),
-});
+function validatePartnerPlanDatesAndAmount(
+  value: {
+    settlementMethod: "FIXED" | "RATIO";
+    fixedAmount?: number | null | undefined;
+    ratio?: number | null | undefined;
+    effectiveFrom: string;
+    effectiveTo?: string | null | undefined;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (value.settlementMethod === "FIXED" && value.fixedAmount == null)
+    ctx.addIssue({
+      code: "custom",
+      path: ["fixedAmount"],
+      message: "固定金额方案必须填写金额",
+    });
+  if (value.settlementMethod === "RATIO" && value.ratio == null)
+    ctx.addIssue({
+      code: "custom",
+      path: ["ratio"],
+      message: "比例方案必须填写比例",
+    });
+  if (value.effectiveTo && value.effectiveTo < value.effectiveFrom)
+    ctx.addIssue({
+      code: "custom",
+      path: ["effectiveTo"],
+      message: "方案失效日期不得早于生效日期",
+    });
+}
+
+export const partnerPlanInput = z
+  .object(partnerPlanFields)
+  .superRefine(validatePartnerPlanDatesAndAmount);
+
+export const partnerPlanVersionInput = z
+  .object({
+    planId: z.string().min(1),
+    settlementMethod: partnerPlanFields.settlementMethod,
+    fixedAmount: partnerPlanFields.fixedAmount,
+    ratio: partnerPlanFields.ratio,
+    calculationBasis: partnerPlanFields.calculationBasis,
+    deductibleCostScope: partnerPlanFields.deductibleCostScope,
+    upperLimit: partnerPlanFields.upperLimit,
+    lowerLimit: partnerPlanFields.lowerLimit,
+    effectiveFrom: partnerPlanFields.effectiveFrom,
+    effectiveTo: partnerPlanFields.effectiveTo,
+    conditions: partnerPlanFields.conditions,
+  })
+  .superRefine(validatePartnerPlanDatesAndAmount);
+export const settlementCreateInput = z
+  .object({
+    planId: z.string().min(1),
+    periodStartOn: z.iso.date(),
+    periodEndOn: z.iso.date(),
+    deductionAmount: z.number().nonnegative().default(0),
+    invoiceRequirement: z.string().trim().nullable().optional(),
+  })
+  .refine((value) => value.periodEndOn >= value.periodStartOn, {
+    path: ["periodEndOn"],
+    message: "结算结束日期不得早于开始日期",
+  });
 export const depositInput = z.object({
   projectId: z.string().min(1),
   bidId: z.string().nullable().optional(),

@@ -220,6 +220,18 @@ describe("frontend API action usage", () => {
     expect(settlementsView).toContain(':min="close.appliedOn"');
   });
 
+  it("keeps settlement date ranges ordered in forms", () => {
+    const settlementsView = readFileSync(
+      join(webSourceDir, "views", "SettlementsView.vue"),
+      "utf8",
+    );
+
+    expect(settlementsView).toContain('v-model="plan.effectiveTo"');
+    expect(settlementsView).toContain(':min="plan.effectiveFrom"');
+    expect(settlementsView).toContain('v-model="settlement.periodEndOn"');
+    expect(settlementsView).toContain(':min="settlement.periodStartOn"');
+  });
+
   it("日常采购关联合同时只展示有效支出合同", () => {
     const financeView = readFileSync(
       join(webSourceDir, "views", "FinanceView.vue"),

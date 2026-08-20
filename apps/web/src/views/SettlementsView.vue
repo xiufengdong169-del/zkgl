@@ -969,6 +969,11 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
           type="date"
           required /></label
       ><label
+        >失效日期<input
+          v-model="plan.effectiveTo"
+          type="date"
+          :min="plan.effectiveFrom" /></label
+      ><label
         >上限<input
           v-model.number="plan.upperLimit"
           type="number"
@@ -1056,6 +1061,7 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
         >期间结束<input
           v-model="settlement.periodEndOn"
           type="date"
+          :min="settlement.periodStartOn"
           required /></label
       ><label
         >扣减金额<input
