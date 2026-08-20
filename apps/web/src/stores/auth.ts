@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import type { SessionUser } from '@zkgl/shared'
 
 import { cloudbaseAuth } from '../cloudbase'
-import { callApi } from '../api'
+import { callApi, localAuthMode } from '../api'
 import { demoMode, demoUser } from '../demo'
 
 interface AuthState {
@@ -26,6 +26,12 @@ export const useAuthStore = defineStore('auth', {
       }
       let cloudbaseSignedIn = false
       try {
+        if (localAuthMode) {
+          if (!username.trim() || !password) throw new Error('请输入本地测试账号和口令')
+          this.user = await callApi<SessionUser>('session.get')
+          this.authenticated = true
+          return
+        }
         const { error } = await cloudbaseAuth.signInWithPassword({ username, password })
         if (error) throw error
         cloudbaseSignedIn = true

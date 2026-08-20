@@ -63,7 +63,7 @@ npm run demo:local
 
 默认优先访问地址为 `http://127.0.0.1:4173/`；如果 4173 已被本机其他演示进程占用，脚本会自动切换到一个可用的本地端口并在终端输出实际链接。该模式只使用演示样例数据，不连接生产 MySQL，也不会访问远程服务器。
 
-如需切换到本地完整 API + MySQL 联调，先按 `docs/local-user-testing.md` 准备 MySQL 8.0、空库初始化、服务端环境变量和本机 API 地址，然后执行：
+如需切换到本地完整 API + MySQL 联调，先按 `docs/local-user-testing.md` 准备 MySQL 8.0、空库初始化、服务端环境变量、本机认证适配器和本机认证代理，然后执行：
 
 ```powershell
 node scripts/generate-initialization-sql.mjs docs/initialization-data.example.json > .tmp\initialization-data.sql

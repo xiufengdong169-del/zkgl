@@ -37,8 +37,13 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
       "本地 MySQL 8.0",
       "database/init/schema.sql",
       "VITE_API_BASE_URL",
+      "http://127.0.0.1:4180/api",
       "http://127.0.0.1:3000/api",
       "VITE_ALLOW_LOCAL_HTTP_API=true",
+      'VITE_LOCAL_AUTH_MODE="true"',
+      "VITE_LOCAL_AUTH_TOKEN",
+      "npm run serve:local-api-proxy",
+      "deploy/auth/local-token-verifier.example.mjs",
       "npm run check:local-fullstack",
       "npm run generate:initialization-sql",
       "node scripts/generate-initialization-sql.mjs docs/initialization-data.example.json > .tmp\\initialization-data.sql",
@@ -78,6 +83,12 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
     "node scripts/generate-initialization-sql.mjs"
   ) {
     fail("package.json missing generate:initialization-sql script");
+  }
+  if (
+    packageJson.scripts?.["serve:local-api-proxy"] !==
+    "node scripts/serve-local-api-proxy.mjs"
+  ) {
+    fail("package.json missing serve:local-api-proxy script");
   }
 
   return "Local user testing handoff verified";

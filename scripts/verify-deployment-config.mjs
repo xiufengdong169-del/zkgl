@@ -51,6 +51,8 @@ export const browserVariables = [
   "VITE_API_BASE_URL",
   "VITE_DEMO_MODE",
   "VITE_ALLOW_LOCAL_HTTP_API",
+  "VITE_LOCAL_AUTH_MODE",
+  "VITE_LOCAL_AUTH_TOKEN",
 ];
 export const serverVariables = [
   "DEPLOY_TARGET_HOST",
@@ -179,6 +181,12 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "VITE_ALLOW_LOCAL_HTTP_API")) {
     fail(".env.example VITE_ALLOW_LOCAL_HTTP_API must stay blank unless a local-only run explicitly enables it");
+  }
+  if (envValue(envExample, "VITE_LOCAL_AUTH_MODE")) {
+    fail(".env.example VITE_LOCAL_AUTH_MODE must stay blank unless a local-only run explicitly enables it");
+  }
+  if (envValue(envExample, "VITE_LOCAL_AUTH_TOKEN")) {
+    fail(".env.example VITE_LOCAL_AUTH_TOKEN must stay blank and must never be committed");
   }
   if (envValue(envExample, "DEPLOY_TARGET_HOST") !== expectedConfig.serverPublicIp) {
     fail(".env.example DEPLOY_TARGET_HOST mismatch");

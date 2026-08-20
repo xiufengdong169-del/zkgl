@@ -4,6 +4,7 @@ import { demoCallApi, demoMode } from './demo'
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
 const allowLocalHttpApi = String(import.meta.env.VITE_ALLOW_LOCAL_HTTP_API || '').toLowerCase() === 'true'
+export const localAuthMode = String(import.meta.env.VITE_LOCAL_AUTH_MODE || '').toLowerCase() === 'true'
 
 function localHttpApiAllowed(url: URL) {
   if (!allowLocalHttpApi || url.protocol !== 'http:') return false
@@ -36,11 +37,21 @@ function failureMessage<T>(result: ApiResult<T>, status: number) {
   return message || `请求失败：${status}`
 }
 
+async function resolveAccessToken() {
+  if (localAuthMode) {
+    const token = String(import.meta.env.VITE_LOCAL_AUTH_TOKEN || '').trim()
+    if (!token) throw new Error('缺少 VITE_LOCAL_AUTH_TOKEN')
+    return token
+  }
+  const { accessToken } = await cloudbaseAuth.getAccessToken()
+  if (!accessToken) throw new Error('登录状态已失效')
+  return accessToken
+}
+
 export async function callApi<T>(action: string, payload?: unknown): Promise<T> {
   if (demoMode) return demoCallApi<T>(action, payload)
   const apiUrl = trustedApiBaseUrl()
-  const { accessToken } = await cloudbaseAuth.getAccessToken()
-  if (!accessToken) throw new Error('登录状态已失效')
+  const accessToken = await resolveAccessToken()
   let response: Response
   try {
     response = await fetch(apiUrl, {

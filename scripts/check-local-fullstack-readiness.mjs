@@ -55,13 +55,13 @@ function requireValues(environment, keys, failures) {
 
 function validateLocalApiUrl(environment, failures) {
   const raw = String(environment.VITE_API_BASE_URL ?? "").trim();
-  if (!raw) return;
+  if (!raw) return null;
   let url;
   try {
     url = new URL(raw);
   } catch {
     failures.push("VITE_API_BASE_URL is not a valid URL");
-    return;
+    return null;
   }
   if (url.username || url.password || url.search || url.hash) {
     failures.push("VITE_API_BASE_URL must not contain username, password, query, or fragment");
@@ -69,17 +69,22 @@ function validateLocalApiUrl(environment, failures) {
   if (!url.pathname.endsWith("/api")) {
     failures.push("VITE_API_BASE_URL must end with /api");
   }
-  if (url.protocol === "https:") return;
+  if (url.protocol === "https:") return url;
   const isLoopbackHttp =
     url.protocol === "http:" &&
     ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
   if (!isLoopbackHttp) {
     failures.push("non-HTTPS VITE_API_BASE_URL is only allowed for loopback HTTP");
-    return;
+    return url;
   }
   if (String(environment.VITE_ALLOW_LOCAL_HTTP_API ?? "").toLowerCase() !== "true") {
     failures.push("loopback HTTP API requires VITE_ALLOW_LOCAL_HTTP_API=true");
   }
+  const rawApiOrigin = `http://${environment.API_HOST || "127.0.0.1"}:${environment.API_PORT || "3000"}`;
+  if (url.origin === rawApiOrigin) {
+    failures.push("loopback browser API should point to the local API proxy, not the raw API service");
+  }
+  return url;
 }
 
 async function checkJsonEndpoint(url, label, failures) {
@@ -163,7 +168,7 @@ export async function checkLocalFullstackReadiness({
     ],
     failures,
   );
-  validateLocalApiUrl(merged, failures);
+  const frontendApiUrl = validateLocalApiUrl(merged, failures);
 
   if (!existsSync(resolve(root, "database/init/schema.sql"))) {
     failures.push("database/init/schema.sql is missing");
@@ -178,6 +183,9 @@ export async function checkLocalFullstackReadiness({
   const apiOrigin = `http://${merged.API_HOST || "127.0.0.1"}:${merged.API_PORT || "3000"}`;
   await checkJsonEndpoint(`${apiOrigin}/healthz`, "API /healthz", failures);
   await checkJsonEndpoint(`${apiOrigin}/readyz`, "API /readyz", failures);
+  if (frontendApiUrl && frontendApiUrl.protocol === "http:") {
+    await checkJsonEndpoint(`${frontendApiUrl.origin}/healthz`, "Local API proxy /healthz", failures);
+  }
 
   if (failures.length) {
     throw new Error(
@@ -189,7 +197,8 @@ export async function checkLocalFullstackReadiness({
         "1. Install and start MySQL 8.0.",
         "2. Create an empty zkgl database and run database/init/schema.sql.",
         "3. Build and start API with DB_* and API_* environment variables.",
-        "4. For loopback HTTP frontend testing, set VITE_ALLOW_LOCAL_HTTP_API=true.",
+        "4. Start the local API proxy and point VITE_API_BASE_URL to http://127.0.0.1:4180/api.",
+        "5. For loopback HTTP frontend testing, set VITE_ALLOW_LOCAL_HTTP_API=true.",
       ].join("\n"),
     );
   }

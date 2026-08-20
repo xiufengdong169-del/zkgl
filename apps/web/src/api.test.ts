@@ -25,9 +25,17 @@ const seededPermissionCodes = () => {
     .sort();
 };
 
-async function loadApi(baseUrl = "https://api.example.com/api", allowLocalHttp = false) {
+async function loadApi(
+  baseUrl = "https://api.example.com/api",
+  allowLocalHttp = false,
+  localToken = "",
+) {
   vi.stubEnv("VITE_API_BASE_URL", baseUrl);
   if (allowLocalHttp) vi.stubEnv("VITE_ALLOW_LOCAL_HTTP_API", "true");
+  if (localToken) {
+    vi.stubEnv("VITE_LOCAL_AUTH_MODE", "true");
+    vi.stubEnv("VITE_LOCAL_AUTH_TOKEN", localToken);
+  }
   return import("./api");
 }
 
@@ -168,6 +176,52 @@ describe("callApi", () => {
     const { callApi } = await loadApi("http://api.example.com/api", true);
 
     await expect(callApi("session.get")).rejects.toThrow("API 地址协议不受信任");
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("本地认证模式使用显式配置的测试 token 且不读取 CloudBase token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        data: { id: "local-session" },
+        requestId: "local-request-id",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await loadApi(
+      "http://127.0.0.1:4180/api",
+      true,
+      "local-admin-token-0001",
+    );
+
+    await expect(callApi("session.get")).resolves.toEqual({
+      id: "local-session",
+    });
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:4180/api",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer local-admin-token-0001",
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+  });
+
+  it("本地认证模式缺少测试 token 时不发起请求", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://127.0.0.1:4180/api");
+    vi.stubEnv("VITE_ALLOW_LOCAL_HTTP_API", "true");
+    vi.stubEnv("VITE_LOCAL_AUTH_MODE", "true");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await import("./api");
+
+    await expect(callApi("session.get")).rejects.toThrow("缺少 VITE_LOCAL_AUTH_TOKEN");
     expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });

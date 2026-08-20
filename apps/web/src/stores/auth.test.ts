@@ -8,6 +8,7 @@ const authMocks = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
   callApi: vi.fn(),
+  localAuthMode: false,
 }));
 
 vi.mock("../cloudbase", () => ({
@@ -19,6 +20,9 @@ vi.mock("../cloudbase", () => ({
 
 vi.mock("../api", () => ({
   callApi: authMocks.callApi,
+  get localAuthMode() {
+    return authMocks.localAuthMode;
+  },
 }));
 
 const user = (): SessionUser => ({
@@ -40,6 +44,7 @@ describe("auth store", () => {
     authMocks.signInWithPassword.mockReset();
     authMocks.signOut.mockReset();
     authMocks.callApi.mockReset();
+    authMocks.localAuthMode = false;
   });
 
   it("登录成功后加载当前用户并标记已认证", async () => {
@@ -75,6 +80,20 @@ describe("auth store", () => {
     expect(auth.user?.permissionCodes).toContain("system.admin");
     expect(authMocks.signInWithPassword).not.toHaveBeenCalled();
     expect(authMocks.callApi).not.toHaveBeenCalled();
+  });
+
+  it("本地认证模式跳过 CloudBase 登录并加载业务会话", async () => {
+    authMocks.localAuthMode = true;
+    const currentUser = user();
+    authMocks.callApi.mockResolvedValue(currentUser);
+
+    const auth = useAuthStore();
+    await auth.signIn("local-admin", "local-test");
+
+    expect(authMocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(authMocks.callApi).toHaveBeenCalledWith("session.get");
+    expect(auth.authenticated).toBe(true);
+    expect(auth.user).toEqual(currentUser);
   });
 
   it("登录失败时清理认证状态并保留错误消息", async () => {

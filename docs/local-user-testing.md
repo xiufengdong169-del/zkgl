@@ -78,10 +78,47 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 2. 空数据库，例如 `zkgl`。
 3. 按 `database/init/schema.sql` 初始化空库。
 4. 本地服务端环境变量：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`API_HOST`、`API_PORT`。
-5. 浏览器端 `VITE_API_BASE_URL` 指向本机 API，例如 `http://127.0.0.1:3000/api`。
+5. 浏览器端 `VITE_API_BASE_URL` 指向本机认证代理，例如 `http://127.0.0.1:4180/api`，不要直接指向原始 API `http://127.0.0.1:3000/api`。
 6. 浏览器端如使用本机 HTTP API，必须显式设置 `VITE_ALLOW_LOCAL_HTTP_API=true`；该开关只允许 `127.0.0.1`、`localhost` 或 `::1`，不能放行外部 HTTP 地址。
 7. API `/healthz` 和 `/readyz` 均可访问，其中 `/readyz` 必须能通过 MySQL `SELECT 1` 检查。
 8. 认证适配或本地受控测试身份方案。
+
+本地完整联调建议启动四个本机进程：
+
+```powershell
+# 1. API：只监听本机，由本地代理注入可信 UID
+$env:API_HOST="127.0.0.1"
+$env:API_PORT="3000"
+$env:AUTH_TRUSTED_PROXY="true"
+$env:DB_HOST="127.0.0.1"
+$env:DB_PORT="3306"
+$env:DB_NAME="zkgl"
+$env:DB_USER="zkgl_app"
+# 在本机终端临时设置 DB_PASSWORD，真实值不要写入 Git 仓库或文档。
+npm run build -w @zkgl/api
+npm run start -w @zkgl/api
+
+# 2. 认证适配器：本地示例 token 只允许本地测试
+$env:AUTH_ADAPTER_HOST="127.0.0.1"
+$env:AUTH_ADAPTER_PORT="3010"
+$env:AUTH_TOKEN_VERIFIER_MODULE="deploy/auth/local-token-verifier.example.mjs"
+$env:LOCAL_AUTH_ALLOW_EXAMPLE_TOKENS="true"
+node apps/api/dist/auth-adapter-cli.js
+
+# 3. 本机认证代理：替代正式 Nginx auth_request 链路
+$env:LOCAL_AUTH_ADAPTER_URL="http://127.0.0.1:3010/verify"
+$env:LOCAL_API_TARGET_URL="http://127.0.0.1:3000/api"
+npm run serve:local-api-proxy
+
+# 4. 前端：显式使用本地 HTTP API 与本地测试 token
+$env:VITE_API_BASE_URL="http://127.0.0.1:4180/api"
+$env:VITE_ALLOW_LOCAL_HTTP_API="true"
+$env:VITE_LOCAL_AUTH_MODE="true"
+$env:VITE_LOCAL_AUTH_TOKEN="local-admin-token-0001"
+npm run dev -w @zkgl/web
+```
+
+本地示例 token 与初始化资料中的 CloudBase UID 对应关系保存在 `deploy/auth/local-token-verifier.example.mjs`，仅用于本机联调，不得用于生产环境。正式上线仍必须使用真实 CloudBase access token verifier。
 
 项目方初始化资料可先生成 SQL，确认后再导入空库：
 
@@ -106,6 +143,6 @@ npm run check:local-fullstack
 node scripts/check-local-fullstack-readiness.mjs --env-file .env.local.fullstack
 ```
 
-该命令会检查 MySQL 命令、数据库连接变量、`VITE_API_BASE_URL`、`VITE_ALLOW_LOCAL_HTTP_API=true`、API `/healthz` 和 `/readyz`。它不会输出数据库密码。
+该命令会检查 MySQL 命令、数据库连接变量、`VITE_API_BASE_URL`、`VITE_ALLOW_LOCAL_HTTP_API=true`、API `/healthz`、API `/readyz` 和本机认证代理 `/healthz`。它不会输出数据库密码。
 
 当前仓库的正式上线口径仍以腾讯云轻量应用服务器、Nginx、systemd、MySQL 8.0、HTTPS 和真实认证 verifier 为准；本地完整联调只作为正式上线前的补充验证环境。
