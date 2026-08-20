@@ -693,7 +693,11 @@ describe("deployment documentation", () => {
 
     expect(actualApiTestFiles).toBe(88);
     expect(actualWebTestFiles).toBe(10);
-    for (const doc of [acceptanceTraceabilityDoc, finalAcceptanceChecklist]) {
+    for (const doc of [
+      acceptanceTraceabilityDoc,
+      finalAcceptanceChecklist,
+      localDevelopmentCompletionReport,
+    ]) {
       expect(documentedTestFileCount(doc, "API")).toBe(actualApiTestFiles);
       expect(documentedTestFileCount(doc, "Web")).toBe(actualWebTestFiles);
     }
