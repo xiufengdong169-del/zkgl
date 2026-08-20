@@ -165,7 +165,7 @@ const expectedCloudbaseRegion = "ap-guangzhou";
 const expectedServerPublicIp = "193.112.79.220";
 const expectedServerOs = "Ubuntu 24.04";
 const expectedServerMysql = "MySQL 8.0";
-const expectedAcceptanceReviewDate = "2026-08-14";
+const expectedAcceptanceReviewDate = "2026-08-20";
 const verificationCommands = [
   "npm run verify:acceptance",
   "npm run verify",
@@ -629,7 +629,7 @@ describe("deployment documentation", () => {
   it("documents the current local development completion baseline", () => {
     for (const fragment of [
       "本地开发测试完成报告",
-      "复核日期：2026-08-14",
+      "复核日期：2026-08-20",
       "npm run verify:acceptance",
       "API 测试通过：88 个测试文件 / 470 条测试",
       "Web 测试通过：10 个测试文件 / 56 条测试",
