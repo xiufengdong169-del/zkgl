@@ -176,3 +176,114 @@ describe("delivery persistence deliverable guards", () => {
     expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
   });
 });
+
+function acceptanceResultConnection(acceptanceStatus = "PENDING_ACCEPTANCE") {
+  const calls: Array<{ sql: string; params: unknown[] }> = [];
+  return {
+    calls,
+    beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+    commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+    rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+    release: () => calls.push({ sql: "RELEASE", params: [] }),
+    execute: async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("FROM prj_acceptance WHERE id=?")) {
+        return [[{ projectId: "p1", status: acceptanceStatus }], []];
+      }
+      if (sql.includes("FROM prj_project p") && sql.includes("iam_project_grant")) {
+        return [[{ id: "p1" }], []];
+      }
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+}
+
+describe("delivery persistence acceptance result guards", () => {
+  it("records acceptance results without advancing failed projects to accepted", async () => {
+    for (const [result, expectedAcceptanceStatus, expectedProjectStatus] of [
+      ["PASSED", "COMPLETED", "ACCEPTED"],
+      ["FAILED", "FAILED", "PENDING_ACCEPTANCE"],
+    ] as const) {
+      const connection = acceptanceResultConnection();
+      const executor = new MySqlActionExecutor({
+        getConnection: async () => connection,
+      } as never);
+
+      await expect(
+        executor.execute(
+          "project.acceptance.result",
+          {
+            acceptanceId: `acc-${result}`,
+            acceptedOn: "2026-08-20",
+            acceptanceOrganization: "客户验收组",
+            result,
+          },
+          user,
+        ),
+      ).resolves.toEqual({
+        id: `acc-${result}`,
+        status: expectedAcceptanceStatus,
+        result,
+      });
+
+      const acceptanceUpdate = connection.calls.find((call) =>
+        call.sql.startsWith("UPDATE prj_acceptance SET accepted_on="),
+      )!;
+      expect(acceptanceUpdate.params).toEqual([
+        "2026-08-20",
+        "客户验收组",
+        result,
+        null,
+        null,
+        expectedAcceptanceStatus,
+        user.id,
+        `acc-${result}`,
+      ]);
+
+      const projectUpdate = connection.calls.find((call) =>
+        call.sql.startsWith("UPDATE prj_project SET status="),
+      )!;
+      expect(projectUpdate.params).toEqual([
+        expectedProjectStatus,
+        user.id,
+        "p1",
+      ]);
+
+      const historyInsert = connection.calls.find((call) =>
+        call.sql.startsWith("INSERT INTO sys_status_history"),
+      )!;
+      expect(historyInsert.params).toEqual([
+        `acc-${result}`,
+        "PENDING_ACCEPTANCE",
+        expectedAcceptanceStatus,
+        result,
+        user.id,
+      ]);
+      expect(connection.calls.map((call) => call.sql)).toContain("COMMIT");
+    }
+
+    const draftConnection = acceptanceResultConnection("DRAFT");
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => draftConnection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "project.acceptance.result",
+        {
+          acceptanceId: "acc-draft",
+          acceptedOn: "2026-08-20",
+          acceptanceOrganization: "客户验收组",
+          result: "PASSED",
+        },
+        user,
+      ),
+    ).rejects.toMatchObject({ code: "ACCEPTANCE_RESULT_NOT_ALLOWED" });
+    expect(
+      draftConnection.calls.some((call) =>
+        call.sql.startsWith("UPDATE prj_acceptance SET accepted_on="),
+      ),
+    ).toBe(false);
+    expect(draftConnection.calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
+});
