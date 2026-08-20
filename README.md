@@ -74,6 +74,7 @@ npm run demo:local
 - `众肯科技项目全过程管理系统需求说明书_V2.2_CloudBase部署版.docx`：历史 Word 版原件，仅供追溯旧部署口径。
 - `docs/architecture.md`：系统架构、安全边界、事务与审计原则。
 - `docs/deployment.md`：腾讯云轻量应用服务器部署、空库初始化、账号开通、上线初始化资料清单和服务器部署说明。
+- `docs/local-user-testing.md`：本地用户测试交付说明，记录 `npm run demo:local` 演示入口、访问校验、停止方式、演示边界和切换到本地完整联调的前置条件。
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
 - `docs/performance-acceptance-template.md`：AC-14 现场性能验收记录模板，用于归档 30 用户压测结果。
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。
