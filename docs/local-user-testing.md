@@ -85,6 +85,20 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 
 本地完整联调建议启动四个本机进程：
 
+可以先生成本地环境文件模板，该文件被 `.gitignore` 忽略，不会提交到 Git：
+
+```powershell
+npm run create:local-fullstack-env
+```
+
+随后在 `.env.local.fullstack` 里只在本机填写数据库密码。准备好 MySQL、空库和初始化资料后，可执行：
+
+```powershell
+npm run start:local-fullstack
+```
+
+下面是各进程的等价手工启动方式，便于排查问题：
+
 ```powershell
 # 1. API：只监听本机，由本地代理注入可信 UID
 $env:API_HOST="127.0.0.1"
@@ -143,6 +157,6 @@ npm run check:local-fullstack
 node scripts/check-local-fullstack-readiness.mjs --env-file .env.local.fullstack
 ```
 
-该命令会检查 MySQL 命令、数据库连接变量、`VITE_API_BASE_URL`、`VITE_ALLOW_LOCAL_HTTP_API=true`、API `/healthz`、API `/readyz` 和本机认证代理 `/healthz`。它不会输出数据库密码。
+该命令会检查 MySQL 命令、数据库连接变量、`VITE_API_BASE_URL`、`VITE_ALLOW_LOCAL_HTTP_API=true`、`VITE_LOCAL_AUTH_MODE=true`、`VITE_LOCAL_AUTH_TOKEN`、API `/healthz`、API `/readyz` 和本机认证代理 `/healthz`。它不会输出数据库密码。
 
 当前仓库的正式上线口径仍以腾讯云轻量应用服务器、Nginx、systemd、MySQL 8.0、HTTPS 和真实认证 verifier 为准；本地完整联调只作为正式上线前的补充验证环境。

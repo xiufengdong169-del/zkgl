@@ -43,6 +43,9 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
       'VITE_LOCAL_AUTH_MODE="true"',
       "VITE_LOCAL_AUTH_TOKEN",
       "npm run serve:local-api-proxy",
+      "npm run create:local-fullstack-env",
+      "npm run start:local-fullstack",
+      ".env.local.fullstack",
       "deploy/auth/local-token-verifier.example.mjs",
       "npm run check:local-fullstack",
       "npm run generate:initialization-sql",
@@ -89,6 +92,18 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
     "node scripts/serve-local-api-proxy.mjs"
   ) {
     fail("package.json missing serve:local-api-proxy script");
+  }
+  if (
+    packageJson.scripts?.["create:local-fullstack-env"] !==
+    "node scripts/create-local-fullstack-env.mjs"
+  ) {
+    fail("package.json missing create:local-fullstack-env script");
+  }
+  if (
+    packageJson.scripts?.["start:local-fullstack"] !==
+    "node scripts/start-local-fullstack.mjs"
+  ) {
+    fail("package.json missing start:local-fullstack script");
   }
 
   return "Local user testing handoff verified";

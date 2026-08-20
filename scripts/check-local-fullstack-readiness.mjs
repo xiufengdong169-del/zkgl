@@ -80,6 +80,12 @@ function validateLocalApiUrl(environment, failures) {
   if (String(environment.VITE_ALLOW_LOCAL_HTTP_API ?? "").toLowerCase() !== "true") {
     failures.push("loopback HTTP API requires VITE_ALLOW_LOCAL_HTTP_API=true");
   }
+  if (String(environment.VITE_LOCAL_AUTH_MODE ?? "").toLowerCase() !== "true") {
+    failures.push("loopback HTTP API requires VITE_LOCAL_AUTH_MODE=true");
+  }
+  if (!String(environment.VITE_LOCAL_AUTH_TOKEN ?? "").trim()) {
+    failures.push("loopback HTTP API requires VITE_LOCAL_AUTH_TOKEN");
+  }
   const rawApiOrigin = `http://${environment.API_HOST || "127.0.0.1"}:${environment.API_PORT || "3000"}`;
   if (url.origin === rawApiOrigin) {
     failures.push("loopback browser API should point to the local API proxy, not the raw API service");
@@ -198,7 +204,7 @@ export async function checkLocalFullstackReadiness({
         "2. Create an empty zkgl database and run database/init/schema.sql.",
         "3. Build and start API with DB_* and API_* environment variables.",
         "4. Start the local API proxy and point VITE_API_BASE_URL to http://127.0.0.1:4180/api.",
-        "5. For loopback HTTP frontend testing, set VITE_ALLOW_LOCAL_HTTP_API=true.",
+        "5. For loopback HTTP frontend testing, set VITE_ALLOW_LOCAL_HTTP_API=true and VITE_LOCAL_AUTH_MODE=true.",
       ].join("\n"),
     );
   }
