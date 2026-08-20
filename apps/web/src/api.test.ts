@@ -279,7 +279,7 @@ describe("demoCallApi sample data", () => {
     });
     await expect(demoCallApi("finance.operations")).resolves.toMatchObject({
       payments: [expect.objectContaining({ code: "FK-2026-001" })],
-      plans: [expect.objectContaining({ code: "HZFA-2026-001" })],
+      plans: [expect.objectContaining({ code: "HZ-2026-001" })],
       settlements: [expect.objectContaining({ code: "JS-2026-001" })],
       deposits: [expect.objectContaining({ code: "BZJ-2026-001" })],
     });
@@ -294,8 +294,33 @@ describe("demoCallApi sample data", () => {
       auditLogs: [expect.objectContaining({ outcome: "SUCCESS" })],
     });
     await expect(demoCallApi("report.analytics")).resolves.toMatchObject({
-      profits: [expect.objectContaining({ projectCode: "XM-2026-001" })],
+      profits: [expect.objectContaining({ projectCode: "ZK-2026-001" })],
       collection: { contractAmount: 3200000, receivedAmount: 780000 },
+    });
+  });
+
+  it("uses V2.2 empty-database number prefixes in visual demo samples", async () => {
+    const { demoCallApi } = await import("./demo");
+
+    const projects = await demoCallApi<{ items: Array<{ code: string }> }>("project.list");
+    const applications = await demoCallApi<{ items: Array<{ code: string }> }>(
+      "project.application.list",
+    );
+    const counterparties = await demoCallApi<{ items: Array<{ code: string }> }>(
+      "crm.counterparty.list",
+    );
+    const leads = await demoCallApi<{ items: Array<{ code: string }> }>("lead.list");
+    const exportTasks = await demoCallApi<{ items: Array<{ taskCode: string }> }>(
+      "report.exportTasks",
+    );
+
+    expect(projects.items[0]).toMatchObject({ code: "ZK-2026-001" });
+    expect(applications.items[0]).toMatchObject({ code: "LA-2026-001" });
+    expect(counterparties.items[0]).toMatchObject({ code: "DW-2026-001" });
+    expect(leads.items[0]).toMatchObject({ code: "XS-2026-001" });
+    expect(exportTasks.items[0]).toMatchObject({ taskCode: "DC-2026-001" });
+    await expect(demoCallApi<{ taskCode: string }>("report.project.export")).resolves.toMatchObject({
+      taskCode: "DC-DEMO",
     });
   });
 });

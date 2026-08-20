@@ -21,14 +21,14 @@ export const demoUser: SessionUser = {
 }
 
 const projects = [
-  { id: 'p-001', code: 'XM-2026-001', projectName: '广州智慧园区全过程咨询', status: 'IN_PROGRESS', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
-  { id: 'p-002', code: 'XM-2026-002', projectName: '市政更新工程造价管控', status: 'PENDING_ACCEPTANCE', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
-  { id: 'p-003', code: 'XM-2026-003', projectName: '产业园投标与合同履约项目', status: 'PREPARING', projectManagerId: 'emp-demo-admin', managerName: '演示经理' }
+  { id: 'p-001', code: 'ZK-2026-001', projectName: '广州智慧园区全过程咨询', status: 'IN_PROGRESS', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
+  { id: 'p-002', code: 'ZK-2026-002', projectName: '市政更新工程造价管控', status: 'PENDING_ACCEPTANCE', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
+  { id: 'p-003', code: 'ZK-2026-003', projectName: '产业园投标与合同履约项目', status: 'PREPARING', projectManagerId: 'emp-demo-admin', managerName: '演示经理' }
 ]
 
 const customers = [
-  { id: 'c-001', code: 'KH-001', name: '广州城建投资有限公司', shortName: '广州城投', type: 'OWNER', cooperationStatus: 'ACTIVE' },
-  { id: 'c-002', code: 'KH-002', name: '南沙产业园开发集团', shortName: '南沙园区', type: 'OWNER', cooperationStatus: 'ACTIVE' }
+  { id: 'c-001', code: 'DW-2026-001', name: '广州城建投资有限公司', shortName: '广州城投', type: 'OWNER', cooperationStatus: 'ACTIVE' },
+  { id: 'c-002', code: 'DW-2026-002', name: '南沙产业园开发集团', shortName: '南沙园区', type: 'OWNER', cooperationStatus: 'ACTIVE' }
 ]
 
 const employees = [
@@ -80,7 +80,7 @@ const financeOperations = {
   plans: [
     {
       id: 'plan-001',
-      code: 'HZFA-2026-001',
+      code: 'HZ-2026-001',
       projectId: 'p-001',
       partnerName: '南沙产业园开发集团',
       status: 'ENABLED',
@@ -155,12 +155,12 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
   ])
   if (action === 'project.list') return list(projects)
   if (action === 'project.application.list') return list([
-    { id: 'pa-001', code: 'LX-2026-001', projectName: '广州智慧园区全过程咨询', estimatedProfit: '860000.00', status: 'APPROVAL_PENDING', version: 1, createdBy: 'emp-demo-admin' }
+    { id: 'pa-001', code: 'LA-2026-001', projectName: '广州智慧园区全过程咨询', estimatedProfit: '860000.00', status: 'APPROVAL_PENDING', version: 1, createdBy: 'emp-demo-admin' }
   ])
   if (action === 'project.application.detail') return {
     application: {
       id: 'pa-001',
-      code: 'LX-2026-001',
+      code: 'LA-2026-001',
       projectName: '广州智慧园区全过程咨询',
       customerId: 'c-001',
       projectType: 'CONSULTING',
@@ -192,7 +192,7 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
   } as T
   if (action === 'crm.counterparty.list') return list(customers)
   if (action === 'lead.list') return list([
-    { id: 'l-001', code: 'XS-001', projectName: '白云片区全过程咨询机会', customerId: 'c-001', ownerId: 'emp-demo-admin', successProbability: 70, status: 'FOLLOWING', nextFollowUpAt: '2026-08-15' }
+    { id: 'l-001', code: 'XS-2026-001', projectName: '白云片区全过程咨询机会', customerId: 'c-001', ownerId: 'emp-demo-admin', successProbability: 70, status: 'FOLLOWING', nextFollowUpAt: '2026-08-15' }
   ])
   if (action === 'contract.list') return list(contracts)
   if (action === 'contract.summary') return { incomeAmount: '3200000.00', expenseAmount: '680000.00', expiringCount: 1 } as T
@@ -232,18 +232,18 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
     leadStatus: [{ status: 'FOLLOWING', count: 1, amount: 1800000 }],
     bidStatus: [{ status: 'IN_PROGRESS', count: 1 }],
     projectStatus: [{ status: 'IN_PROGRESS', count: 1, averageProgress: 65 }],
-    profits: [{ projectId: 'p-001', projectCode: 'XM-2026-001', projectName: '广州智慧园区全过程咨询', expectedProfit: 860000, operatingProfit: 620000, cashContribution: 540000 }],
+    profits: [{ projectId: 'p-001', projectCode: 'ZK-2026-001', projectName: '广州智慧园区全过程咨询', expectedProfit: 860000, operatingProfit: 620000, cashContribution: 540000 }],
     collection: { contractAmount: 3200000, receivedAmount: 780000 },
     disclaimer: '演示数据：经营口径用于界面验收，不代表会计利润'
   } as T
   if (action === 'report.receivables') return list([{ id: 'rec-001', contractCode: 'HT-2026-001', contractName: '广州智慧园区咨询合同', projectName: '广州智慧园区全过程咨询', dueOn: '2026-09-30', contractAmount: 3200000, receivedAmount: 780000, outstandingAmount: 2420000, overdue: 0 }])
   if (action === 'report.exportTasks') return list([
-    { id: 'ex-1', taskCode: 'EXP-001', exportType: 'PROJECT', estimatedRows: 128, status: 'COMPLETED', failureReason: null, fileId: 'demo-file-1', createdAt: '2026-08-10 09:30', completedAt: '2026-08-10 09:31', expiresAt: '2026-08-17', isExpired: false, logicalName: '项目台账演示.xlsx', sizeBytes: 20480 }
+    { id: 'ex-1', taskCode: 'DC-2026-001', exportType: 'PROJECT', estimatedRows: 128, status: 'COMPLETED', failureReason: null, fileId: 'demo-file-1', createdAt: '2026-08-10 09:30', completedAt: '2026-08-10 09:31', expiresAt: '2026-08-17', isExpired: false, logicalName: '项目台账演示.xlsx', sizeBytes: 20480 }
   ])
   if (action.endsWith('.summary') || action === 'finance.summary') return { projectCount: projects.length, totalAmount: '3200000.00', pendingAmount: '680000.00' } as T
   if (action.includes('.detail')) return { id: 'demo-detail', code: 'DEMO', name: '演示详情', project: projects[0], customer: customers[0], items: [] } as T
   if (action === 'file.download') return { url: 'https://example.com/demo-download' } as T
-  if (action === 'report.project.export') return { mode: 'BACKGROUND', taskCode: 'EXP-DEMO', estimatedRows: 128, message: '演示导出任务已创建' } as T
+  if (action === 'report.project.export') return { mode: 'BACKGROUND', taskCode: 'DC-DEMO', estimatedRows: 128, message: '演示导出任务已创建' } as T
   if (action.includes('.options') || action.includes('employee.options')) return list(employees)
   if (action.includes('.list') || action.includes('operations') || action.includes('reports')) return list([])
   return ({ ok: true, id: 'demo-created' } as unknown) as T
