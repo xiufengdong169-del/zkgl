@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 const cloudbaseMocks = vi.hoisted(() => ({
   getAccessToken: vi.fn(),
@@ -9,6 +10,20 @@ vi.mock("./cloudbase", () => ({
     getAccessToken: cloudbaseMocks.getAccessToken,
   },
 }));
+
+const schema = readFileSync(
+  new URL("../../../database/init/schema.sql", import.meta.url),
+  "utf8",
+);
+
+const seededPermissionCodes = () => {
+  const block =
+    /INSERT INTO iam_permission\(code,name,permission_type\)\s*VALUES([\s\S]*?)ON DUPLICATE KEY UPDATE/.exec(
+      schema,
+    )?.[1] ?? "";
+  return [...new Set([...block.matchAll(/\('([^']+)'/g)].map((match) => match[1]!))]
+    .sort();
+};
 
 async function loadApi(baseUrl = "https://api.example.com/api") {
   vi.stubEnv("VITE_API_BASE_URL", baseUrl);
@@ -278,6 +293,15 @@ describe("demoCallApi sample data", () => {
     ]) {
       expect(session.permissionCodes).toContain(permission);
     }
+  });
+
+  it("demo administrator permissions stay aligned with empty-database ADMIN seeds", async () => {
+    const { demoCallApi } = await import("./demo");
+    const session = await demoCallApi<{ permissionCodes: string[] }>("session.get");
+    const seededPermissions = seededPermissionCodes();
+
+    expect(seededPermissions.length).toBeGreaterThan(50);
+    expect([...session.permissionCodes].sort()).toEqual(seededPermissions);
   });
 
   it("returns non-empty sample lists for the visual demo module pages", async () => {
