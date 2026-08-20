@@ -1178,8 +1178,12 @@ async function completeCloseOpenItem(item: CloseOpenItemDocument) {
             </select></label
           >
           <label
-            >完成期限<input v-model="item.dueOn" type="date" required
-          /></label>
+            >完成期限<input
+              v-model="item.dueOn"
+              type="date"
+              :min="close.appliedOn"
+              required
+            /></label>
           <label class="wide"
             >事项说明<textarea v-model="item.description" required></textarea>
           </label>

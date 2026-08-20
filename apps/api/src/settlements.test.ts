@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateSettlement,
+  closeApplicationInput,
   depositEventInput,
   depositMetrics,
   freezeSettlementSnapshot,
@@ -150,6 +151,19 @@ describe("partner settlement and close", () => {
     expect(() =>
       validateProjectClose(check, "WITH_OPEN_ITEMS", items),
     ).not.toThrow();
+    expect(() =>
+      closeApplicationInput.parse({
+        projectId: "p1",
+        appliedOn: "2026-08-02",
+        completionSummary: "已完成主要工作",
+        acceptanceConclusion: "有条件通过",
+        archiveCheckPassed: true,
+        closeDescription: "带遗留事项结项",
+        closeType: "WITH_OPEN_ITEMS",
+        specialApprovalComment: "公司负责人特批跟踪",
+        openItems: [{ ...items[0], dueOn: "2026-08-01" }],
+      }),
+    ).toThrow("遗留事项完成期限不得早于结项申请日");
     expect(() =>
       validateSpecialCloseFinalApprover(
         "WITH_OPEN_ITEMS",

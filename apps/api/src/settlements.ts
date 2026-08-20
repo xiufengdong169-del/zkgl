@@ -98,6 +98,14 @@ export const closeApplicationInput = z
         path: ["specialApprovalComment"],
         message: "带遗留事项结项必须填写特批说明",
       });
+    for (const [index, item] of value.openItems.entries()) {
+      if (item.dueOn < value.appliedOn)
+        ctx.addIssue({
+          code: "custom",
+          path: ["openItems", index, "dueOn"],
+          message: "遗留事项完成期限不得早于结项申请日",
+        });
+    }
   });
 
 export function roundHalfUpFraction(

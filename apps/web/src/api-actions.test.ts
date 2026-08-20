@@ -216,6 +216,8 @@ describe("frontend API action usage", () => {
     );
 
     expect(settlementsView).toContain('<option value="PAYABLE">未付款</option>');
+    expect(settlementsView).toContain('v-model="item.dueOn"');
+    expect(settlementsView).toContain(':min="close.appliedOn"');
   });
 
   it("日常采购关联合同时只展示有效支出合同", () => {
