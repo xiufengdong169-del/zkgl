@@ -79,6 +79,22 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 3. 按 `database/init/schema.sql` 初始化空库。
 4. 本地服务端环境变量：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`API_HOST`、`API_PORT`。
 5. 浏览器端 `VITE_API_BASE_URL` 指向本机 API，例如 `http://127.0.0.1:3000/api`。
-6. 认证适配或本地受控测试身份方案。
+6. 浏览器端如使用本机 HTTP API，必须显式设置 `VITE_ALLOW_LOCAL_HTTP_API=true`；该开关只允许 `127.0.0.1`、`localhost` 或 `::1`，不能放行外部 HTTP 地址。
+7. API `/healthz` 和 `/readyz` 均可访问，其中 `/readyz` 必须能通过 MySQL `SELECT 1` 检查。
+8. 认证适配或本地受控测试身份方案。
+
+准备完成后可执行本地完整联调预检：
+
+```powershell
+npm run check:local-fullstack
+```
+
+如果环境变量保存在本地文件，例如 `.env.local.fullstack`，可执行：
+
+```powershell
+node scripts/check-local-fullstack-readiness.mjs --env-file .env.local.fullstack
+```
+
+该命令会检查 MySQL 命令、数据库连接变量、`VITE_API_BASE_URL`、`VITE_ALLOW_LOCAL_HTTP_API=true`、API `/healthz` 和 `/readyz`。它不会输出数据库密码。
 
 当前仓库的正式上线口径仍以腾讯云轻量应用服务器、Nginx、systemd、MySQL 8.0、HTTPS 和真实认证 verifier 为准；本地完整联调只作为正式上线前的补充验证环境。

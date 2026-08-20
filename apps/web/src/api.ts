@@ -3,6 +3,12 @@ import { cloudbaseAuth } from './cloudbase'
 import { demoCallApi, demoMode } from './demo'
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+const allowLocalHttpApi = String(import.meta.env.VITE_ALLOW_LOCAL_HTTP_API || '').toLowerCase() === 'true'
+
+function localHttpApiAllowed(url: URL) {
+  if (!allowLocalHttpApi || url.protocol !== 'http:') return false
+  return ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)
+}
 
 function trustedApiBaseUrl() {
   if (!baseUrl) throw new Error('缺少 VITE_API_BASE_URL')
@@ -12,6 +18,7 @@ function trustedApiBaseUrl() {
   } catch {
     throw new Error('API 地址无效')
   }
+  if (localHttpApiAllowed(url)) return url.toString()
   if (url.protocol !== 'https:') throw new Error('API 地址协议不受信任')
   if (url.username || url.password) throw new Error('API 地址不得包含账号或密码')
   if (url.search || url.hash) throw new Error('API 地址不得包含查询参数或片段')

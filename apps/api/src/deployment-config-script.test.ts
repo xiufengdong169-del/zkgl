@@ -57,6 +57,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     "VITE_CLOUDBASE_PUBLISHABLE_KEY=",
     "VITE_API_BASE_URL=",
     "VITE_DEMO_MODE=",
+    "VITE_ALLOW_LOCAL_HTTP_API=",
     `DEPLOY_TARGET_HOST=${expected.serverPublicIp}`,
     `DEPLOY_TARGET_REGION=${expected.serverRegion}`,
     `DEPLOY_TARGET_OS=${expected.serverOs}`,
@@ -88,6 +89,7 @@ function makeValidInputs(expected: DeploymentConfigModule["expected"]): Deployme
     "  readonly VITE_CLOUDBASE_PUBLISHABLE_KEY?: string",
     "  readonly VITE_API_BASE_URL?: string",
     "  readonly VITE_DEMO_MODE?: string",
+    "  readonly VITE_ALLOW_LOCAL_HTTP_API?: string",
     "}",
   ].join("\n");
 

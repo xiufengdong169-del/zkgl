@@ -50,6 +50,7 @@ export const browserVariables = [
   "VITE_CLOUDBASE_PUBLISHABLE_KEY",
   "VITE_API_BASE_URL",
   "VITE_DEMO_MODE",
+  "VITE_ALLOW_LOCAL_HTTP_API",
 ];
 export const serverVariables = [
   "DEPLOY_TARGET_HOST",
@@ -175,6 +176,9 @@ export function verifyDeploymentConfigInputs({
   }
   if (envValue(envExample, "VITE_API_BASE_URL")) {
     fail(".env.example VITE_API_BASE_URL must stay blank until the deployed API URL is known");
+  }
+  if (envValue(envExample, "VITE_ALLOW_LOCAL_HTTP_API")) {
+    fail(".env.example VITE_ALLOW_LOCAL_HTTP_API must stay blank unless a local-only run explicitly enables it");
   }
   if (envValue(envExample, "DEPLOY_TARGET_HOST") !== expectedConfig.serverPublicIp) {
     fail(".env.example DEPLOY_TARGET_HOST mismatch");

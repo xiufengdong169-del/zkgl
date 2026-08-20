@@ -195,6 +195,7 @@ const browserEnvironmentVariables = [
   "VITE_CLOUDBASE_PUBLISHABLE_KEY",
   "VITE_API_BASE_URL",
   "VITE_DEMO_MODE",
+  "VITE_ALLOW_LOCAL_HTTP_API",
 ];
 const serverEnvironmentVariables = [
   "DEPLOY_TARGET_HOST",
@@ -328,7 +329,7 @@ const finalAcceptanceChecklistFragments = [
   "最终交付验收总清单",
   "npm run verify:acceptance",
   "88 个测试文件 / 472 条测试",
-  "10 个测试文件 / 58 条测试",
+  "10 个测试文件 / 60 条测试",
   "npm audit --omit=dev",
   "npm run verify:deployment-config",
   "npm run verify:performance-acceptance",
@@ -632,7 +633,7 @@ describe("deployment documentation", () => {
       "复核日期：2026-08-20",
       "npm run verify:acceptance",
       "API 测试通过：88 个测试文件 / 472 条测试",
-      "Web 测试通过：10 个测试文件 / 58 条测试",
+      "Web 测试通过：10 个测试文件 / 60 条测试",
       "本项目仍按全新开发口径执行，不存在数据库迁移",
       "腾讯云轻量服务器正式部署",
       "AC-14 现场性能验收",

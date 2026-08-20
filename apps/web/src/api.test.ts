@@ -25,8 +25,9 @@ const seededPermissionCodes = () => {
     .sort();
 };
 
-async function loadApi(baseUrl = "https://api.example.com/api") {
+async function loadApi(baseUrl = "https://api.example.com/api", allowLocalHttp = false) {
   vi.stubEnv("VITE_API_BASE_URL", baseUrl);
+  if (allowLocalHttp) vi.stubEnv("VITE_ALLOW_LOCAL_HTTP_API", "true");
   return import("./api");
 }
 
@@ -134,6 +135,40 @@ describe("callApi", () => {
       await expect(callApi("project.detail", { projectId: "p-1" })).rejects.toThrow();
       expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
     }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("只在显式开启时允许本机 loopback HTTP API 用于本地联调", async () => {
+    cloudbaseMocks.getAccessToken.mockResolvedValue({ accessToken: "token-1" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        data: { id: "local-session" },
+        requestId: "local-request-id",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await loadApi("http://127.0.0.1:3000/api", true);
+
+    await expect(callApi("session.get")).resolves.toEqual({
+      id: "local-session",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3000/api",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("本地 HTTP API 开关不会放行非 loopback 地址", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { callApi } = await loadApi("http://api.example.com/api", true);
+
+    await expect(callApi("session.get")).rejects.toThrow("API 地址协议不受信任");
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

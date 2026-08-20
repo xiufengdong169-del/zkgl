@@ -38,6 +38,10 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
       "database/init/schema.sql",
       "VITE_API_BASE_URL",
       "http://127.0.0.1:3000/api",
+      "VITE_ALLOW_LOCAL_HTTP_API=true",
+      "npm run check:local-fullstack",
+      "/healthz",
+      "/readyz",
     ],
     "docs/local-user-testing.md",
   );
@@ -60,6 +64,12 @@ export async function verifyLocalUserTestingDoc({ root = defaultRoot } = {}) {
   }
   if (!packageJson.scripts?.verify?.includes("npm run verify:local-user-testing")) {
     fail("package.json scripts.verify must run verify:local-user-testing");
+  }
+  if (
+    packageJson.scripts?.["check:local-fullstack"] !==
+    "node scripts/check-local-fullstack-readiness.mjs"
+  ) {
+    fail("package.json missing check:local-fullstack script");
   }
 
   return "Local user testing handoff verified";
