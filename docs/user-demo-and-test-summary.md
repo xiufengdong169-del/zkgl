@@ -42,6 +42,24 @@ http://127.0.0.1:4173/
 http://127.0.0.1:4173/demo
 ```
 
+如果浏览器打不开 `127.0.0.1` 或 `localhost`，改用文件版演示包：
+
+```powershell
+npm run demo:file
+```
+
+生成后双击打开：
+
+```text
+C:\Users\27787\Desktop\zkgl\.tmp\zkgl-file-demo\index.html
+```
+
+或在浏览器地址栏输入：
+
+```text
+file:///C:/Users/27787/Desktop/zkgl/.tmp/zkgl-file-demo/index.html#/demo
+```
+
 ## 3. 建议用户测试顺序
 
 建议按以下顺序查看：

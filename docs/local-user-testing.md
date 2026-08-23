@@ -8,6 +8,7 @@
 - 默认访问地址为 `http://127.0.0.1:4173/`。
 - 演示测试中心地址为 `http://127.0.0.1:4173/demo`，用于按主体流程引导业务用户查看。
 - 启动命令为 `npm run demo:local`。
+- 如果浏览器访问不了 `127.0.0.1` 或 `localhost`，可执行 `npm run demo:file` 生成文件版演示包，然后双击打开 `C:\Users\27787\Desktop\zkgl\.tmp\zkgl-file-demo\index.html`。
 - 访问校验命令为 `node scripts/verify-public-demo.mjs http://127.0.0.1:4173/`。
 - 停止命令为 `Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)`。
 
@@ -47,6 +48,28 @@ Local demo ready: http://127.0.0.1:4173/
 ```
 
 如果 `4173` 端口已被占用，脚本会自动切换到其他本地端口，应以终端输出的实际地址为准。
+
+## 文件版演示兜底
+
+如果当前浏览器无法访问本机 `127.0.0.1` 或 `localhost`，可不启动 HTTP 服务，改为生成可双击打开的文件版演示包：
+
+```powershell
+npm run demo:file
+```
+
+生成完成后打开：
+
+```text
+C:\Users\27787\Desktop\zkgl\.tmp\zkgl-file-demo\index.html
+```
+
+或在浏览器地址栏输入：
+
+```text
+file:///C:/Users/27787/Desktop/zkgl/.tmp/zkgl-file-demo/index.html#/demo
+```
+
+文件版演示使用 hash 路由和相对静态资源，仍然只使用演示样例数据，不连接生产 MySQL，不访问远程服务器。
 
 ## 本地访问校验
 

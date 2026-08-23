@@ -33,6 +33,7 @@
     "serve:local-api-proxy": "node scripts/serve-local-api-proxy.mjs",
     "create:local-fullstack-env": "node scripts/create-local-fullstack-env.mjs",
     "start:local-fullstack": "node scripts/start-local-fullstack.mjs",
+    "demo:file": "node scripts/build-file-demo.mjs",
     "verify:performance-acceptance": "node scripts/verify-performance-acceptance-assets.mjs",
     "verify:requirements": "node scripts/verify-requirement-baseline.mjs",
     "demo:local": "node scripts/serve-local-demo.mjs",
