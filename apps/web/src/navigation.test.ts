@@ -12,6 +12,7 @@ describe("permission navigation", () => {
       (item) => item.to,
     );
     expect(paths).toContain("/");
+    expect(paths).toContain("/demo");
     expect(paths).toContain("/projects");
     expect(paths).toContain("/files");
     expect(paths).not.toContain("/admin");

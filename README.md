@@ -63,6 +63,8 @@ npm run demo:local
 
 默认优先访问地址为 `http://127.0.0.1:4173/`；如果 4173 已被本机其他演示进程占用，脚本会自动切换到一个可用的本地端口并在终端输出实际链接。该模式只使用演示样例数据，不连接生产 MySQL，也不会访问远程服务器。
 
+打开后建议优先进入 `http://127.0.0.1:4173/demo` 或点击左侧“演示测试中心”，按客户线索、立项审批、投标合同、项目实施、财务结算、文件报表的顺序查看主体流程。
+
 如需切换到本地完整 API + MySQL 联调，先按 `docs/local-user-testing.md` 准备 MySQL 8.0、空库初始化、服务端环境变量、本机认证适配器和本机认证代理，然后执行：
 
 ```powershell
@@ -84,6 +86,7 @@ npm run check:local-fullstack
 - `docs/architecture.md`：系统架构、安全边界、事务与审计原则。
 - `docs/deployment.md`：腾讯云轻量应用服务器部署、空库初始化、账号开通、上线初始化资料清单和服务器部署说明。
 - `docs/local-user-testing.md`：本地用户测试交付说明，记录 `npm run demo:local` 演示入口、访问校验、停止方式、演示边界和切换到本地完整联调的前置条件。
+- `docs/user-demo-and-test-summary.md`：用户演示与测试交付总结，记录本地演示入口、演示测试中心、主体流程测试顺序、自动化复核口径和仍需真实环境完成的事项。
 - `docs/operations-acceptance.md`：操作手册、主流程验收、现场性能验收和备份恢复验收清单。
 - `docs/performance-acceptance-template.md`：AC-14 现场性能验收记录模板，用于归档 30 用户压测结果。
 - `docs/backup-recovery-acceptance-template.md`：备份恢复验收记录模板，用于归档数据库、附件和后台导出恢复演练结果。

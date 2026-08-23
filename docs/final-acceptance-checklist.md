@@ -13,6 +13,7 @@
 - [ ] 备份恢复验收记录模板见 `docs/backup-recovery-acceptance-template.md`。
 - [ ] V2.2 结果型验收用例与自动化测试映射见 `docs/acceptance-traceability.md`。
 - [ ] 本地开发测试完成情况见 `docs/local-development-completion-report.md`，并确认本地自动化验收与仍需真实环境完成的事项边界清晰。
+- [ ] 用户演示与测试交付总结见 `docs/user-demo-and-test-summary.md`，并确认本地演示入口、演示测试中心、主体流程测试顺序和未完成真实环境事项已写清楚。
 
 ## 2. 代码与自动化验证
 
@@ -31,6 +32,7 @@
 - [ ] `npm run verify:initialization-data` 通过（脚本路径 `scripts/verify-initialization-data.mjs`），上线初始化资料清单示例覆盖部门、人员、CloudBase UID、角色分配、审批岗位、审批金额阈值、编号规则、系统参数和演示账号。
 - [ ] `node scripts/verify-server-preflight.mjs` 通过：Tencent Cloud Lighthouse 独立服务器上线预检资产一致。
 - [ ] `npm run verify:local-demo` 通过：demo 模式前端包可在临时 HTTP 服务下打开，`apps/web/src/routes.ts` 中全部声明的前端 SPA 路由均返回众肯系统前端壳，且前端入口 JS 模块、CSS 样式资源和全部构建静态资源可访问。
+- [ ] 本地 demo 左侧菜单包含“演示测试中心”，对应 `/demo` 路由，用于非技术用户按主体流程进行演示和测试。
 - [ ] 当前主部署验收不依赖历史函数包；如需回看历史/回退资产，单独执行 `npm run verify:legacy-cloudbase`，不得作为轻量服务器上线步骤。
 - [ ] `npm audit --omit=dev` 无生产依赖漏洞。
 - [ ] `docs/local-development-completion-report.md` 已记录最近一次本地 `npm run verify:acceptance` 通过结果、测试基线和后续真实环境验收事项。

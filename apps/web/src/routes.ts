@@ -12,6 +12,11 @@ export const routes: RouteRecordRaw[] = [
     component: () => import("./views/HomeView.vue"),
   },
   {
+    path: "/demo",
+    name: "demo-guide",
+    component: () => import("./views/DemoGuideView.vue"),
+  },
+  {
     path: "/customers",
     name: "customers",
     meta: { permission: "crm.counterparty.read" },

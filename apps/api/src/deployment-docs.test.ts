@@ -632,7 +632,9 @@ describe("deployment documentation", () => {
   it("documents the current local development completion baseline", () => {
     for (const fragment of [
       "本地开发测试完成报告",
-      "复核日期：2026-08-20",
+      "复核日期：2026-08-23",
+      "演示测试中心",
+      "docs/user-demo-and-test-summary.md",
       "npm run verify:acceptance",
       "API 测试通过：90 个测试文件 / 482 条测试",
       "Web 测试通过：10 个测试文件 / 63 条测试",

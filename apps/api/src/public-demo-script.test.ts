@@ -33,6 +33,7 @@ describe("public demo verifier script", () => {
     expect(readDefaultDemoRoutes()).toEqual([
       "/login",
       "/",
+      "/demo",
       "/customers",
       "/leads",
       "/projects",
@@ -137,6 +138,7 @@ describe("public demo verifier script", () => {
       "http://127.0.0.1:4173/assets/index.js",
       "http://127.0.0.1:4173/assets/index.css",
       "http://127.0.0.1:4173/",
+      "http://127.0.0.1:4173/demo",
       "http://127.0.0.1:4173/customers",
       "http://127.0.0.1:4173/leads",
       "http://127.0.0.1:4173/projects",
