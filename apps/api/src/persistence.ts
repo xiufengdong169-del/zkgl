@@ -1888,7 +1888,7 @@ export class MySqlActionExecutor {
         case "crm.counterparty.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(connection,
-              `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,industry,region,address,phone,website,cooperation_status cooperationStatus,remark FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,industry,region,address,phone,website,cooperation_status cooperationStatus,remark,version FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
               [input.counterpartyId, all ? 1 : 0, user.employeeId],
             );
           const counterparty = rows[0];
@@ -3638,6 +3638,70 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId), code };
+        }
+        case "crm.counterparty.update": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE crm_counterparty
+                SET name=?,short_name=?,credit_code=?,counterparty_type=?,industry=?,region=?,address=?,phone=?,website=?,source_code=?,cooperation_status=?,remark=?,updated_by=?,version=version+1
+              WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND version=? AND (?=1 OR owner_id=?)`,
+            [
+              input.name,
+              input.shortName ?? null,
+              input.creditCode ?? null,
+              input.type,
+              input.industry ?? null,
+              input.region ?? null,
+              input.address ?? null,
+              input.phone ?? null,
+              input.website ?? null,
+              input.sourceCode ?? null,
+              input.cooperationStatus,
+              input.remark ?? null,
+              user.id,
+              input.counterpartyId,
+              input.version,
+              all ? 1 : 0,
+              user.employeeId,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "COUNTERPARTY_UPDATE_CONFLICT",
+              "往来单位不存在、无权访问或已被他人修改，请刷新后重试",
+              409,
+            );
+          return { id: input.counterpartyId, version: input.version + 1 };
+        }
+        case "crm.counterparty.delete": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [result] =
+            input.version == null
+              ? await connection.execute<ResultSetHeader>(
+                  `UPDATE crm_counterparty
+                SET is_deleted=1,status='INACTIVE',updated_by=?,version=version+1
+              WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
+                  [user.id, input.counterpartyId, all ? 1 : 0, user.employeeId],
+                )
+              : await connection.execute<ResultSetHeader>(
+                  `UPDATE crm_counterparty
+                SET is_deleted=1,status='INACTIVE',updated_by=?,version=version+1
+              WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND version=? AND (?=1 OR owner_id=?)`,
+                  [
+                    user.id,
+                    input.counterpartyId,
+                    input.version,
+                    all ? 1 : 0,
+                    user.employeeId,
+                  ],
+                );
+          if (!result.affectedRows)
+            throw new AppError(
+              "COUNTERPARTY_DELETE_CONFLICT",
+              "往来单位不存在、无权访问或已被他人修改，请刷新后重试",
+              409,
+            );
+          return { id: input.counterpartyId, deleted: true };
         }
         case "crm.contact.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");

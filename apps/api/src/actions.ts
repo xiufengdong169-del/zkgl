@@ -44,7 +44,12 @@ import {
   partnerPlanVersionInput,
   settlementCreateInput,
 } from "./settlements.js";
-import { contactInput, counterpartyInput, visitInput } from "./crm.js";
+import {
+  contactInput,
+  counterpartyInput,
+  counterpartyUpdateInput,
+  visitInput,
+} from "./crm.js";
 import { followUpInput, leadInput } from "./leads.js";
 import { projectApplicationInput } from "./project-applications.js";
 import {
@@ -309,6 +314,17 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "crm.counterparty.create": {
     permission: "crm.counterparty.create",
     input: counterpartyInput,
+  },
+  "crm.counterparty.update": {
+    permission: "crm.counterparty.create",
+    input: counterpartyUpdateInput,
+  },
+  "crm.counterparty.delete": {
+    permission: "crm.counterparty.create",
+    input: z.object({
+      counterpartyId: z.string().min(1),
+      version: z.number().int().nonnegative().optional(),
+    }),
   },
   "crm.contact.create": {
     permission: "crm.contact.create",

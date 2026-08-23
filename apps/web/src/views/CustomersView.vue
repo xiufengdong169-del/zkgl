@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import type { CounterpartySummary } from "@zkgl/shared";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { callApi } from "../api";
 import { useAuthStore } from "../stores/auth";
 
-const items = ref<CounterpartySummary[]>([]);
-const auth = useAuthStore(),
-  showForm = ref(false),
-  showContact = ref(false),
-  showVisit = ref(false),
-  saving = ref(false);
 interface ContactRecord {
   id: string;
   name: string;
@@ -18,6 +12,7 @@ interface ContactRecord {
   email?: string;
   isKeyContact: boolean;
 }
+
 interface VisitRecord {
   id: string;
   code: string;
@@ -27,22 +22,91 @@ interface VisitRecord {
   communication: string;
   nextAction?: string;
 }
+
+interface CounterpartyDetail {
+  id: string;
+  code: string;
+  name: string;
+  shortName?: string | null;
+  type: string;
+  industry?: string | null;
+  region?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  cooperationStatus: string;
+  remark?: string | null;
+  version: number;
+}
+
 interface Detail {
-  counterparty: Record<string, string>;
+  counterparty: CounterpartyDetail;
   contacts: ContactRecord[];
   visits: VisitRecord[];
 }
-const detail = ref<Detail | null>(null),
-  selectedId = ref("");
+
+const auth = useAuthStore();
+const items = ref<CounterpartySummary[]>([]);
+const detail = ref<Detail | null>(null);
+const selectedId = ref("");
+const showForm = ref(false);
+const showEdit = ref(false);
+const showContact = ref(false);
+const showVisit = ref(false);
+const saving = ref(false);
+const loading = ref(false);
+const error = ref<string | null>(null);
+
+const typeOptions = [
+  { value: "CUSTOMER", label: "客户" },
+  { value: "SUPPLIER", label: "供应商" },
+  { value: "GENERAL_CONTRACTOR", label: "总包单位" },
+  { value: "PARTNER", label: "合作伙伴" },
+  { value: "OTHER", label: "其他" },
+];
+
+const cooperationStatusOptions = [
+  { value: "POTENTIAL", label: "潜在合作" },
+  { value: "ACTIVE", label: "合作中" },
+  { value: "SUSPENDED", label: "暂停合作" },
+  { value: "ENDED", label: "已结束" },
+];
+
+const industryOptions = [
+  "政府/事业单位",
+  "建筑工程",
+  "信息化/软件",
+  "园区/地产",
+  "能源环保",
+  "教育医疗",
+  "金融服务",
+  "制造业",
+  "其他",
+];
+
 const form = ref({
   name: "",
   shortName: "",
   type: "CUSTOMER",
   industry: "",
-  region: "",
+  address: "",
   phone: "",
+  cooperationStatus: "POTENTIAL",
   remark: "",
 });
+
+const editForm = ref({
+  name: "",
+  shortName: "",
+  type: "CUSTOMER",
+  industry: "",
+  address: "",
+  phone: "",
+  cooperationStatus: "POTENTIAL",
+  remark: "",
+  version: 0,
+});
+
 const contact = ref({
   name: "",
   departmentName: "",
@@ -54,6 +118,7 @@ const contact = ref({
   decisionRole: "",
   remark: "",
 });
+
 const visit = ref({
   contactId: "",
   visitedAt: new Date().toISOString().slice(0, 16),
@@ -67,8 +132,45 @@ const visit = ref({
   nextFollowUpAt: "",
   generateLead: false,
 });
-const loading = ref(false);
-const error = ref<string | null>(null);
+
+const modules = [
+  {
+    title: "往来单位",
+    description: "客户、供应商、总包单位与合作伙伴统一档案",
+    permission: "crm.counterparty.read",
+  },
+  {
+    title: "联系人",
+    description: "联系人、关键关系与决策角色",
+    permission: "crm.contact.read",
+  },
+  {
+    title: "客户拜访",
+    description: "拜访记录、下一步计划与线索生成",
+    permission: "crm.visit.read",
+  },
+];
+
+const selectedCounterpartySummary = computed(() =>
+  detail.value
+    ? `${detail.value.counterparty.code} · ${typeText(
+        detail.value.counterparty.type,
+      )} · ${cooperationStatusText(detail.value.counterparty.cooperationStatus)}`
+    : "",
+);
+
+function typeText(value?: string | null) {
+  return typeOptions.find((item) => item.value === value)?.label || value || "-";
+}
+
+function cooperationStatusText(value?: string | null) {
+  return (
+    cooperationStatusOptions.find((item) => item.value === value)?.label ||
+    value ||
+    "-"
+  );
+}
+
 async function load() {
   loading.value = true;
   error.value = null;
@@ -84,7 +186,19 @@ async function load() {
     loading.value = false;
   }
 }
-onMounted(load);
+
+async function loadDetail(id: string) {
+  selectedId.value = id;
+  try {
+    detail.value = await callApi<Detail>("crm.counterparty.detail", {
+      counterpartyId: id,
+    });
+    showEdit.value = false;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "加载详情失败";
+  }
+}
+
 async function createCounterparty() {
   if (!auth.user) return;
   saving.value = true;
@@ -94,8 +208,10 @@ async function createCounterparty() {
       ...form.value,
       shortName: form.value.shortName || null,
       industry: form.value.industry || null,
-      region: form.value.region || null,
+      region: null,
+      address: form.value.address || null,
       phone: form.value.phone || null,
+      cooperationStatus: form.value.cooperationStatus,
       remark: form.value.remark || null,
     });
     showForm.value = false;
@@ -104,8 +220,9 @@ async function createCounterparty() {
       shortName: "",
       type: "CUSTOMER",
       industry: "",
-      region: "",
+      address: "",
       phone: "",
+      cooperationStatus: "POTENTIAL",
       remark: "",
     };
     await load();
@@ -115,16 +232,77 @@ async function createCounterparty() {
     saving.value = false;
   }
 }
-async function loadDetail(id: string) {
-  selectedId.value = id;
+
+function startEditCounterparty() {
+  if (!detail.value) return;
+  const item = detail.value.counterparty;
+  editForm.value = {
+    name: item.name,
+    shortName: item.shortName || "",
+    type: item.type || "CUSTOMER",
+    industry: item.industry || "",
+    address: item.address || item.region || "",
+    phone: item.phone || "",
+    cooperationStatus: item.cooperationStatus || "POTENTIAL",
+    remark: item.remark || "",
+    version: Number(item.version ?? 0),
+  };
+  showEdit.value = true;
+}
+
+async function updateCounterparty() {
+  if (!auth.user || !detail.value) return;
+  saving.value = true;
+  error.value = null;
   try {
-    detail.value = await callApi<Detail>("crm.counterparty.detail", {
+    const f = editForm.value;
+    const id = detail.value.counterparty.id;
+    await callApi("crm.counterparty.update", {
       counterpartyId: id,
+      name: f.name,
+      shortName: f.shortName || null,
+      type: f.type,
+      industry: f.industry || null,
+      region: null,
+      address: f.address || null,
+      phone: f.phone || null,
+      cooperationStatus: f.cooperationStatus,
+      remark: f.remark || null,
+      version: f.version,
     });
+    showEdit.value = false;
+    await load();
+    await loadDetail(id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "加载详情失败";
+    error.value = e instanceof Error ? e.message : "往来单位更新失败";
+  } finally {
+    saving.value = false;
   }
 }
+
+async function deleteCounterparty() {
+  if (!auth.user || !detail.value) return;
+  const item = detail.value.counterparty;
+  if (!window.confirm(`确认删除往来单位“${item.name}”？已关联业务不会被删除。`))
+    return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("crm.counterparty.delete", {
+      counterpartyId: item.id,
+      version: Number(item.version ?? 0),
+    });
+    detail.value = null;
+    selectedId.value = "";
+    showEdit.value = false;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "往来单位删除失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function createContact() {
   if (!auth.user || !selectedId.value) return;
   saving.value = true;
@@ -152,6 +330,7 @@ async function createContact() {
     saving.value = false;
   }
 }
+
 async function createVisit() {
   if (!auth.user || !selectedId.value) return;
   saving.value = true;
@@ -179,23 +358,8 @@ async function createVisit() {
     saving.value = false;
   }
 }
-const modules = [
-  {
-    title: "往来单位",
-    description: "客户、供应商、总包单位与合作伙伴统一档案",
-    permission: "crm.counterparty.read",
-  },
-  {
-    title: "联系人",
-    description: "联系人、关键关系与决策角色",
-    permission: "crm.contact.read",
-  },
-  {
-    title: "客户拜访",
-    description: "拜访记录、下一步计划与线索生成",
-    permission: "crm.visit.read",
-  },
-];
+
+onMounted(load);
 </script>
 
 <template>
@@ -223,6 +387,7 @@ const modules = [
         </button>
       </div>
     </header>
+
     <form
       v-if="showForm"
       class="entity-form"
@@ -238,16 +403,36 @@ const modules = [
       <label>单位简称<input v-model="form.shortName" maxlength="128" /></label>
       <label
         >单位类型<select v-model="form.type">
-          <option value="CUSTOMER">客户</option>
-          <option value="SUPPLIER">供应商</option>
-          <option value="GENERAL_CONTRACTOR">总包单位</option>
-          <option value="PARTNER">合作伙伴</option>
-          <option value="OTHER">其他</option>
+          <option
+            v-for="option in typeOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
         </select></label
       >
-      <label>所属行业<input v-model="form.industry" maxlength="128" /></label
-      ><label>地区<input v-model="form.region" maxlength="128" /></label
-      ><label>电话<input v-model="form.phone" maxlength="32" /></label>
+      <label
+        >所属行业<select v-model="form.industry">
+          <option value="">请选择</option>
+          <option v-for="item in industryOptions" :key="item" :value="item">
+            {{ item }}
+          </option>
+        </select></label
+      >
+      <label>地址<input v-model="form.address" maxlength="512" /></label>
+      <label
+        >合作状态<select v-model="form.cooperationStatus">
+          <option
+            v-for="option in cooperationStatusOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select></label
+      >
+      <label>电话<input v-model="form.phone" maxlength="32" /></label>
       <label class="wide"
         >备注<textarea v-model="form.remark" maxlength="1000"></textarea>
       </label>
@@ -255,6 +440,54 @@ const modules = [
         {{ saving ? "保存中…" : "保存单位" }}
       </button>
     </form>
+
+    <form
+      v-if="showEdit"
+      class="entity-form"
+      @submit.prevent="updateCounterparty"
+    >
+      <h2 class="wide">修改往来单位</h2>
+      <label>单位名称<input v-model="editForm.name" required /></label>
+      <label>单位简称<input v-model="editForm.shortName" maxlength="128" /></label>
+      <label
+        >单位类型<select v-model="editForm.type">
+          <option
+            v-for="option in typeOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select></label
+      >
+      <label
+        >所属行业<select v-model="editForm.industry">
+          <option value="">请选择</option>
+          <option v-for="item in industryOptions" :key="item" :value="item">
+            {{ item }}
+          </option>
+        </select></label
+      >
+      <label>地址<input v-model="editForm.address" maxlength="512" /></label>
+      <label
+        >合作状态<select v-model="editForm.cooperationStatus">
+          <option
+            v-for="option in cooperationStatusOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select></label
+      >
+      <label>电话<input v-model="editForm.phone" maxlength="32" /></label>
+      <label class="wide"
+        >备注<textarea v-model="editForm.remark" maxlength="1000"></textarea>
+      </label>
+      <button type="submit" :disabled="saving">保存修改</button>
+      <button type="button" @click="showEdit = false">取消</button>
+    </form>
+
     <form
       v-if="showContact"
       class="entity-form"
@@ -277,6 +510,7 @@ const modules = [
       ><label>决策角色<input v-model="contact.decisionRole" /></label
       ><button :disabled="saving">保存联系人</button>
     </form>
+
     <form v-if="showVisit" class="entity-form" @submit.prevent="createVisit">
       <label
         >联系人<select v-model="visit.contactId">
@@ -318,6 +552,7 @@ const modules = [
         同时生成线索</label
       ><button :disabled="saving">保存拜访</button>
     </form>
+
     <section class="module-grid">
       <article v-for="item in modules" :key="item.title" class="module-card">
         <span class="module-icon">{{ item.title.slice(0, 1) }}</span>
@@ -326,6 +561,7 @@ const modules = [
         <small>{{ item.permission }}</small>
       </article>
     </section>
+
     <section class="data-panel">
       <h2>最近往来单位</h2>
       <p v-if="loading">正在加载…</p>
@@ -348,33 +584,56 @@ const modules = [
           >
             <td>{{ item.code }}</td>
             <td>{{ item.name }}</td>
-            <td>{{ item.type }}</td>
-            <td>{{ item.cooperationStatus }}</td>
+            <td>{{ typeText(item.type) }}</td>
+            <td>{{ cooperationStatusText(item.cooperationStatus) }}</td>
           </tr>
         </tbody>
       </table>
       <p v-else>暂无往来单位</p>
     </section>
+
     <section v-if="detail" class="data-panel">
       <header class="page-header">
         <div>
           <p class="eyebrow">CUSTOMER 360</p>
           <h2>{{ detail.counterparty.name }}</h2>
+          <p>{{ selectedCounterpartySummary }}</p>
         </div>
-        <button
-          class="secondary-button"
-          @click="
-            detail = null;
-            selectedId = '';
-          "
-        >
-          关闭
-        </button>
+        <div class="detail-actions">
+          <button class="secondary-button" @click="startEditCounterparty">
+            修改单位
+          </button>
+          <button
+            class="danger-button"
+            :disabled="saving"
+            @click="deleteCounterparty"
+          >
+            删除单位
+          </button>
+          <button
+            class="secondary-button"
+            @click="
+              detail = null;
+              selectedId = '';
+              showEdit = false;
+            "
+          >
+            关闭
+          </button>
+        </div>
       </header>
-      <p>
-        {{ detail.counterparty.code }} · {{ detail.counterparty.type }} ·
-        {{ detail.counterparty.cooperationStatus }}
-      </p>
+
+      <div class="detail-grid">
+        <span>行业：{{ detail.counterparty.industry || "-" }}</span>
+        <span
+          >地址：{{
+            detail.counterparty.address || detail.counterparty.region || "-"
+          }}</span
+        >
+        <span>电话：{{ detail.counterparty.phone || "-" }}</span>
+        <span>简称：{{ detail.counterparty.shortName || "-" }}</span>
+      </div>
+
       <div class="module-grid">
         <article class="module-card">
           <h3>联系人</h3>
@@ -395,3 +654,38 @@ const modules = [
     </section>
   </main>
 </template>
+
+<style scoped>
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 16px 0 22px;
+}
+
+.detail-grid span {
+  padding: 10px 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  background: #fbfdff;
+  color: #4c5d75;
+}
+
+.danger-button {
+  background: #fff1f1;
+  color: #d14343;
+}
+
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

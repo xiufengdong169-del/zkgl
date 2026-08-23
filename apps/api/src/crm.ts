@@ -15,6 +15,11 @@ export const counterpartyInput = z.object({
   remark: z.string().trim().max(1000).nullable().optional()
 })
 
+export const counterpartyUpdateInput = counterpartyInput.extend({
+  counterpartyId: z.string().min(1),
+  version: z.number().int().nonnegative(),
+})
+
 export const contactInput = z.object({
   counterpartyId: z.string().min(1),
   name: z.string().trim().min(1).max(128),
