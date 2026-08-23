@@ -237,6 +237,34 @@ const showEmployeeForm = ref(false);
 const showAccountForm = ref(false);
 const showAccountRolePanel = ref(false);
 const showAdvancedPermissionPanel = ref(false);
+const simpleScopeTypes: DataScopeType[] = [
+  "ALL",
+  "SELF",
+  "OWNER",
+  "CREATOR",
+  "PARTICIPANT",
+];
+const scopeTypeLabels: Record<DataScopeType, string> = {
+  ALL: "全部数据",
+  SELF: "仅本人",
+  OWNER: "我负责的",
+  CREATOR: "我创建的",
+  PARTICIPANT: "我参与的",
+  DEPARTMENT: "指定部门",
+  PROJECT: "指定项目",
+};
+const permissionTypeLabels: Record<string, string> = {
+  READ: "查看权限",
+  WRITE: "操作权限",
+  EXPORT: "导出权限",
+  APPROVAL: "审批权限",
+  SYSTEM: "系统权限",
+};
+const sensitiveFieldOptions = [
+  { code: "bank_account", name: "银行账号" },
+  { code: "profit", name: "利润/毛利" },
+  { code: "partner_settlement", name: "合作分成/结算" },
+];
 const department = ref({
   code: "",
   name: "",
@@ -790,6 +818,10 @@ const permissionGroups = computed(() => {
   return [...groups.entries()].map(([type, items]) => ({ type, items }));
 });
 
+function permissionTypeText(type: string) {
+  return permissionTypeLabels[type] || type;
+}
+
 function userForEmployee(employeeId: string) {
   return users.value.find((item) => item.employeeId === employeeId);
 }
@@ -1031,6 +1063,141 @@ function rolePermissionIds(roleId: string) {
   return rolePermissions.value
     .filter((item) => item.roleId === roleId)
     .map((item) => item.permissionId);
+}
+
+function roleHasPermission(roleId: string, permissionId: string) {
+  return rolePermissions.value.some(
+    (item) => item.roleId === roleId && item.permissionId === permissionId,
+  );
+}
+
+async function setRolePermissionChecked(
+  role: Role,
+  permissionId: string,
+  event: Event,
+) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const permissionIds = new Set(rolePermissionIds(role.id));
+  if (checked) permissionIds.add(permissionId);
+  else permissionIds.delete(permissionId);
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.permission.set", {
+      roleId: role.id,
+      permissionIds: [...permissionIds],
+    });
+    await load();
+    notice.value = `${role.name} 功能权限已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "角色权限保存失败";
+    await load();
+  } finally {
+    saving.value = false;
+  }
+}
+
+function activeRoleScopes(roleId: string) {
+  return roleDataScopes.value.filter(
+    (item) => item.roleId === roleId && item.status === "ENABLED",
+  );
+}
+
+function roleHasScope(roleId: string, scopeType: DataScopeType, scopeValue = "") {
+  return activeRoleScopes(roleId).some(
+    (item) => item.scopeType === scopeType && item.scopeValue === scopeValue,
+  );
+}
+
+async function setRoleScopeChecked(
+  role: Role,
+  scopeType: DataScopeType,
+  scopeValue: string,
+  event: Event,
+) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const scopes = new Map(
+    activeRoleScopes(role.id).map((item) => [
+      `${item.scopeType}:${item.scopeValue || ""}`,
+      { scopeType: item.scopeType, scopeValue: item.scopeValue || "" },
+    ]),
+  );
+  const key = `${scopeType}:${scopeValue}`;
+  if (checked) scopes.set(key, { scopeType, scopeValue });
+  else scopes.delete(key);
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.dataScope.set", {
+      roleId: role.id,
+      scopes: [...scopes.values()],
+    });
+    await load();
+    notice.value = `${role.name} 数据范围已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "数据范围保存失败";
+    await load();
+  } finally {
+    saving.value = false;
+  }
+}
+
+function sensitiveFieldChoice(roleId: string, fieldCode: string) {
+  const grant = sensitiveGrants.value.find(
+    (item) =>
+      item.roleId === roleId &&
+      item.fieldCode === fieldCode &&
+      item.status === "ENABLED",
+  );
+  if (!grant) return "NONE";
+  if (grant.explicitDeny) return "DENY";
+  return grant.accessLevel;
+}
+
+async function setSensitiveFieldChoice(
+  role: Role,
+  fieldCode: string,
+  event: Event,
+) {
+  const choice = (event.target as HTMLSelectElement).value as
+    | "NONE"
+    | "MASKED"
+    | "FULL"
+    | "DENY";
+  const grants = sensitiveGrants.value
+    .filter(
+      (item) =>
+        item.roleId === role.id &&
+        item.status === "ENABLED" &&
+        item.fieldCode !== fieldCode,
+    )
+    .map((item) => ({
+      fieldCode: item.fieldCode,
+      accessLevel: item.accessLevel,
+      explicitDeny: Boolean(item.explicitDeny),
+    }));
+  if (choice !== "NONE") {
+    grants.push({
+      fieldCode,
+      accessLevel: choice === "DENY" ? "MASKED" : choice,
+      explicitDeny: choice === "DENY",
+    });
+  }
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.sensitiveField.set", {
+      roleId: role.id,
+      grants,
+    });
+    await load();
+    notice.value = `${role.name} 敏感字段授权已更新`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "敏感字段授权保存失败";
+    await load();
+  } finally {
+    saving.value = false;
+  }
 }
 
 function formatRoleDataScopes(roleId: string) {
@@ -1607,54 +1774,123 @@ onMounted(load);
               <button :disabled="saving">保存角色</button>
               <button type="button" @click="editingRoleId = ''">取消</button>
             </form>
-            <label>
-              功能权限
-              <select
-                multiple
-                :value="rolePermissionIds(role.id)"
-                :disabled="saving"
-                @change="setRolePermissions(role, $event)"
+            <section class="permission-picker">
+              <h3>功能权限</h3>
+              <div
+                v-for="group in permissionGroups"
+                :key="group.type"
+                class="permission-group"
               >
-                <optgroup
-                  v-for="group in permissionGroups"
-                  :key="group.type"
-                  :label="group.type"
-                >
-                  <option
+                <strong>{{ permissionTypeText(group.type) }}</strong>
+                <div class="permission-checks">
+                  <label
                     v-for="permission in group.items"
                     :key="permission.id"
-                    :value="permission.id"
+                    class="check-tile"
                   >
-                    {{ permission.name }} · {{ permission.code }}
-                  </option>
-                </optgroup>
-              </select>
-            </label>
+                    <input
+                      type="checkbox"
+                      :checked="roleHasPermission(role.id, permission.id)"
+                      :disabled="saving"
+                      @change="
+                        setRolePermissionChecked(role, permission.id, $event)
+                      "
+                    />
+                    <span>{{ permission.name }}</span>
+                    <small>{{ permission.code }}</small>
+                  </label>
+                </div>
+              </div>
+            </section>
             <div class="role-config-grid">
-              <form @submit.prevent="saveRoleDataScopes(role, $event)">
-                <label>
-                  数据范围
-                  <textarea
-                    name="scopes"
-                    rows="4"
-                    :value="formatRoleDataScopes(role.id)"
-                    placeholder="ALL: 或 DEPARTMENT:部门ID"
-                  ></textarea>
+              <section class="scope-picker">
+                <h3>数据范围</h3>
+                <div class="scope-checks">
+                  <label
+                    v-for="scopeType in simpleScopeTypes"
+                    :key="scopeType"
+                    class="check-tile compact"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="roleHasScope(role.id, scopeType)"
+                      :disabled="saving"
+                      @change="
+                        setRoleScopeChecked(role, scopeType, '', $event)
+                      "
+                    />
+                    <span>{{ scopeTypeLabels[scopeType] }}</span>
+                  </label>
+                </div>
+                <details class="scope-details">
+                  <summary>指定部门范围</summary>
+                  <div class="scope-checks">
+                    <label
+                      v-for="departmentItem in departments"
+                      :key="departmentItem.id"
+                      class="check-tile compact"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="
+                          roleHasScope(role.id, 'DEPARTMENT', departmentItem.id)
+                        "
+                        :disabled="saving"
+                        @change="
+                          setRoleScopeChecked(
+                            role,
+                            'DEPARTMENT',
+                            departmentItem.id,
+                            $event,
+                          )
+                        "
+                      />
+                      <span>{{ departmentItem.name }}</span>
+                    </label>
+                  </div>
+                </details>
+                <details v-if="projectOptions.length" class="scope-details">
+                  <summary>指定项目范围</summary>
+                  <div class="scope-checks">
+                    <label
+                      v-for="project in projectOptions"
+                      :key="project.id"
+                      class="check-tile compact"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="roleHasScope(role.id, 'PROJECT', project.id)"
+                        :disabled="saving"
+                        @change="
+                          setRoleScopeChecked(role, 'PROJECT', project.id, $event)
+                        "
+                      />
+                      <span>{{ project.projectName }}</span>
+                      <small>{{ project.projectCode }}</small>
+                    </label>
+                  </div>
+                </details>
+              </section>
+              <section class="sensitive-picker">
+                <h3>敏感字段</h3>
+                <label
+                  v-for="field in sensitiveFieldOptions"
+                  :key="field.code"
+                  class="sensitive-row"
+                >
+                  <span>{{ field.name }}</span>
+                  <select
+                    :value="sensitiveFieldChoice(role.id, field.code)"
+                    :disabled="saving"
+                    @change="setSensitiveFieldChoice(role, field.code, $event)"
+                  >
+                    <option value="NONE">无权限</option>
+                    <option value="MASKED">脱敏查看</option>
+                    <option value="FULL">完整查看</option>
+                    <option value="DENY">明确禁止</option>
+                  </select>
                 </label>
-                <button :disabled="saving">保存数据范围</button>
-              </form>
-              <form @submit.prevent="saveSensitiveGrants(role, $event)">
-                <label>
-                  敏感字段
-                  <textarea
-                    name="grants"
-                    rows="4"
-                    :value="formatSensitiveGrants(role.id)"
-                    placeholder="字段编码:FULL|MASKED:true|false"
-                  ></textarea>
-                </label>
-                <button :disabled="saving">保存敏感字段</button>
-              </form>
+              </section>
             </div>
           </article>
         </section>
@@ -2405,8 +2641,7 @@ onMounted(load);
   width: 100%;
 }
 
-.mini-form select,
-.role-card select[multiple] {
+.mini-form select {
   min-height: 140px;
 }
 
@@ -2472,6 +2707,103 @@ onMounted(load);
 
 .role-card {
   gap: 16px;
+}
+
+.permission-picker,
+.scope-picker,
+.sensitive-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.permission-picker h3,
+.scope-picker h3,
+.sensitive-picker h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.permission-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e3eaf3;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.permission-group > strong {
+  color: #17324d;
+}
+
+.permission-checks,
+.scope-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.check-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-height: 54px;
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 9px;
+  background: #fbfdff;
+  color: #172033;
+  font-weight: 700;
+}
+
+.check-tile.compact {
+  min-height: auto;
+}
+
+.check-tile input {
+  width: auto;
+  margin: 3px 0 0;
+}
+
+.check-tile small {
+  grid-column: 2;
+  color: #7a8798;
+  font-weight: 500;
+}
+
+.scope-details {
+  padding: 10px 12px;
+  border: 1px dashed #cfd8e6;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.scope-details summary {
+  cursor: pointer;
+  color: #008f86;
+  font-weight: 800;
+}
+
+.scope-details .scope-checks {
+  margin-top: 10px;
+}
+
+.sensitive-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 160px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.sensitive-row select {
+  width: 100%;
 }
 
 .subtle-panel-toggle {
