@@ -40,7 +40,7 @@ function generateDepartmentSql(departments) {
         sqlStatus(department.enabled),
       ]),
     ),
-    "ON DUPLICATE KEY UPDATE name=VALUES(name),status=VALUES(status),is_deleted=0,version=version+1;",
+    "ON DUPLICATE KEY UPDATE name=VALUES(name),status=VALUES(status),is_deleted=0,version=org_department.version+1;",
   ]);
 }
 
@@ -57,10 +57,10 @@ function generateEmployeeSql(employees) {
   ]);
   const supervisorUpdates = employees.map((employee) => {
     const managerCode = String(employee.managerEmployeeCode ?? "").trim();
-    const supervisorExpression = managerCode
-      ? `(SELECT supervisor.id FROM org_employee supervisor WHERE supervisor.employee_code=${sqlString(managerCode)} AND supervisor.is_deleted=0 LIMIT 1)`
-      : "NULL";
-    return `UPDATE org_employee SET supervisor_id=${supervisorExpression},version=version+1 WHERE employee_code=${sqlString(employee.employeeCode)} AND is_deleted=0;`;
+    if (!managerCode) {
+      return `UPDATE org_employee SET supervisor_id=NULL,version=version+1 WHERE employee_code=${sqlString(employee.employeeCode)} AND is_deleted=0;`;
+    }
+    return `UPDATE org_employee employee LEFT JOIN org_employee supervisor ON supervisor.employee_code=${sqlString(managerCode)} AND supervisor.is_deleted=0 SET employee.supervisor_id=supervisor.id,employee.version=employee.version+1 WHERE employee.employee_code=${sqlString(employee.employeeCode)} AND employee.is_deleted=0;`;
   });
 
   return lineJoin([
@@ -68,7 +68,7 @@ function generateEmployeeSql(employees) {
     "INSERT INTO org_employee(employee_code,name,employee_type,department_id,position_name,account_status,created_by,updated_by)",
     "VALUES",
     valuesList(insertRows),
-    "ON DUPLICATE KEY UPDATE name=VALUES(name),employee_type=VALUES(employee_type),department_id=VALUES(department_id),position_name=VALUES(position_name),account_status=VALUES(account_status),updated_by=VALUES(updated_by),is_deleted=0,version=version+1;",
+    "ON DUPLICATE KEY UPDATE name=VALUES(name),employee_type=VALUES(employee_type),department_id=VALUES(department_id),position_name=VALUES(position_name),account_status=VALUES(account_status),updated_by=VALUES(updated_by),is_deleted=0,version=org_employee.version+1;",
     ...supervisorUpdates,
   ]);
 }
@@ -79,7 +79,7 @@ function generateUserSql(identities) {
       "INSERT INTO iam_user(cloudbase_uid,employee_id,department_id,username,status,last_synced_at)",
       `SELECT ${sqlString(identity.cloudbaseUid)},employee.id,employee.department_id,${sqlString(identity.username)},'ENABLED',NOW(3)`,
       `FROM org_employee employee WHERE employee.employee_code=${sqlString(identity.employeeCode)} AND employee.is_deleted=0`,
-      "ON DUPLICATE KEY UPDATE cloudbase_uid=VALUES(cloudbase_uid),employee_id=VALUES(employee_id),department_id=VALUES(department_id),username=VALUES(username),status='ENABLED',last_synced_at=NOW(3),is_deleted=0,version=version+1;",
+      "ON DUPLICATE KEY UPDATE cloudbase_uid=VALUES(cloudbase_uid),employee_id=VALUES(employee_id),department_id=VALUES(department_id),username=VALUES(username),status='ENABLED',last_synced_at=NOW(3),is_deleted=0,version=iam_user.version+1;",
     ]),
   );
   return lineJoin(["-- CloudBase UID to internal account mapping", ...statements]);
@@ -129,7 +129,7 @@ function generateNumberRuleSql(rules) {
         "0",
       ]),
     ),
-    "ON DUPLICATE KEY UPDATE prefix=VALUES(prefix),year_pattern=VALUES(year_pattern),next_serial=VALUES(next_serial),current_year=VALUES(current_year),status='ENABLED',updated_by=0,version=version+1;",
+    "ON DUPLICATE KEY UPDATE prefix=VALUES(prefix),year_pattern=VALUES(year_pattern),next_serial=VALUES(next_serial),current_year=VALUES(current_year),status='ENABLED',updated_by=0,version=sys_number_rule.version+1;",
   ]);
 }
 
@@ -156,7 +156,7 @@ function generateSystemParameterSql(parameters) {
         "0",
       ]),
     ),
-    "ON DUPLICATE KEY UPDATE param_value=VALUES(param_value),value_type=VALUES(value_type),status='ENABLED',updated_by=0,version=version+1;",
+    "ON DUPLICATE KEY UPDATE param_value=VALUES(param_value),value_type=VALUES(value_type),status='ENABLED',updated_by=0,version=sys_parameter.version+1;",
   ]);
 }
 

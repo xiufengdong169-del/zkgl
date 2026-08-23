@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { callApi, openTrustedDownloadUrl } from "../api";
-import { cloudbaseApp } from "../cloudbase";
+import { getCloudbaseApp } from "../cloudbase";
 
 interface Project {
   id: string;
@@ -106,7 +106,7 @@ async function upload() {
         classification: classification.value,
       },
     );
-    const uploaded = await cloudbaseApp.uploadFile({
+    const uploaded = await getCloudbaseApp().uploadFile({
       cloudPath: prepared.storageKey,
       fileContent: file,
     });
@@ -155,7 +155,7 @@ async function uploadVersion() {
       sizeBytes: file.size,
       sha256: await sha256(file),
     });
-    const uploaded = await cloudbaseApp.uploadFile({
+    const uploaded = await getCloudbaseApp().uploadFile({
       cloudPath: prepared.storageKey,
       fileContent: file,
     });

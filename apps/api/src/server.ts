@@ -44,6 +44,27 @@ function jsonResponse(
   response.end(JSON.stringify(body));
 }
 
+function createTempFileUrlFactory(environment: NodeJS.ProcessEnv) {
+  let storage:
+    | ReturnType<typeof tcb.init>
+    | null = null;
+  return async (fileId: string, maxAge: number) => {
+    const env = String(environment.CLOUDBASE_ENV_ID || "").trim();
+    if (!env) {
+      throw new Error("Object storage is not configured for this environment");
+    }
+    storage ??= tcb.init({ env });
+    const result = await storage.getTempFileURL({
+      fileList: [{ fileID: fileId, maxAge }],
+    });
+    const url = result.fileList?.[0]?.tempFileURL;
+    if (!url) throw new Error("Unable to create temporary file URL");
+    return url;
+  };
+}
+
+const createTempFileUrl = createTempFileUrlFactory(process.env);
+
 function requestBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -113,17 +134,7 @@ async function serveApi(request: IncomingMessage, response: ServerResponse) {
   }
 
   const pool = getPool();
-  const storage = tcb.init({
-    env: process.env.CLOUDBASE_ENV_ID || tcb.SYMBOL_CURRENT_ENV,
-  });
-  const executor = new MySqlActionExecutor(pool, async (fileId, maxAge) => {
-    const result = await storage.getTempFileURL({
-      fileList: [{ fileID: fileId, maxAge }],
-    });
-    const url = result.fileList?.[0]?.tempFileURL;
-    if (!url) throw new Error("Unable to create temporary file URL");
-    return url;
-  });
+  const executor = new MySqlActionExecutor(pool, createTempFileUrl);
 
   const result = await handle(
     {

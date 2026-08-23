@@ -99,7 +99,7 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 
 若后续要在本地电脑运行真实 API 和 MySQL 写入版，需要先准备：
 
-1. 本地 MySQL 8.0 服务和 `mysql` 命令。
+1. 本地 MySQL 8.0/8.4 服务和 `mysql` 命令；也可以执行 `npm run bootstrap:local-mysql` 使用项目 `.tmp` 下的本地专用 MySQL 实例。
 2. 空数据库，例如 `zkgl`。
 3. 按 `database/init/schema.sql` 初始化空库。
 4. 本地服务端环境变量：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`API_HOST`、`API_PORT`。
@@ -116,7 +116,13 @@ Stop-Process -Id (Get-Content .tmp\local-demo-server.pid)
 npm run create:local-fullstack-env
 ```
 
-随后在 `.env.local.fullstack` 里只在本机填写数据库密码。准备好 MySQL、空库和初始化资料后，可执行：
+随后在 `.env.local.fullstack` 里只在本机填写数据库密码。若使用项目本地专用 MySQL，可执行下面命令自动初始化空库、导入 schema 和初始化资料，并补齐本机数据库连接信息：
+
+```powershell
+npm run bootstrap:local-mysql
+```
+
+准备好 MySQL、空库和初始化资料后，可执行：
 
 ```powershell
 npm run start:local-fullstack

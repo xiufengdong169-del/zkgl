@@ -30,6 +30,7 @@
     "verify:local-user-testing": "node scripts/verify-local-user-testing-doc.mjs",
     "generate:initialization-sql": "node scripts/generate-initialization-sql.mjs",
     "check:local-fullstack": "node scripts/check-local-fullstack-readiness.mjs",
+    "bootstrap:local-mysql": "node scripts/bootstrap-local-mysql.mjs",
     "serve:local-api-proxy": "node scripts/serve-local-api-proxy.mjs",
     "create:local-fullstack-env": "node scripts/create-local-fullstack-env.mjs",
     "start:local-fullstack": "node scripts/start-local-fullstack.mjs",

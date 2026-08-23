@@ -45,6 +45,26 @@ function commandExists(command) {
   return result.status === 0;
 }
 
+function binaryName(name) {
+  return process.platform === "win32" ? `${name}.exe` : name;
+}
+
+function findMysqlCommand() {
+  if (commandExists("mysql")) return "mysql";
+  for (const candidate of [
+    process.env.MYSQL_HOME
+      ? resolve(process.env.MYSQL_HOME, "bin", binaryName("mysql"))
+      : "",
+    "C:/Program Files/MySQL/MySQL Server 8.4/bin/mysql.exe",
+    "C:/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe",
+    "C:/Program Files (x86)/MySQL/MySQL Server 8.4/bin/mysql.exe",
+    "C:/Program Files (x86)/MySQL/MySQL Server 8.0/bin/mysql.exe",
+  ].filter(Boolean)) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function requireValues(environment, keys, failures) {
   for (const key of keys) {
     if (!String(environment[key] ?? "").trim()) {
@@ -109,8 +129,8 @@ async function checkJsonEndpoint(url, label, failures) {
   }
 }
 
-function checkMysqlConnection(environment, failures, mysqlAvailable) {
-  if (!mysqlAvailable) return;
+function checkMysqlConnection(environment, failures, mysqlCommand) {
+  if (!mysqlCommand) return;
   if (
     !["DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD"].every((key) =>
       String(environment[key] ?? "").trim(),
@@ -119,7 +139,7 @@ function checkMysqlConnection(environment, failures, mysqlAvailable) {
     return;
   }
   const result = spawnSync(
-    "mysql",
+    mysqlCommand,
     [
       "-h",
       environment.DB_HOST,
@@ -146,11 +166,12 @@ function checkMysqlConnection(environment, failures, mysqlAvailable) {
 }
 
 function checkMysqlCommand(failures) {
-  if (!commandExists("mysql")) {
-    failures.push("mysql command not found; install MySQL 8.0 and add mysql/bin to PATH");
-    return false;
+  const command = findMysqlCommand();
+  if (!command) {
+    failures.push("mysql command not found; install MySQL 8.0/8.4 or add mysql/bin to PATH");
+    return null;
   }
-  return true;
+  return command;
 }
 
 export async function checkLocalFullstackReadiness({
@@ -183,8 +204,8 @@ export async function checkLocalFullstackReadiness({
     failures.push("apps/api/dist/server.js is missing; run npm run build -w @zkgl/api");
   }
 
-  const mysqlAvailable = checkMysqlCommand(failures);
-  checkMysqlConnection(merged, failures, mysqlAvailable);
+  const mysqlCommand = checkMysqlCommand(failures);
+  checkMysqlConnection(merged, failures, mysqlCommand);
 
   const apiOrigin = `http://${merged.API_HOST || "127.0.0.1"}:${merged.API_PORT || "3000"}`;
   await checkJsonEndpoint(`${apiOrigin}/healthz`, "API /healthz", failures);

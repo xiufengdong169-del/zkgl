@@ -1,5 +1,5 @@
 import type { ApiResult } from '@zkgl/shared'
-import { cloudbaseAuth } from './cloudbase'
+import { getCloudbaseAuth } from './cloudbase'
 import { demoCallApi, demoMode } from './demo'
 
 const baseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
@@ -43,7 +43,7 @@ async function resolveAccessToken() {
     if (!token) throw new Error('缺少 VITE_LOCAL_AUTH_TOKEN')
     return token
   }
-  const { accessToken } = await cloudbaseAuth.getAccessToken()
+  const { accessToken } = await getCloudbaseAuth().getAccessToken()
   if (!accessToken) throw new Error('登录状态已失效')
   return accessToken
 }

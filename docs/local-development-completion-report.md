@@ -8,6 +8,7 @@
 
 - 本地开发与自动化验收主线已通过。
 - 2026-08-23 已补充“演示测试中心”页面和 `docs/user-demo-and-test-summary.md`，将本地演示入口、主体流程测试顺序、自动化复核口径和真实环境未完成事项集中给业务用户查看。
+- 2026-08-23 已完成本地 MySQL 完整联调：`npm run bootstrap:local-mysql` 初始化项目 `.tmp` 下的本地专用 MySQL、`zkgl` 空库和初始化资料；`npm run start:local-fullstack -- --skip-build` 启动 API、认证适配、本地 API 代理和前端；`node scripts/check-local-fullstack-readiness.mjs --env-file .env.local.fullstack` 通过，并已通过本地 API 代理完成 `session.get`、`crm.counterparty.create`、`crm.counterparty.list` 的真实 MySQL 读写验证。
 - 本项目仍按全新开发口径执行，不存在数据库迁移目录、迁移表或迁移执行器。
 - 当前主部署口径为腾讯云轻量应用服务器；CloudBase 函数包只作为历史/回退资产，不进入当前主部署验收闭环。
 - 本地 demo 包已由自动化脚本验证可构建、可启动临时 HTTP 服务、全部声明的前端 SPA 路由可返回前端壳；用户侧浏览器可视化访问问题后续单独处理。
@@ -26,7 +27,7 @@ npm run verify:acceptance
 
 - TypeScript 类型检查通过。
 - API 测试通过：90 个测试文件 / 482 条测试。
-- Web 测试通过：10 个测试文件 / 63 条测试。
+- Web 测试通过：10 个测试文件 / 64 条测试。
 - 前端生产构建通过。
 - 源码与交付脚本敏感信息扫描通过。
 - Markdown 需求基线、当前轻量服务器版 Word 需求说明书、验收追踪和交付入口一致性校验通过。
@@ -38,6 +39,7 @@ npm run verify:acceptance
 - MySQL 8.0 备份恢复资产校验通过。
 - 服务器上线预检资产校验通过。
 - 本地 demo 模式构建、临时 HTTP 服务、全部声明的 SPA 路由、入口 JS、CSS 和静态资源校验通过。
+- 本地完整联调模式已通过 MySQL 连接、API `/healthz`、API `/readyz`、本地 API 代理 `/healthz` 和业务 API 读写验证。
 - `npm audit --omit=dev` 通过，生产依赖无已知漏洞。
 
 ## 本地完成范围

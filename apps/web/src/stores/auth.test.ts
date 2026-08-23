@@ -12,10 +12,10 @@ const authMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../cloudbase", () => ({
-  cloudbaseAuth: {
+  getCloudbaseAuth: () => ({
     signInWithPassword: authMocks.signInWithPassword,
     signOut: authMocks.signOut,
-  },
+  }),
 }));
 
 vi.mock("../api", () => ({

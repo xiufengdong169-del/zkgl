@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import type { SessionUser } from '@zkgl/shared'
 
-import { cloudbaseAuth } from '../cloudbase'
+import { getCloudbaseAuth } from '../cloudbase'
 import { callApi, localAuthMode } from '../api'
 import { demoMode, demoUser } from '../demo'
 
@@ -25,6 +25,7 @@ export const useAuthStore = defineStore('auth', {
         return
       }
       let cloudbaseSignedIn = false
+      let cloudbaseAuth: ReturnType<typeof getCloudbaseAuth> | null = null
       try {
         if (localAuthMode) {
           if (!username.trim() || !password) throw new Error('请输入本地测试账号和口令')
@@ -32,13 +33,14 @@ export const useAuthStore = defineStore('auth', {
           this.authenticated = true
           return
         }
+        cloudbaseAuth = getCloudbaseAuth()
         const { error } = await cloudbaseAuth.signInWithPassword({ username, password })
         if (error) throw error
         cloudbaseSignedIn = true
         this.user = await callApi<SessionUser>('session.get')
         this.authenticated = true
       } catch (error) {
-        if (cloudbaseSignedIn) await cloudbaseAuth.signOut().catch(() => undefined)
+        if (cloudbaseSignedIn && cloudbaseAuth) await cloudbaseAuth.signOut().catch(() => undefined)
         this.authenticated = false
         this.user = null
         this.error = error instanceof Error ? error.message : '登录失败'
@@ -53,7 +55,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = null
         return
       }
-      await cloudbaseAuth.signOut()
+      if (!localAuthMode) await getCloudbaseAuth().signOut()
       this.authenticated = false
       this.user = null
     },

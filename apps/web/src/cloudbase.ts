@@ -1,6 +1,13 @@
 import cloudbase from '@cloudbase/js-sdk'
 import { buildCloudbaseConfig } from './cloudbase-config'
 
-export const cloudbaseApp = cloudbase.init(buildCloudbaseConfig(import.meta.env))
+let cloudbaseApp: ReturnType<typeof cloudbase.init> | null = null
 
-export const cloudbaseAuth = cloudbaseApp.auth
+export function getCloudbaseApp() {
+  cloudbaseApp ??= cloudbase.init(buildCloudbaseConfig(import.meta.env))
+  return cloudbaseApp
+}
+
+export function getCloudbaseAuth() {
+  return getCloudbaseApp().auth
+}

@@ -51,7 +51,7 @@ const deliveryScope = [
 const verificationItems = [
   "npm run verify:acceptance：类型检查、API/Web 测试、构建、安全扫描、需求一致性、部署资产、备份资产、演示包校验",
   "API 当前基线：90 个测试文件 / 482 条测试",
-  "Web 当前基线：10 个测试文件 / 63 条测试",
+  "Web 当前基线：10 个测试文件 / 64 条测试",
   "npm audit --omit=dev：生产依赖漏洞扫描",
   "npm run verify:local-demo：全部声明 SPA 路由和静态资源可访问",
 ];

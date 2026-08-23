@@ -6,9 +6,9 @@ const cloudbaseMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./cloudbase", () => ({
-  cloudbaseAuth: {
+  getCloudbaseAuth: () => ({
     getAccessToken: cloudbaseMocks.getAccessToken,
-  },
+  }),
 }));
 
 const schema = readFileSync(
@@ -103,6 +103,22 @@ describe("callApi", () => {
 
     expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("演示模式下不要求 CloudBase 浏览器环境变量，避免演示页白屏", async () => {
+    vi.stubEnv("VITE_DEMO_MODE", "true");
+    vi.stubEnv("VITE_API_BASE_URL", "");
+    vi.stubEnv("VITE_CLOUDBASE_ENV_ID", "");
+
+    const { useAuthStore } = await import("./stores/auth");
+    const { createPinia, setActivePinia } = await import("pinia");
+    setActivePinia(createPinia());
+
+    const auth = useAuthStore();
+    await expect(auth.ensureSession()).resolves.toMatchObject({
+      id: "demo-admin",
+    });
+    expect(cloudbaseMocks.getAccessToken).not.toHaveBeenCalled();
   });
 
   it("未取得登录令牌时不发起请求", async () => {
