@@ -230,6 +230,7 @@ const memberKeyword = ref("");
 const accountStatusFilter = ref<"" | "ENABLED" | "DISABLED">("");
 const selectedDepartmentId = ref("");
 const selectedRoleId = ref("");
+const selectedApprovalTemplateId = ref("");
 const editingDepartment = ref(false);
 const editingEmployeeId = ref("");
 const editingRoleId = ref("");
@@ -315,6 +316,24 @@ const numberRuleDisplay: Record<
     name: "客户拜访",
     remark: "用于客户拜访、跟进记录编号。",
   },
+};
+const approvalBusinessDisplay: Record<string, string> = {
+  BID_APPLICATION: "投标申请",
+  CONTRACT: "合同审批",
+  CONTRACT_CHANGE: "合同变更",
+  DAILY_PURCHASE: "日常采购",
+  DEPOSIT: "保证金缴纳",
+  DEPOSIT_LOSS: "保证金没收损失",
+  EXPENSE_REIMBURSEMENT: "费用报销",
+  INVOICE_APPLICATION: "开票申请",
+  LEAD: "市场报备",
+  PARTNER_SETTLEMENT: "合作方结算",
+  PROJECT_ACCEPTANCE: "项目验收申请",
+  PROJECT_APPLICATION: "项目立项",
+  PROJECT_CHANGE: "项目变更",
+  PROJECT_CLOSE: "项目结项",
+  PROJECT_PAYMENT: "项目付款",
+  PROJECT_START: "项目启动",
 };
 const simpleScopeTypes: DataScopeType[] = [
   "ALL",
@@ -478,6 +497,17 @@ async function load() {
       selectedRoleId.value =
         roles.value.find((item) => item.code === "ADMIN")?.id ||
         roles.value[0]?.id ||
+        "";
+    }
+    if (
+      !selectedApprovalTemplateId.value ||
+      !approvalTemplates.value.some(
+        (item) => item.id === selectedApprovalTemplateId.value,
+      )
+    ) {
+      selectedApprovalTemplateId.value =
+        approvalTemplates.value.find((item) => item.status === "ENABLED")?.id ||
+        approvalTemplates.value[0]?.id ||
         "";
     }
   } catch (e) {
@@ -829,6 +859,23 @@ function previewNextBusinessCode(rule: NumberRule) {
   return `${rule.prefix}-${rule.currentYear}-${serial}`;
 }
 
+function approvalBusinessText(code: string) {
+  return approvalBusinessDisplay[code] || numberRuleMeta(code).name || code;
+}
+
+function positionText(code: string) {
+  return positions.value.find((item) => item.code === code)?.name || code;
+}
+
+function amountRangeText(node: ApprovalNode) {
+  const min = node.minimumAmount == null ? null : Number(node.minimumAmount);
+  const max = node.maximumAmount == null ? null : Number(node.maximumAmount);
+  if (min == null && max == null) return "金额不限";
+  if (min != null && max != null) return `¥${min} 至 ¥${max}`;
+  if (min != null) return `¥${min} 及以上`;
+  return `¥${max} 及以下`;
+}
+
 function employeeTypeText(type: string) {
   return (
     {
@@ -854,6 +901,19 @@ const selectedRole = computed(
   () =>
     roles.value.find((item) => item.id === selectedRoleId.value) ||
     roles.value[0],
+);
+
+const selectedApprovalTemplate = computed(
+  () =>
+    approvalTemplates.value.find(
+      (item) => item.id === selectedApprovalTemplateId.value,
+    ) || approvalTemplates.value[0],
+);
+
+const selectedApprovalNodes = computed(() =>
+  approvalNodes.value
+    .filter((node) => node.templateId === selectedApprovalTemplate.value?.id)
+    .sort((a, b) => a.nodeOrder - b.nodeOrder),
 );
 
 const availableParentDepartments = computed(() =>
@@ -2411,98 +2471,112 @@ onMounted(load);
     </section>
 
     <section v-else-if="activeTab === 'approvals'" class="data-panel">
-      <h2>审批模板</h2>
-      <p>审批模板按业务类型预置，节点数量用于核对配置完整性。</p>
-      <table>
-        <thead>
-          <tr>
-            <th>模板编码</th>
-            <th>名称</th>
-            <th>业务类型</th>
-            <th>版本</th>
-            <th>有效节点</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="template in approvalTemplates" :key="template.id">
-            <td>{{ template.templateCode }}</td>
-            <td>{{ template.name }}</td>
-            <td>{{ template.businessType }}</td>
-            <td>V{{ template.version }}</td>
-            <td>{{ template.nodeCount }}</td>
-            <td>{{ template.status }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <h3>审批节点</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>模板</th>
-            <th>顺序</th>
-            <th>节点名称</th>
-            <th>审批岗位</th>
-            <th>最低金额</th>
-            <th>最高金额</th>
-            <th>抄送</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="node in approvalNodes" :key="node.id">
-            <td>
-              {{
-                approvalTemplates.find(
-                  (template) => template.id === node.templateId,
-                )?.templateCode
-              }}
-            </td>
-            <td>{{ node.nodeOrder }}</td>
-            <td><input v-model="node.nodeName" /></td>
-            <td>
-              <select v-model="node.positionCode">
-                <option
-                  v-for="position in positions"
-                  :key="position.code"
-                  :value="position.code"
-                >
-                  {{ position.name }}
-                </option>
-              </select>
-            </td>
-            <td>
-              <input
-                v-model.number="node.minimumAmount"
-                type="number"
-                min="0"
-                step="0.01"
-              />
-            </td>
-            <td>
-              <input
-                v-model.number="node.maximumAmount"
-                type="number"
-                min="0"
-                step="0.01"
-              />
-            </td>
-            <td><input v-model="node.isCc" type="checkbox" /></td>
-            <td>
-              <select v-model="node.status">
-                <option value="ENABLED">启用</option>
-                <option value="DISABLED">停用</option>
-              </select>
-            </td>
-            <td>
-              <button :disabled="saving" @click="saveApprovalNode(node)">
-                保存
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <header class="approval-header">
+        <div>
+          <h2>审批流程配置</h2>
+          <p>
+            左侧选择业务流程，右侧按审批顺序展示节点。每个节点可维护审批岗位、适用金额范围、是否抄送和启停状态。
+          </p>
+        </div>
+        <span>{{ approvalTemplates.length }} 个流程模板</span>
+      </header>
+
+      <div class="approval-config">
+        <aside class="approval-template-list">
+          <button
+            v-for="template in approvalTemplates"
+            :key="template.id"
+            type="button"
+            :class="{ selected: selectedApprovalTemplate?.id === template.id }"
+            @click="selectedApprovalTemplateId = template.id"
+          >
+            <strong>{{ template.name }}</strong>
+            <small>{{ approvalBusinessText(template.businessType) }}</small>
+            <span>{{ template.nodeCount }} 个节点 · {{ statusText(template.status) }}</span>
+          </button>
+        </aside>
+
+        <section v-if="selectedApprovalTemplate" class="approval-flow-panel">
+          <div class="approval-flow-summary">
+            <div>
+              <p class="eyebrow">当前流程</p>
+              <h3>{{ selectedApprovalTemplate.name }}</h3>
+              <p>
+                {{ approvalBusinessText(selectedApprovalTemplate.businessType) }}
+                · 模板编码 {{ selectedApprovalTemplate.templateCode }}
+                · V{{ selectedApprovalTemplate.version }}
+                · {{ statusText(selectedApprovalTemplate.status) }}
+              </p>
+            </div>
+            <strong>{{ selectedApprovalNodes.length }} 个审批节点</strong>
+          </div>
+
+          <div class="approval-flow-track">
+            <article
+              v-for="(node, index) in selectedApprovalNodes"
+              :key="node.id"
+              class="approval-node-card"
+              :class="{ disabled: node.status !== 'ENABLED' }"
+            >
+              <div class="node-order">{{ index + 1 }}</div>
+              <div class="node-body">
+                <div class="node-title-row">
+                  <div>
+                    <strong>{{ node.nodeName }}</strong>
+                    <p>{{ positionText(node.positionCode) }}</p>
+                  </div>
+                  <span>{{ Boolean(node.isCc) ? "抄送" : "审批" }}</span>
+                </div>
+                <p class="node-condition">{{ amountRangeText(node) }}</p>
+                <div class="node-edit-grid">
+                  <label>节点名称<input v-model="node.nodeName" /></label>
+                  <label
+                    >审批岗位<select v-model="node.positionCode">
+                      <option
+                        v-for="position in positions"
+                        :key="position.code"
+                        :value="position.code"
+                      >
+                        {{ position.name }}
+                      </option>
+                    </select></label
+                  >
+                  <label
+                    >最低金额<input
+                      v-model.number="node.minimumAmount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                  /></label>
+                  <label
+                    >最高金额<input
+                      v-model.number="node.maximumAmount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                  /></label>
+                  <label class="checkbox-line">
+                    <input v-model="node.isCc" type="checkbox" />
+                    <span>此节点为抄送</span>
+                  </label>
+                  <label
+                    >状态<select v-model="node.status">
+                      <option value="ENABLED">启用</option>
+                      <option value="DISABLED">停用</option>
+                    </select></label
+                  >
+                  <button :disabled="saving" @click="saveApprovalNode(node)">
+                    保存节点
+                  </button>
+                </div>
+              </div>
+            </article>
+            <p v-if="!selectedApprovalNodes.length" class="empty-state">
+              当前流程暂无审批节点。
+            </p>
+          </div>
+        </section>
+      </div>
     </section>
 
     <section v-else class="data-panel">
@@ -3001,6 +3075,212 @@ onMounted(load);
   border-radius: 8px;
 }
 
+.approval-header,
+.approval-flow-summary,
+.node-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.approval-header {
+  margin-bottom: 18px;
+}
+
+.approval-header h2,
+.approval-flow-summary h3 {
+  margin: 0;
+}
+
+.approval-header p,
+.approval-flow-summary p,
+.node-title-row p,
+.node-condition {
+  margin: 6px 0 0;
+  color: #667085;
+}
+
+.approval-header > span,
+.approval-flow-summary > strong {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #eef5fc;
+  color: #245f9f;
+  font-weight: 800;
+}
+
+.approval-config {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.approval-template-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  background: #fbfcfe;
+}
+
+.approval-template-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #17324d;
+  text-align: left;
+}
+
+.approval-template-list button.selected {
+  border-color: #bfe9e5;
+  background: #e7f8f6;
+  box-shadow: 0 8px 18px rgba(0, 169, 157, 0.1);
+}
+
+.approval-template-list small,
+.approval-template-list span {
+  color: #748095;
+}
+
+.approval-flow-panel {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.approval-flow-summary {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.approval-flow-track {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.approval-node-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  position: relative;
+}
+
+.approval-node-card:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 46px;
+  bottom: -18px;
+  width: 2px;
+  background: #dfe6ef;
+}
+
+.approval-node-card.disabled {
+  opacity: 0.62;
+}
+
+.node-order {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: #2b64a8;
+  color: #fff;
+  font-weight: 900;
+}
+
+.node-body {
+  padding: 14px;
+  border: 1px solid #e3eaf3;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.node-title-row {
+  align-items: flex-start;
+}
+
+.node-title-row > span {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f0f7ff;
+  color: #2878ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.node-condition {
+  margin-top: 10px;
+  font-weight: 800;
+}
+
+.node-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.node-edit-grid label {
+  margin: 0;
+}
+
+.node-edit-grid input,
+.node-edit-grid select {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.node-edit-grid .checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+  padding: 0 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.node-edit-grid .checkbox-line input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.node-edit-grid button {
+  width: auto;
+  min-width: 86px;
+  margin: 0;
+  padding: 9px 14px;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed #cdd7e5;
+  border-radius: 12px;
+  color: #748095;
+  text-align: center;
+}
+
 .role-chip {
   display: inline-flex;
   margin: 0 6px 6px 0;
@@ -3215,6 +3495,11 @@ onMounted(load);
     grid-template-columns: 1fr;
   }
 
+  .approval-config,
+  .node-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
   .org-sidebar {
     border-right: 0;
     border-bottom: 1px solid #e4ebf3;
@@ -3232,7 +3517,8 @@ onMounted(load);
   }
 
   .position-assignment-form button,
-  .position-list .small-status-button {
+  .position-list .small-status-button,
+  .node-edit-grid button {
     width: 100%;
   }
 }
