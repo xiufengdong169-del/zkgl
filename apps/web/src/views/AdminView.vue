@@ -727,6 +727,17 @@ function statusText(status: string) {
   return status === "ENABLED" ? "启用" : "停用";
 }
 
+function formatDateOnly(value?: string | null) {
+  if (!value) return "长期";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value).slice(0, 10);
+  return parsed.toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 function employeeTypeText(type: string) {
   return (
     {
@@ -1982,7 +1993,10 @@ onMounted(load);
         </button>
       </div>
       <template v-if="showAdvancedPermissionPanel">
-        <form class="entity-form" @submit.prevent="createPositionAssignment">
+        <form
+          class="entity-form position-assignment-form"
+          @submit.prevent="createPositionAssignment"
+        >
           <h2 class="wide">审批岗位任职</h2>
           <label
             >审批岗位<select v-model="assignmentForm.positionCode" required>
@@ -2013,14 +2027,14 @@ onMounted(load);
               required /></label
           ><label
             >结束日期<input v-model="assignmentForm.endsOn" type="date" /></label
-          ><label
+          ><label class="checkbox-line"
             ><input
               v-model="assignmentForm.isDelegate"
               type="checkbox"
-            />代理任职</label
+            /><span>代理任职</span></label
           ><button :disabled="saving">保存任职</button>
         </form>
-        <section class="data-list">
+        <section class="data-list position-list">
           <h2>岗位任职记录</h2>
           <article
             v-for="assignment in positionAssignments"
@@ -2033,12 +2047,17 @@ onMounted(load);
                 {{ assignment.employeeName }}</strong
               >
               <p>
-                {{ assignment.startsOn }} 至 {{ assignment.endsOn || "长期" }} ·
-                {{ assignment.isDelegate ? "代理" : "正式" }} ·
-                {{ assignment.status }}
+                {{ formatDateOnly(assignment.startsOn) }} 至
+                {{ formatDateOnly(assignment.endsOn) }} ·
+                {{ assignment.isDelegate ? "代理任职" : "正式任职" }} ·
+                {{ statusText(assignment.status) }}
               </p>
             </div>
-            <button @click="togglePositionAssignment(assignment)">
+            <button
+              class="small-status-button"
+              type="button"
+              @click="togglePositionAssignment(assignment)"
+            >
               {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
             </button>
           </article>
@@ -2894,8 +2913,61 @@ onMounted(load);
 
 .advanced-toggle {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 16px;
+}
+
+.position-assignment-form {
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) minmax(130px, auto);
+  align-items: end;
+}
+
+.position-assignment-form .checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+}
+
+.position-assignment-form .checkbox-line input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.position-assignment-form button {
+  width: auto;
+  margin: 0;
+  padding: 11px 22px;
+}
+
+.position-list .data-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.position-list .small-status-button {
+  width: auto;
+  min-width: 72px;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #eef5fc;
+  color: #245f9f;
+}
+
+.position-list .small-status-button:hover {
+  background: #dcecff;
 }
 
 .account-role-panel {
@@ -2932,9 +3004,16 @@ onMounted(load);
   .compact-create,
   .role-config-grid,
   .member-toolbar,
-  .org-toolbar {
+  .org-toolbar,
+  .position-assignment-form,
+  .position-list .data-row {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .position-assignment-form button,
+  .position-list .small-status-button {
+    width: 100%;
   }
 }
 </style>
