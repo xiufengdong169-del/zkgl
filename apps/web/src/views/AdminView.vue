@@ -232,6 +232,11 @@ const selectedDepartmentId = ref("");
 const editingDepartment = ref(false);
 const editingEmployeeId = ref("");
 const editingRoleId = ref("");
+const showDepartmentForm = ref(false);
+const showEmployeeForm = ref(false);
+const showAccountForm = ref(false);
+const showAccountRolePanel = ref(false);
+const showAdvancedPermissionPanel = ref(false);
 const department = ref({
   code: "",
   name: "",
@@ -349,7 +354,12 @@ async function load() {
       !selectedDepartmentId.value ||
       !departments.value.some((item) => item.id === selectedDepartmentId.value)
     ) {
+      const departmentIdsWithMembers = new Set(
+        employees.value.map((person) => person.departmentId),
+      );
       selectedDepartmentId.value =
+        departments.value.find((item) => item.name === "商务财务部")?.id ||
+        departments.value.find((item) => departmentIdsWithMembers.has(item.id))?.id ||
         departments.value.find((item) => item.status === "ENABLED")?.id ||
         departments.value[0]?.id ||
         "";
@@ -388,6 +398,7 @@ async function createDepartment() {
       parentId: selectedDepartmentId.value || "",
       managerEmployeeId: "",
     };
+    showDepartmentForm.value = false;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
@@ -417,6 +428,7 @@ async function createEmployee() {
       email: "",
       joinedOn: "",
     };
+    showEmployeeForm.value = false;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
@@ -436,6 +448,7 @@ async function createAccount() {
       cloudbaseUid: "",
       roleIds: [],
     };
+    showAccountForm.value = false;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "账号创建失败";
@@ -718,9 +731,6 @@ const departmentTreeRows = computed(() => {
     list.push(item);
     children.set(parentId, list);
   }
-  for (const list of children.values()) {
-    list.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
-  }
   const rows: Array<Department & { level: number }> = [];
   const walk = (parentId: string, level: number) => {
     for (const child of children.get(parentId) ?? []) {
@@ -833,6 +843,17 @@ function prepareChildDepartment() {
   if (selectedDepartment.value) {
     department.value.parentId = selectedDepartment.value.id;
   }
+  showDepartmentForm.value = true;
+}
+
+function prepareEmployeeCreate() {
+  employee.value.departmentId = selectedDepartmentId.value;
+  showEmployeeForm.value = true;
+}
+
+function prepareAccountCreate(person?: Employee) {
+  account.value.employeeId = person?.id || "";
+  showAccountForm.value = true;
 }
 
 async function saveDepartment() {
@@ -1335,7 +1356,11 @@ onMounted(load);
             <button type="button" @click="editingDepartment = false">取消</button>
           </form>
 
-          <form class="compact-create" @submit.prevent="createDepartment">
+          <form
+            v-if="showDepartmentForm"
+            class="compact-create"
+            @submit.prevent="createDepartment"
+          >
             <h3>新增部门</h3>
             <input v-model="department.code" placeholder="部门编码" required />
             <input v-model="department.name" placeholder="部门名称" required />
@@ -1356,10 +1381,11 @@ onMounted(load);
               </option>
             </select>
             <button :disabled="saving">保存部门</button>
+            <button type="button" @click="showDepartmentForm = false">取消</button>
           </form>
 
           <div class="member-toolbar">
-            <button type="button" @click="employee.departmentId = selectedDepartmentId">
+            <button type="button" @click="prepareEmployeeCreate">
               邀请成员
             </button>
             <button type="button" @click="exportSelectedDepartmentMembers">导出</button>
@@ -1408,6 +1434,9 @@ onMounted(load);
                   <td>{{ statusText(person.accountStatus) }}</td>
                   <td class="row-actions">
                     <button type="button" @click="startEditEmployee(person)">编辑</button>
+                    <button type="button" @click="prepareAccountCreate(person)">
+                      账号/角色
+                    </button>
                     <button type="button" @click="toggleEmployeeStatus(person)">
                       {{ person.accountStatus === "ENABLED" ? "离职/停用" : "恢复" }}
                     </button>
@@ -1475,7 +1504,17 @@ onMounted(load);
             </tbody>
           </table>
 
-          <form class="compact-create" @submit.prevent="createEmployee">
+          <div class="subtle-panel-toggle">
+            <button type="button" @click="showAccountRolePanel = !showAccountRolePanel">
+              {{ showAccountRolePanel ? "收起账号角色维护" : "展开账号角色维护" }}
+            </button>
+          </div>
+
+          <form
+            v-if="showEmployeeForm"
+            class="compact-create"
+            @submit.prevent="createEmployee"
+          >
             <h3>新增人员</h3>
             <input v-model="employee.employeeCode" placeholder="人员编码" required />
             <input v-model="employee.name" placeholder="姓名" required />
@@ -1495,9 +1534,14 @@ onMounted(load);
             <input v-model="employee.email" placeholder="邮箱" type="email" />
             <input v-model="employee.joinedOn" type="date" />
             <button :disabled="saving">保存人员</button>
+            <button type="button" @click="showEmployeeForm = false">取消</button>
           </form>
 
-          <form class="compact-create" @submit.prevent="createAccount">
+          <form
+            v-if="showAccountForm"
+            class="compact-create"
+            @submit.prevent="createAccount"
+          >
             <h3>关联登录账号</h3>
             <select v-model="account.employeeId" required>
               <option value="" disabled>请选择人员</option>
@@ -1517,6 +1561,7 @@ onMounted(load);
               </option>
             </select>
             <button :disabled="saving">保存账号映射</button>
+            <button type="button" @click="showAccountForm = false">取消</button>
             <p class="muted">本系统不保存密码；后续部署到服务器后再接正式身份服务。</p>
           </form>
         </section>
@@ -1614,121 +1659,7 @@ onMounted(load);
           </article>
         </section>
       </section>
-      <form class="entity-form" @submit.prevent="createPositionAssignment">
-        <h2 class="wide">审批岗位任职</h2>
-        <label
-          >审批岗位<select v-model="assignmentForm.positionCode" required>
-            <option value="" disabled>请选择</option>
-            <option
-              v-for="position in positions"
-              :key="position.code"
-              :value="position.code"
-            >
-              {{ position.name }}
-            </option>
-          </select></label
-        ><label
-          >任职人员<select v-model="assignmentForm.employeeId" required>
-            <option value="" disabled>请选择</option>
-            <option
-              v-for="person in employees"
-              :key="person.id"
-              :value="person.id"
-            >
-              {{ person.name }}
-            </option>
-          </select></label
-        ><label
-          >开始日期<input
-            v-model="assignmentForm.startsOn"
-            type="date"
-            required /></label
-        ><label
-          >结束日期<input v-model="assignmentForm.endsOn" type="date" /></label
-        ><label
-          ><input
-            v-model="assignmentForm.isDelegate"
-            type="checkbox"
-          />代理任职</label
-        ><button :disabled="saving">保存任职</button>
-      </form>
-      <section class="data-list">
-        <h2>岗位任职记录</h2>
-        <article
-          v-for="assignment in positionAssignments"
-          :key="assignment.id"
-          class="data-row"
-        >
-          <div>
-            <strong
-              >{{ assignment.positionName }} ·
-              {{ assignment.employeeName }}</strong
-            >
-            <p>
-              {{ assignment.startsOn }} 至 {{ assignment.endsOn || "长期" }} ·
-              {{ assignment.isDelegate ? "代理" : "正式" }} ·
-              {{ assignment.status }}
-            </p>
-          </div>
-          <button @click="togglePositionAssignment(assignment)">
-            {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
-          </button>
-        </article>
-        <p v-if="!positionAssignments.length">暂无岗位任职</p>
-      </section>
-      <form class="entity-form" @submit.prevent="createProjectGrant">
-        <h2 class="wide">临时项目授权</h2>
-        <label
-          >项目<select v-model="projectGrantForm.projectId" required>
-            <option value="" disabled>请选择</option>
-            <option
-              v-for="project in projectOptions"
-              :key="project.id"
-              :value="project.id"
-            >
-              {{ project.projectName }}（{{ project.projectCode }}）
-            </option>
-          </select></label
-        ><label
-          >授权人员<select v-model="projectGrantForm.employeeId" required>
-            <option value="" disabled>请选择</option>
-            <option
-              v-for="person in employees"
-              :key="person.id"
-              :value="person.id"
-            >
-              {{ person.name }}（{{ person.employeeCode }}）
-            </option>
-          </select></label
-        ><label
-          >开始日期<input
-            v-model="projectGrantForm.startsOn"
-            type="date"
-            required /></label
-        ><label
-          >结束日期<input v-model="projectGrantForm.endsOn" type="date" /></label
-        ><label class="wide"
-          >授权原因<input v-model="projectGrantForm.reason" maxlength="500" /></label
-        ><button :disabled="saving">保存临时授权</button>
-      </form>
-      <section class="data-list">
-        <h2>临时项目授权记录</h2>
-        <article v-for="grant in projectGrants" :key="grant.id" class="data-row">
-          <div>
-            <strong>{{ grant.projectName }} · {{ grant.employeeName }}</strong>
-            <p>
-              {{ grant.startsOn }} 至 {{ grant.endsOn || "长期" }} ·
-              {{ grant.status }} · 授权人 {{ grant.grantedBy }}
-            </p>
-            <small v-if="grant.reason">{{ grant.reason }}</small>
-          </div>
-          <button type="button" @click="toggleProjectGrant(grant)">
-            {{ grant.status === "ENABLED" ? "停用" : "启用" }}
-          </button>
-        </article>
-        <p v-if="!projectGrants.length">暂无临时项目授权</p>
-      </section>
-      <section class="data-list">
+      <section v-if="showAccountRolePanel" class="data-list account-role-panel">
         <h2>账号角色</h2>
         <article v-for="item in users" :key="item.id" class="data-row">
           <div>
@@ -1750,6 +1681,134 @@ onMounted(load);
           </button>
         </article>
       </section>
+      <div class="advanced-toggle">
+        <button
+          type="button"
+          @click="showAdvancedPermissionPanel = !showAdvancedPermissionPanel"
+        >
+          {{
+            showAdvancedPermissionPanel
+              ? "收起高级权限配置"
+              : "展开高级权限配置"
+          }}
+        </button>
+      </div>
+      <template v-if="showAdvancedPermissionPanel">
+        <form class="entity-form" @submit.prevent="createPositionAssignment">
+          <h2 class="wide">审批岗位任职</h2>
+          <label
+            >审批岗位<select v-model="assignmentForm.positionCode" required>
+              <option value="" disabled>请选择</option>
+              <option
+                v-for="position in positions"
+                :key="position.code"
+                :value="position.code"
+              >
+                {{ position.name }}
+              </option>
+            </select></label
+          ><label
+            >任职人员<select v-model="assignmentForm.employeeId" required>
+              <option value="" disabled>请选择</option>
+              <option
+                v-for="person in employees"
+                :key="person.id"
+                :value="person.id"
+              >
+                {{ person.name }}
+              </option>
+            </select></label
+          ><label
+            >开始日期<input
+              v-model="assignmentForm.startsOn"
+              type="date"
+              required /></label
+          ><label
+            >结束日期<input v-model="assignmentForm.endsOn" type="date" /></label
+          ><label
+            ><input
+              v-model="assignmentForm.isDelegate"
+              type="checkbox"
+            />代理任职</label
+          ><button :disabled="saving">保存任职</button>
+        </form>
+        <section class="data-list">
+          <h2>岗位任职记录</h2>
+          <article
+            v-for="assignment in positionAssignments"
+            :key="assignment.id"
+            class="data-row"
+          >
+            <div>
+              <strong
+                >{{ assignment.positionName }} ·
+                {{ assignment.employeeName }}</strong
+              >
+              <p>
+                {{ assignment.startsOn }} 至 {{ assignment.endsOn || "长期" }} ·
+                {{ assignment.isDelegate ? "代理" : "正式" }} ·
+                {{ assignment.status }}
+              </p>
+            </div>
+            <button @click="togglePositionAssignment(assignment)">
+              {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
+            </button>
+          </article>
+          <p v-if="!positionAssignments.length">暂无岗位任职</p>
+        </section>
+        <form class="entity-form" @submit.prevent="createProjectGrant">
+          <h2 class="wide">临时项目授权</h2>
+          <label
+            >项目<select v-model="projectGrantForm.projectId" required>
+              <option value="" disabled>请选择</option>
+              <option
+                v-for="project in projectOptions"
+                :key="project.id"
+                :value="project.id"
+              >
+                {{ project.projectName }}（{{ project.projectCode }}）
+              </option>
+            </select></label
+          ><label
+            >授权人员<select v-model="projectGrantForm.employeeId" required>
+              <option value="" disabled>请选择</option>
+              <option
+                v-for="person in employees"
+                :key="person.id"
+                :value="person.id"
+              >
+                {{ person.name }}（{{ person.employeeCode }}）
+              </option>
+            </select></label
+          ><label
+            >开始日期<input
+              v-model="projectGrantForm.startsOn"
+              type="date"
+              required /></label
+          ><label
+            >结束日期<input v-model="projectGrantForm.endsOn" type="date" /></label
+          ><label class="wide"
+            >授权原因<input v-model="projectGrantForm.reason" maxlength="500" /></label
+          ><button :disabled="saving">保存临时授权</button>
+        </form>
+        <section class="data-list">
+          <h2>临时项目授权记录</h2>
+          <article v-for="grant in projectGrants" :key="grant.id" class="data-row">
+            <div>
+              <strong>{{ grant.projectName }} · {{ grant.employeeName }}</strong>
+              <p>
+                {{ grant.startsOn }} 至 {{ grant.endsOn || "长期" }} ·
+                {{ grant.status }} · 授权人 {{ grant.grantedBy }}
+              </p>
+              <small v-if="grant.reason">{{ grant.reason }}</small>
+            </div>
+            <button type="button" @click="toggleProjectGrant(grant)">
+              {{ grant.status === "ENABLED" ? "停用" : "启用" }}
+            </button>
+          </article>
+          <p v-if="!projectGrants.length">暂无临时项目授权</p>
+        </section>
+      </template>
     </template>
 
     <section v-else-if="activeTab === 'numbers'" class="data-panel">
@@ -2081,6 +2140,10 @@ onMounted(load);
 </template>
 
 <style scoped>
+.page {
+  max-width: 1400px;
+}
+
 .workflow-steps {
   grid-template-columns: repeat(6, minmax(110px, 1fr));
 }
@@ -2091,9 +2154,32 @@ onMounted(load);
 .inline-editor button,
 .mini-form button,
 .role-card button {
+  width: auto;
+  margin: 0;
+  padding: 9px 12px;
   border: 1px solid #cfd8e6;
   background: #fff;
   color: #17324d;
+}
+
+.org-console button,
+.org-console input,
+.org-console select,
+.org-console textarea {
+  width: auto;
+  margin-top: 0;
+}
+
+.org-console input,
+.org-console select,
+.org-console textarea {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid #cdd7e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
 }
 
 .workflow-steps button:hover,
@@ -2108,7 +2194,7 @@ onMounted(load);
 
 .org-console {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 330px minmax(0, 1fr);
   min-height: 720px;
   margin-top: 24px;
   overflow: hidden;
@@ -2136,6 +2222,8 @@ onMounted(load);
 .segment button,
 .quick-filter button {
   width: 100%;
+  margin: 0;
+  padding: 11px 12px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -2152,7 +2240,7 @@ onMounted(load);
 .quick-filter {
   display: grid;
   gap: 8px;
-  margin: 22px 0;
+  margin: 18px 0;
 }
 
 .search-box,
@@ -2162,6 +2250,10 @@ onMounted(load);
 .role-card {
   display: grid;
   gap: 10px;
+}
+
+.search-box {
+  margin-top: 0;
 }
 
 .search-box span {
@@ -2182,6 +2274,9 @@ onMounted(load);
   align-items: center;
   gap: 8px;
   width: 100%;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
   min-height: 42px;
   border: 0;
   border-radius: 10px;
@@ -2207,7 +2302,7 @@ onMounted(load);
 
 .org-main {
   min-width: 0;
-  padding: 26px 30px 34px;
+  padding: 22px 28px 28px;
 }
 
 .org-toolbar,
@@ -2247,10 +2342,16 @@ onMounted(load);
 
 .link-actions button,
 .row-actions button {
+  width: auto;
+  margin: 0;
   padding: 7px 10px;
   border: 0;
   background: transparent;
   color: #008f86;
+}
+
+.link-actions {
+  justify-content: flex-end;
 }
 
 .danger-link {
@@ -2261,7 +2362,7 @@ onMounted(load);
 .compact-create,
 .role-card {
   margin-top: 16px;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid #dfe6ef;
   border-radius: 12px;
   background: #fbfdff;
@@ -2269,8 +2370,20 @@ onMounted(load);
 
 .inline-editor,
 .compact-create {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
+  grid-template-columns: repeat(4, minmax(130px, 1fr)) auto auto;
   align-items: end;
+}
+
+.inline-editor label,
+.compact-create label {
+  margin-top: 0;
+}
+
+.compact-create input,
+.compact-create select,
+.inline-editor input,
+.inline-editor select {
+  width: 100%;
 }
 
 .compact-create h3,
@@ -2286,6 +2399,12 @@ onMounted(load);
   background: #fff;
 }
 
+.mini-form input,
+.mini-form select,
+.mini-form button {
+  width: 100%;
+}
+
 .mini-form select,
 .role-card select[multiple] {
   min-height: 140px;
@@ -2295,9 +2414,22 @@ onMounted(load);
   margin: 22px 0 14px;
 }
 
+.member-toolbar button {
+  width: auto;
+  margin: 0;
+  padding: 9px 18px;
+}
+
 .member-toolbar input {
   max-width: 360px;
   margin-left: auto;
+}
+
+.member-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
 }
 
 .member-table {
@@ -2340,6 +2472,31 @@ onMounted(load);
 
 .role-card {
   gap: 16px;
+}
+
+.subtle-panel-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.subtle-panel-toggle button,
+.advanced-toggle button {
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  color: #245f9f;
+  background: #eef5fc;
+}
+
+.advanced-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.account-role-panel {
+  margin-top: 14px;
 }
 
 .role-card > label,
