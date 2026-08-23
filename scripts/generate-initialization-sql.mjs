@@ -29,6 +29,13 @@ function valuesList(rows) {
 }
 
 function generateDepartmentSql(departments) {
+  const parentUpdates = departments.map((department) => {
+    const parentCode = String(department.parentDepartmentCode ?? "").trim();
+    if (!parentCode) {
+      return `UPDATE org_department SET parent_id=NULL,version=version+1 WHERE code=${sqlString(department.code)} AND is_deleted=0;`;
+    }
+    return `UPDATE org_department child JOIN org_department parent ON parent.code=${sqlString(parentCode)} AND parent.is_deleted=0 SET child.parent_id=parent.id,child.version=child.version+1 WHERE child.code=${sqlString(department.code)} AND child.is_deleted=0;`;
+  });
   return lineJoin([
     "-- Departments",
     "INSERT INTO org_department(code,name,status)",
@@ -41,6 +48,7 @@ function generateDepartmentSql(departments) {
       ]),
     ),
     "ON DUPLICATE KEY UPDATE name=VALUES(name),status=VALUES(status),is_deleted=0,version=org_department.version+1;",
+    ...parentUpdates,
   ]);
 }
 

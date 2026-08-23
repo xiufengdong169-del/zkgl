@@ -461,6 +461,24 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: z.object({
       code: z.string().trim().min(2).max(64),
       name: z.string().trim().min(2).max(128),
+      parentId: z.string().min(1).nullable().optional(),
+      managerEmployeeId: z.string().min(1).nullable().optional(),
+    }),
+  },
+  "admin.department.update": {
+    permission: "system.admin",
+    input: z.object({
+      departmentId: z.string().min(1),
+      name: z.string().trim().min(2).max(128),
+      parentId: z.string().min(1).nullable().optional(),
+      managerEmployeeId: z.string().min(1).nullable().optional(),
+      status: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
+  "admin.department.delete": {
+    permission: "system.admin",
+    input: z.object({
+      departmentId: z.string().min(1),
     }),
   },
   "admin.employee.create": {
@@ -468,12 +486,34 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: z.object({
       employeeCode: z.string().trim().min(2).max(64),
       name: z.string().trim().min(2).max(128),
-      employeeType: z.enum(["EMPLOYEE", "PARTNER", "EXTERNAL"]),
+      employeeType: z.enum(["INTERNAL", "EMPLOYEE", "PARTNER", "EXTERNAL"]),
       departmentId: z.string().min(1),
       positionName: z.string().trim().max(128).nullable().optional(),
       mobile: z.string().trim().max(32).nullable().optional(),
       email: z.email().nullable().optional(),
       joinedOn: z.iso.date().nullable().optional(),
+    }),
+  },
+  "admin.employee.update": {
+    permission: "system.admin",
+    input: z.object({
+      employeeId: z.string().min(1),
+      name: z.string().trim().min(2).max(128),
+      employeeType: z.enum(["INTERNAL", "EMPLOYEE", "PARTNER", "EXTERNAL"]),
+      departmentId: z.string().min(1),
+      positionName: z.string().trim().max(128).nullable().optional(),
+      mobile: z.string().trim().max(32).nullable().optional(),
+      email: z.email().nullable().optional(),
+      joinedOn: z.iso.date().nullable().optional(),
+      leftOn: z.iso.date().nullable().optional(),
+      supervisorId: z.string().min(1).nullable().optional(),
+      accountStatus: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
+  "admin.employee.delete": {
+    permission: "system.admin",
+    input: z.object({
+      employeeId: z.string().min(1),
     }),
   },
   "admin.positionAssignment.create": {
@@ -532,6 +572,33 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: z.object({
       roleId: z.string().min(1),
       permissionIds: z.array(z.string().min(1)).max(300),
+    }),
+  },
+  "admin.role.create": {
+    permission: "system.admin",
+    input: z.object({
+      code: z
+        .string()
+        .trim()
+        .min(2)
+        .max(64)
+        .regex(/^[A-Z][A-Z0-9_]*$/, "角色编码应使用大写字母、数字和下划线"),
+      name: z.string().trim().min(2).max(128),
+      permissionIds: z.array(z.string().min(1)).max(300).default([]),
+    }),
+  },
+  "admin.role.update": {
+    permission: "system.admin",
+    input: z.object({
+      roleId: z.string().min(1),
+      name: z.string().trim().min(2).max(128),
+      status: z.enum(["ENABLED", "DISABLED"]),
+    }),
+  },
+  "admin.role.delete": {
+    permission: "system.admin",
+    input: z.object({
+      roleId: z.string().min(1),
     }),
   },
   "admin.role.dataScope.set": {

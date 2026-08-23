@@ -153,7 +153,15 @@ export function verifyInitializationData(manifest) {
 
   const departmentCodes = ensureUnique(departments, "code", "departments");
   for (const [index, department] of departments.entries()) {
+    const code = requireString(department, "code", `departments[${index}]`);
     requireString(department, "name", `departments[${index}]`);
+    const parentDepartmentCode = String(department.parentDepartmentCode ?? "").trim();
+    if (parentDepartmentCode) {
+      if (parentDepartmentCode === code) fail(`departments[${index}] cannot be its own parent`);
+      if (!departmentCodes.has(parentDepartmentCode)) {
+        fail(`departments[${index}] references unknown parent department ${parentDepartmentCode}`);
+      }
+    }
     requireBoolean(department.enabled, `departments[${index}].enabled`);
   }
 

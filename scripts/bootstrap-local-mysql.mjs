@@ -263,6 +263,45 @@ async function importSql({ host, port, database }, sql) {
   }
 }
 
+async function columnExists(connection, database, table, column) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?`,
+    [database, table, column],
+  );
+  return Number(rows[0]?.count ?? 0) > 0;
+}
+
+async function indexExists(connection, database, table, indexName) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS count FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND INDEX_NAME=?`,
+    [database, table, indexName],
+  );
+  return Number(rows[0]?.count ?? 0) > 0;
+}
+
+async function ensureLocalSchemaCompatibility({ host, port, database }) {
+  const connection = await rootConnection({ host, port, database });
+  try {
+    if (!(await columnExists(connection, database, "org_department", "parent_id"))) {
+      await connection.query(
+        "ALTER TABLE org_department ADD COLUMN parent_id BIGINT UNSIGNED NULL AFTER name",
+      );
+    }
+    if (!(await columnExists(connection, database, "org_department", "manager_employee_id"))) {
+      await connection.query(
+        "ALTER TABLE org_department ADD COLUMN manager_employee_id BIGINT UNSIGNED NULL AFTER parent_id",
+      );
+    }
+    if (!(await indexExists(connection, database, "org_department", "idx_department_parent"))) {
+      await connection.query(
+        "ALTER TABLE org_department ADD INDEX idx_department_parent (parent_id, status)",
+      );
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
 async function countRows({ host, port, database }, table) {
   const connection = await rootConnection({ host, port, database });
   try {
@@ -312,6 +351,11 @@ export async function bootstrapLocalMysql(options = parseArgs([])) {
     { host: options.host, port: options.port, database: options.database },
     await readFile(resolve(root, "database", "init", "schema.sql"), "utf8"),
   );
+  await ensureLocalSchemaCompatibility({
+    host: options.host,
+    port: options.port,
+    database: options.database,
+  });
   await importSql(
     { host: options.host, port: options.port, database: options.database },
     await generateInitializationSql(),

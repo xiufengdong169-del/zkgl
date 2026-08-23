@@ -1,26 +1,42 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { callApi } from "../api";
 
 interface Department {
   id: string;
   code: string;
   name: string;
+  parentId?: string | null;
+  managerEmployeeId?: string | null;
+  managerName?: string | null;
   status: string;
+  version?: number;
 }
 interface Employee {
   id: string;
   employeeCode: string;
   name: string;
+  employeeType: string;
+  departmentId: string;
   departmentName: string;
   positionName?: string;
-  accountStatus: string;
+  mobile?: string | null;
+  email?: string | null;
+  joinedOn?: string | null;
+  leftOn?: string | null;
+  supervisorId?: string | null;
+  supervisorName?: string | null;
+  accountStatus: "ENABLED" | "DISABLED";
+  version?: number;
 }
 interface Role {
   id: string;
   code: string;
   name: string;
   status: string;
+  version?: number;
+  userCount?: number;
+  permissionCount?: number;
 }
 interface Permission {
   id: string;
@@ -59,7 +75,11 @@ interface User {
   id: string;
   username: string;
   cloudbaseUid: string;
+  employeeId: string;
   employeeName: string;
+  departmentName?: string;
+  mobile?: string | null;
+  email?: string | null;
   status: "ENABLED" | "DISABLED";
   roleNames?: string;
   roleIds?: string;
@@ -203,7 +223,36 @@ const activeTab = ref<
 >("organization");
 const auditKeyword = ref("");
 const auditOutcome = ref("");
-const department = ref({ code: "", name: "" });
+const organizationPane = ref<"departments" | "roles">("departments");
+const memberFilter = ref<"active" | "left" | "all">("active");
+const departmentKeyword = ref("");
+const memberKeyword = ref("");
+const accountStatusFilter = ref<"" | "ENABLED" | "DISABLED">("");
+const selectedDepartmentId = ref("");
+const editingDepartment = ref(false);
+const editingEmployeeId = ref("");
+const editingRoleId = ref("");
+const department = ref({
+  code: "",
+  name: "",
+  parentId: "",
+  managerEmployeeId: "",
+});
+const departmentEdit = ref({
+  name: "",
+  parentId: "",
+  managerEmployeeId: "",
+  status: "ENABLED" as "ENABLED" | "DISABLED",
+});
+const roleForm = ref({
+  code: "",
+  name: "",
+  permissionIds: [] as string[],
+});
+const roleEdit = ref({
+  name: "",
+  status: "ENABLED" as "ENABLED" | "DISABLED",
+});
 const dictionaryTypeForm = ref({ typeCode: "", name: "", description: "" });
 const assignmentForm = ref({
   positionCode: "",
@@ -229,12 +278,24 @@ const dictionaryItemForm = ref({
 const employee = ref({
   employeeCode: "",
   name: "",
-  employeeType: "EMPLOYEE",
+  employeeType: "INTERNAL",
   departmentId: "",
   positionName: "",
   mobile: "",
   email: "",
   joinedOn: "",
+});
+const employeeEdit = ref({
+  name: "",
+  employeeType: "INTERNAL",
+  departmentId: "",
+  positionName: "",
+  mobile: "",
+  email: "",
+  joinedOn: "",
+  leftOn: "",
+  supervisorId: "",
+  accountStatus: "ENABLED" as "ENABLED" | "DISABLED",
 });
 const account = ref({
   employeeId: "",
@@ -284,6 +345,15 @@ async function load() {
     projectGrants.value = data.projectGrants;
     dictionaryTypes.value = data.dictionaryTypes;
     dictionaryItems.value = data.dictionaryItems;
+    if (
+      !selectedDepartmentId.value ||
+      !departments.value.some((item) => item.id === selectedDepartmentId.value)
+    ) {
+      selectedDepartmentId.value =
+        departments.value.find((item) => item.status === "ENABLED")?.id ||
+        departments.value[0]?.id ||
+        "";
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -307,8 +377,17 @@ async function loadAudit() {
 async function createDepartment() {
   saving.value = true;
   try {
-    await callApi("admin.department.create", department.value);
-    department.value = { code: "", name: "" };
+    await callApi("admin.department.create", {
+      ...department.value,
+      parentId: department.value.parentId || null,
+      managerEmployeeId: department.value.managerEmployeeId || null,
+    });
+    department.value = {
+      code: "",
+      name: "",
+      parentId: selectedDepartmentId.value || "",
+      managerEmployeeId: "",
+    };
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
@@ -331,8 +410,8 @@ async function createEmployee() {
     employee.value = {
       employeeCode: "",
       name: "",
-      employeeType: "EMPLOYEE",
-      departmentId: "",
+      employeeType: "INTERNAL",
+      departmentId: selectedDepartmentId.value || "",
       positionName: "",
       mobile: "",
       email: "",
@@ -584,6 +663,339 @@ async function refreshReminders() {
   }
 }
 
+function dateInput(value?: string | null) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function confirmAction(message: string) {
+  return typeof window === "undefined" || window.confirm(message);
+}
+
+function statusText(status: string) {
+  return status === "ENABLED" ? "启用" : "停用";
+}
+
+function employeeTypeText(type: string) {
+  return (
+    {
+      INTERNAL: "内部人员",
+      EMPLOYEE: "员工",
+      PARTNER: "合作人",
+      EXTERNAL: "外部人员",
+    }[type] || type
+  );
+}
+
+const employeeOptions = computed(() =>
+  employees.value.filter((item) => item.accountStatus === "ENABLED"),
+);
+
+const selectedDepartment = computed(
+  () =>
+    departments.value.find((item) => item.id === selectedDepartmentId.value) ||
+    departments.value[0],
+);
+
+const availableParentDepartments = computed(() =>
+  departments.value.filter((item) => item.id !== selectedDepartmentId.value),
+);
+
+const departmentMemberCounts = computed(() => {
+  const counts = new Map<string, number>();
+  for (const person of employees.value) {
+    counts.set(person.departmentId, (counts.get(person.departmentId) ?? 0) + 1);
+  }
+  return counts;
+});
+
+const departmentTreeRows = computed(() => {
+  const children = new Map<string, Department[]>();
+  const departmentIds = new Set(departments.value.map((item) => item.id));
+  for (const item of departments.value) {
+    const parentId =
+      item.parentId && departmentIds.has(item.parentId) ? item.parentId : "";
+    const list = children.get(parentId) ?? [];
+    list.push(item);
+    children.set(parentId, list);
+  }
+  for (const list of children.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
+  }
+  const rows: Array<Department & { level: number }> = [];
+  const walk = (parentId: string, level: number) => {
+    for (const child of children.get(parentId) ?? []) {
+      rows.push({ ...child, level });
+      walk(child.id, level + 1);
+    }
+  };
+  walk("", 0);
+  const keyword = departmentKeyword.value.trim().toLowerCase();
+  if (!keyword) return rows;
+  return rows.filter(
+    (item) =>
+      item.name.toLowerCase().includes(keyword) ||
+      item.code.toLowerCase().includes(keyword),
+  );
+});
+
+const selectedDepartmentMembers = computed(() => {
+  const keyword = memberKeyword.value.trim().toLowerCase();
+  return employees.value.filter((person) => {
+    const matchDepartment = selectedDepartmentId.value
+      ? person.departmentId === selectedDepartmentId.value
+      : true;
+    const matchKeyword =
+      !keyword ||
+      person.name.toLowerCase().includes(keyword) ||
+      person.employeeCode.toLowerCase().includes(keyword) ||
+      String(person.mobile ?? "").toLowerCase().includes(keyword) ||
+      String(person.email ?? "").toLowerCase().includes(keyword);
+    const matchMemberStatus =
+      memberFilter.value === "all" ||
+      (memberFilter.value === "active" && person.accountStatus === "ENABLED") ||
+      (memberFilter.value === "left" && person.accountStatus === "DISABLED");
+    const matchAccountStatus =
+      !accountStatusFilter.value ||
+      person.accountStatus === accountStatusFilter.value;
+    return (
+      matchDepartment &&
+      matchKeyword &&
+      matchMemberStatus &&
+      matchAccountStatus
+    );
+  });
+});
+
+const activeUsers = computed(() =>
+  users.value.filter((item) => item.status === "ENABLED").length,
+);
+
+const permissionGroups = computed(() => {
+  const groups = new Map<string, Permission[]>();
+  for (const permission of permissions.value) {
+    const list = groups.get(permission.permissionType) ?? [];
+    list.push(permission);
+    groups.set(permission.permissionType, list);
+  }
+  return [...groups.entries()].map(([type, items]) => ({ type, items }));
+});
+
+function userForEmployee(employeeId: string) {
+  return users.value.find((item) => item.employeeId === employeeId);
+}
+
+function roleNamesForUser(user?: User) {
+  return user?.roleNames?.split("、").filter(Boolean) ?? [];
+}
+
+function exportSelectedDepartmentMembers() {
+  const header = ["姓名", "人员编码", "部门", "岗位", "手机", "邮箱", "账号状态"];
+  const rows = selectedDepartmentMembers.value.map((person) => [
+    person.name,
+    person.employeeCode,
+    person.departmentName,
+    person.positionName || "",
+    person.mobile || "",
+    person.email || "",
+    statusText(person.accountStatus),
+  ]);
+  const csv = [header, ...rows]
+    .map((row) =>
+      row
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${selectedDepartment.value?.name || "成员"}-成员.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function startDepartmentEdit() {
+  const item = selectedDepartment.value;
+  if (!item) return;
+  editingDepartment.value = true;
+  departmentEdit.value = {
+    name: item.name,
+    parentId: item.parentId || "",
+    managerEmployeeId: item.managerEmployeeId || "",
+    status: item.status as "ENABLED" | "DISABLED",
+  };
+}
+
+function prepareChildDepartment() {
+  if (selectedDepartment.value) {
+    department.value.parentId = selectedDepartment.value.id;
+  }
+}
+
+async function saveDepartment() {
+  const item = selectedDepartment.value;
+  if (!item) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.department.update", {
+      departmentId: item.id,
+      ...departmentEdit.value,
+      parentId: departmentEdit.value.parentId || null,
+      managerEmployeeId: departmentEdit.value.managerEmployeeId || null,
+    });
+    editingDepartment.value = false;
+    await load();
+    notice.value = "部门信息已更新";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "部门更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteSelectedDepartment() {
+  const item = selectedDepartment.value;
+  if (!item || !confirmAction(`确认删除部门「${item.name}」？`)) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.department.delete", { departmentId: item.id });
+    selectedDepartmentId.value = "";
+    editingDepartment.value = false;
+    await load();
+    notice.value = "部门已删除";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "部门删除失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+function startEditEmployee(person: Employee) {
+  editingEmployeeId.value = person.id;
+  employeeEdit.value = {
+    name: person.name,
+    employeeType: person.employeeType || "INTERNAL",
+    departmentId: person.departmentId,
+    positionName: person.positionName || "",
+    mobile: person.mobile || "",
+    email: person.email || "",
+    joinedOn: dateInput(person.joinedOn),
+    leftOn: dateInput(person.leftOn),
+    supervisorId: person.supervisorId || "",
+    accountStatus: person.accountStatus,
+  };
+}
+
+async function saveEmployee(person: Employee) {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.employee.update", {
+      employeeId: person.id,
+      ...employeeEdit.value,
+      positionName: employeeEdit.value.positionName || null,
+      mobile: employeeEdit.value.mobile || null,
+      email: employeeEdit.value.email || null,
+      joinedOn: employeeEdit.value.joinedOn || null,
+      leftOn: employeeEdit.value.leftOn || null,
+      supervisorId: employeeEdit.value.supervisorId || null,
+    });
+    editingEmployeeId.value = "";
+    await load();
+    notice.value = "人员信息已更新";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "人员更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function toggleEmployeeStatus(person: Employee) {
+  startEditEmployee(person);
+  employeeEdit.value.accountStatus =
+    person.accountStatus === "ENABLED" ? "DISABLED" : "ENABLED";
+  if (employeeEdit.value.accountStatus === "DISABLED" && !employeeEdit.value.leftOn) {
+    employeeEdit.value.leftOn = new Date().toISOString().slice(0, 10);
+  }
+  await saveEmployee(person);
+}
+
+async function deleteEmployee(person: Employee) {
+  if (!confirmAction(`确认删除人员「${person.name}」？`)) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.employee.delete", { employeeId: person.id });
+    await load();
+    notice.value = "人员已删除";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "人员删除失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function createRole() {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.create", roleForm.value);
+    roleForm.value = { code: "", name: "", permissionIds: [] };
+    await load();
+    notice.value = "角色已创建";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "角色创建失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+function startEditRole(role: Role) {
+  editingRoleId.value = role.id;
+  roleEdit.value = {
+    name: role.name,
+    status: role.status as "ENABLED" | "DISABLED",
+  };
+}
+
+async function saveRole(role: Role) {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.update", {
+      roleId: role.id,
+      ...roleEdit.value,
+    });
+    editingRoleId.value = "";
+    await load();
+    notice.value = "角色已更新";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "角色更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteRole(role: Role) {
+  if (!confirmAction(`确认删除角色「${role.name}」？`)) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.role.delete", { roleId: role.id });
+    await load();
+    notice.value = "角色已删除";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "角色删除失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 const dataScopeTypes: DataScopeType[] = [
   "ALL",
   "SELF",
@@ -763,79 +1175,445 @@ onMounted(load);
     </nav>
 
     <template v-if="activeTab === 'organization'">
-      <form class="entity-form" @submit.prevent="createDepartment">
-        <h2 class="wide">新增部门</h2>
-        <label
-          >部门编码<input
-            v-model="department.code"
-            required
-            minlength="2" /></label
-        ><label
-          >部门名称<input
-            v-model="department.name"
-            required
-            minlength="2" /></label
-        ><button :disabled="saving">保存部门</button>
-      </form>
-      <form class="entity-form" @submit.prevent="createEmployee">
-        <h2 class="wide">新增人员</h2>
-        <label>人员编码<input v-model="employee.employeeCode" required /></label
-        ><label>姓名<input v-model="employee.name" required /></label
-        ><label
-          >类型<select v-model="employee.employeeType">
-            <option value="EMPLOYEE">员工</option>
-            <option value="PARTNER">合作人</option>
-            <option value="EXTERNAL">外部人员</option>
-          </select></label
-        ><label
-          >部门<select v-model="employee.departmentId" required>
-            <option value="" disabled>请选择</option>
-            <option v-for="item in departments" :key="item.id" :value="item.id">
-              {{ item.name }}
-            </option>
-          </select></label
-        ><label>岗位<input v-model="employee.positionName" /></label
-        ><label>手机<input v-model="employee.mobile" /></label
-        ><label>邮箱<input v-model="employee.email" type="email" /></label
-        ><label>入职日<input v-model="employee.joinedOn" type="date" /></label
-        ><button :disabled="saving">保存人员</button>
-      </form>
-      <form class="entity-form" @submit.prevent="createAccount">
-        <h2 class="wide">关联登录账号</h2>
-        <label
-          >人员<select v-model="account.employeeId" required>
-            <option value="" disabled>请选择</option>
-            <option
-              v-for="person in employees"
-              :key="person.id"
-              :value="person.id"
+      <section class="org-console">
+        <aside class="org-sidebar">
+          <div class="segment">
+            <button
+              :class="{ active: organizationPane === 'departments' }"
+              type="button"
+              @click="organizationPane = 'departments'"
             >
-              {{ person.name }}（{{ person.employeeCode }}）
-            </option>
-          </select></label
-        ><label
-          >登录账号<input
-            v-model="account.username"
-            required
-            minlength="3"
-            maxlength="64" /></label
-        ><label
-          >云开发 UID<input
-            v-model="account.cloudbaseUid"
-            required
-            minlength="6"
-            maxlength="128" /></label
-        ><label
-          >初始角色<select v-model="account.roleIds" multiple required>
-            <option v-for="role in roles" :key="role.id" :value="role.id">
-              {{ role.name }}
-            </option>
-          </select></label
-        ><button :disabled="saving">保存账号映射</button>
-        <p class="wide muted">
-          密码仅由云开发身份服务管理，本系统不接收或保存密码。
-        </p>
-      </form>
+              部门
+            </button>
+            <button
+              :class="{ active: organizationPane === 'roles' }"
+              type="button"
+              @click="organizationPane = 'roles'"
+            >
+              角色
+            </button>
+          </div>
+          <template v-if="organizationPane === 'departments'">
+            <div class="quick-filter">
+              <button
+                :class="{ active: memberFilter === 'active' }"
+                type="button"
+                @click="memberFilter = 'active'"
+              >
+                全部成员
+              </button>
+              <button
+                :class="{ active: memberFilter === 'left' }"
+                type="button"
+                @click="memberFilter = 'left'"
+              >
+                离职成员
+              </button>
+            </div>
+            <label class="search-box">
+              <span>部门</span>
+              <input v-model="departmentKeyword" placeholder="搜索部门" />
+            </label>
+            <nav class="department-tree">
+              <button
+                v-for="item in departmentTreeRows"
+                :key="item.id"
+                :class="{ selected: selectedDepartmentId === item.id }"
+                :style="{ paddingLeft: `${14 + item.level * 22}px` }"
+                type="button"
+                @click="
+                  selectedDepartmentId = item.id;
+                  editingDepartment = false;
+                  employee.departmentId = item.id;
+                "
+              >
+                <span class="tree-icon">▦</span>
+                <span>{{ item.name }}</span>
+                <small>{{ departmentMemberCounts.get(item.id) || 0 }}</small>
+              </button>
+            </nav>
+          </template>
+          <template v-else>
+            <form class="mini-form" @submit.prevent="createRole">
+              <h3>新增角色</h3>
+              <input
+                v-model="roleForm.code"
+                placeholder="角色编码，如 FINANCE_ASSISTANT"
+                required
+              />
+              <input v-model="roleForm.name" placeholder="角色名称" required />
+              <select v-model="roleForm.permissionIds" multiple>
+                <option
+                  v-for="permission in permissions"
+                  :key="permission.id"
+                  :value="permission.id"
+                >
+                  {{ permission.name }}
+                </option>
+              </select>
+              <button :disabled="saving">创建角色</button>
+            </form>
+            <div class="role-list">
+              <button
+                v-for="role in roles"
+                :key="role.id"
+                type="button"
+                @click="startEditRole(role)"
+              >
+                <span>{{ role.name }}</span>
+                <small>{{ role.permissionCount || 0 }} 项权限</small>
+              </button>
+            </div>
+          </template>
+        </aside>
+
+        <section v-if="organizationPane === 'departments'" class="org-main">
+          <header class="org-toolbar">
+            <div>
+              <h2>{{ selectedDepartment?.name || "请选择部门" }}</h2>
+              <p>
+                主管：{{ selectedDepartment?.managerName || "未设置" }} ·
+                状态：{{ statusText(selectedDepartment?.status || "") }}
+              </p>
+            </div>
+            <div class="link-actions" v-if="selectedDepartment">
+              <button type="button" @click="startDepartmentEdit">修改名称</button>
+              <button type="button" @click="startDepartmentEdit">
+                调整上级部门
+              </button>
+              <button type="button" @click="startDepartmentEdit">
+                设置部门主管
+              </button>
+              <button type="button" @click="prepareChildDepartment">
+                添加子部门
+              </button>
+              <button class="danger-link" type="button" @click="deleteSelectedDepartment">
+                删除部门
+              </button>
+            </div>
+          </header>
+
+          <form
+            v-if="editingDepartment && selectedDepartment"
+            class="inline-editor"
+            @submit.prevent="saveDepartment"
+          >
+            <label
+              >部门名称<input v-model="departmentEdit.name" required
+            /></label>
+            <label
+              >上级部门<select v-model="departmentEdit.parentId">
+                <option value="">无上级</option>
+                <option
+                  v-for="item in availableParentDepartments"
+                  :key="item.id"
+                  :value="item.id"
+                >
+                  {{ item.name }}
+                </option>
+              </select></label
+            >
+            <label
+              >部门主管<select v-model="departmentEdit.managerEmployeeId">
+                <option value="">未设置</option>
+                <option
+                  v-for="person in employeeOptions"
+                  :key="person.id"
+                  :value="person.id"
+                >
+                  {{ person.name }}
+                </option>
+              </select></label
+            >
+            <label
+              >状态<select v-model="departmentEdit.status">
+                <option value="ENABLED">启用</option>
+                <option value="DISABLED">停用</option>
+              </select></label
+            >
+            <button :disabled="saving">保存部门</button>
+            <button type="button" @click="editingDepartment = false">取消</button>
+          </form>
+
+          <form class="compact-create" @submit.prevent="createDepartment">
+            <h3>新增部门</h3>
+            <input v-model="department.code" placeholder="部门编码" required />
+            <input v-model="department.name" placeholder="部门名称" required />
+            <select v-model="department.parentId">
+              <option value="">无上级部门</option>
+              <option v-for="item in departments" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </option>
+            </select>
+            <select v-model="department.managerEmployeeId">
+              <option value="">未设置主管</option>
+              <option
+                v-for="person in employeeOptions"
+                :key="person.id"
+                :value="person.id"
+              >
+                {{ person.name }}
+              </option>
+            </select>
+            <button :disabled="saving">保存部门</button>
+          </form>
+
+          <div class="member-toolbar">
+            <button type="button" @click="employee.departmentId = selectedDepartmentId">
+              邀请成员
+            </button>
+            <button type="button" @click="exportSelectedDepartmentMembers">导出</button>
+            <input v-model="memberKeyword" placeholder="搜索成员" />
+            <label
+              >账号状态<select v-model="accountStatusFilter">
+                <option value="">全部</option>
+                <option value="ENABLED">启用</option>
+                <option value="DISABLED">停用</option>
+              </select></label
+            >
+          </div>
+
+          <table class="member-table">
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>手机</th>
+                <th>邮箱</th>
+                <th>角色</th>
+                <th>账号状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="person in selectedDepartmentMembers" :key="person.id">
+                <tr>
+                  <td>
+                    <strong>{{ person.name }}</strong>
+                    <small>{{ person.employeeCode }} · {{ person.positionName || "未设置岗位" }}</small>
+                  </td>
+                  <td>{{ person.mobile || "-" }}</td>
+                  <td>{{ person.email || "-" }}</td>
+                  <td>
+                    <span
+                      v-for="roleName in roleNamesForUser(userForEmployee(person.id))"
+                      :key="roleName"
+                      class="role-chip"
+                    >
+                      {{ roleName }}
+                    </span>
+                    <span v-if="!roleNamesForUser(userForEmployee(person.id)).length" class="muted">
+                      未授权
+                    </span>
+                  </td>
+                  <td>{{ statusText(person.accountStatus) }}</td>
+                  <td class="row-actions">
+                    <button type="button" @click="startEditEmployee(person)">编辑</button>
+                    <button type="button" @click="toggleEmployeeStatus(person)">
+                      {{ person.accountStatus === "ENABLED" ? "离职/停用" : "恢复" }}
+                    </button>
+                    <button type="button" class="danger-link" @click="deleteEmployee(person)">
+                      删除
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="editingEmployeeId === person.id" class="editor-row">
+                  <td colspan="6">
+                    <form class="inline-editor" @submit.prevent="saveEmployee(person)">
+                      <label>姓名<input v-model="employeeEdit.name" required /></label>
+                      <label
+                        >类型<select v-model="employeeEdit.employeeType">
+                          <option value="INTERNAL">内部人员</option>
+                          <option value="PARTNER">合作人</option>
+                          <option value="EXTERNAL">外部人员</option>
+                        </select></label
+                      >
+                      <label
+                        >部门<select v-model="employeeEdit.departmentId" required>
+                          <option
+                            v-for="item in departments"
+                            :key="item.id"
+                            :value="item.id"
+                          >
+                            {{ item.name }}
+                          </option>
+                        </select></label
+                      >
+                      <label>岗位<input v-model="employeeEdit.positionName" /></label>
+                      <label>手机<input v-model="employeeEdit.mobile" /></label>
+                      <label>邮箱<input v-model="employeeEdit.email" type="email" /></label>
+                      <label>入职日<input v-model="employeeEdit.joinedOn" type="date" /></label>
+                      <label>离职日<input v-model="employeeEdit.leftOn" type="date" /></label>
+                      <label
+                        >直属主管<select v-model="employeeEdit.supervisorId">
+                          <option value="">未设置</option>
+                          <option
+                            v-for="item in employeeOptions"
+                            :key="item.id"
+                            :value="item.id"
+                          >
+                            {{ item.name }}
+                          </option>
+                        </select></label
+                      >
+                      <label
+                        >账号状态<select v-model="employeeEdit.accountStatus">
+                          <option value="ENABLED">启用</option>
+                          <option value="DISABLED">停用</option>
+                        </select></label
+                      >
+                      <button :disabled="saving">保存人员</button>
+                      <button type="button" @click="editingEmployeeId = ''">
+                        取消
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="!selectedDepartmentMembers.length">
+                <td colspan="6">当前筛选下暂无成员</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <form class="compact-create" @submit.prevent="createEmployee">
+            <h3>新增人员</h3>
+            <input v-model="employee.employeeCode" placeholder="人员编码" required />
+            <input v-model="employee.name" placeholder="姓名" required />
+            <select v-model="employee.employeeType">
+              <option value="INTERNAL">内部人员</option>
+              <option value="PARTNER">合作人</option>
+              <option value="EXTERNAL">外部人员</option>
+            </select>
+            <select v-model="employee.departmentId" required>
+              <option value="" disabled>请选择部门</option>
+              <option v-for="item in departments" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </option>
+            </select>
+            <input v-model="employee.positionName" placeholder="岗位" />
+            <input v-model="employee.mobile" placeholder="手机" />
+            <input v-model="employee.email" placeholder="邮箱" type="email" />
+            <input v-model="employee.joinedOn" type="date" />
+            <button :disabled="saving">保存人员</button>
+          </form>
+
+          <form class="compact-create" @submit.prevent="createAccount">
+            <h3>关联登录账号</h3>
+            <select v-model="account.employeeId" required>
+              <option value="" disabled>请选择人员</option>
+              <option
+                v-for="person in employees"
+                :key="person.id"
+                :value="person.id"
+              >
+                {{ person.name }}（{{ person.employeeCode }}）
+              </option>
+            </select>
+            <input v-model="account.username" placeholder="登录账号" required />
+            <input v-model="account.cloudbaseUid" placeholder="本地/身份 UID" required />
+            <select v-model="account.roleIds" multiple required>
+              <option v-for="role in roles" :key="role.id" :value="role.id">
+                {{ role.name }}
+              </option>
+            </select>
+            <button :disabled="saving">保存账号映射</button>
+            <p class="muted">本系统不保存密码；后续部署到服务器后再接正式身份服务。</p>
+          </form>
+        </section>
+
+        <section v-else class="org-main">
+          <header class="org-toolbar">
+            <div>
+              <h2>角色、权限与数据范围</h2>
+              <p>
+                当前 {{ roles.length }} 个角色，启用账号 {{ activeUsers }} 个。
+              </p>
+            </div>
+          </header>
+          <article v-for="role in roles" :key="role.id" class="role-card">
+            <header>
+              <div>
+                <strong>{{ role.name }} · {{ role.code }}</strong>
+                <p>
+                  {{ statusText(role.status) }} ·
+                  {{ role.userCount || 0 }} 个账号 ·
+                  {{ role.permissionCount || 0 }} 项权限
+                </p>
+              </div>
+              <div class="row-actions">
+                <button type="button" @click="startEditRole(role)">编辑</button>
+                <button type="button" class="danger-link" @click="deleteRole(role)">
+                  删除
+                </button>
+              </div>
+            </header>
+            <form
+              v-if="editingRoleId === role.id"
+              class="inline-editor"
+              @submit.prevent="saveRole(role)"
+            >
+              <label>角色名称<input v-model="roleEdit.name" required /></label>
+              <label
+                >状态<select v-model="roleEdit.status">
+                  <option value="ENABLED">启用</option>
+                  <option value="DISABLED">停用</option>
+                </select></label
+              >
+              <button :disabled="saving">保存角色</button>
+              <button type="button" @click="editingRoleId = ''">取消</button>
+            </form>
+            <label>
+              功能权限
+              <select
+                multiple
+                :value="rolePermissionIds(role.id)"
+                :disabled="saving"
+                @change="setRolePermissions(role, $event)"
+              >
+                <optgroup
+                  v-for="group in permissionGroups"
+                  :key="group.type"
+                  :label="group.type"
+                >
+                  <option
+                    v-for="permission in group.items"
+                    :key="permission.id"
+                    :value="permission.id"
+                  >
+                    {{ permission.name }} · {{ permission.code }}
+                  </option>
+                </optgroup>
+              </select>
+            </label>
+            <div class="role-config-grid">
+              <form @submit.prevent="saveRoleDataScopes(role, $event)">
+                <label>
+                  数据范围
+                  <textarea
+                    name="scopes"
+                    rows="4"
+                    :value="formatRoleDataScopes(role.id)"
+                    placeholder="ALL: 或 DEPARTMENT:部门ID"
+                  ></textarea>
+                </label>
+                <button :disabled="saving">保存数据范围</button>
+              </form>
+              <form @submit.prevent="saveSensitiveGrants(role, $event)">
+                <label>
+                  敏感字段
+                  <textarea
+                    name="grants"
+                    rows="4"
+                    :value="formatSensitiveGrants(role.id)"
+                    placeholder="字段编码:FULL|MASKED:true|false"
+                  ></textarea>
+                </label>
+                <button :disabled="saving">保存敏感字段</button>
+              </form>
+            </div>
+          </article>
+        </section>
+      </section>
       <form class="entity-form" @submit.prevent="createPositionAssignment">
         <h2 class="wide">审批岗位任职</h2>
         <label
@@ -970,57 +1748,6 @@ onMounted(load);
           <button type="button" @click="toggleUserStatus(item)">
             {{ item.status === "ENABLED" ? "停用" : "启用" }}
           </button>
-        </article>
-      </section>
-      <section class="data-list">
-        <h2>角色权限与数据范围</h2>
-        <p class="muted">
-          数据范围每行一条：ALL:、SELF:、DEPARTMENT:部门ID、PROJECT:项目ID。敏感字段每行一条：字段编码:FULL|MASKED:true|false。
-        </p>
-        <article v-for="role in roles" :key="role.id" class="data-row">
-          <div>
-            <strong>{{ role.name }} · {{ role.code }}</strong>
-            <p>{{ role.status }}</p>
-          </div>
-          <label>
-            权限
-            <select
-              multiple
-              :value="rolePermissionIds(role.id)"
-              :disabled="saving"
-              @change="setRolePermissions(role, $event)"
-            >
-              <option
-                v-for="permission in permissions"
-                :key="permission.id"
-                :value="permission.id"
-              >
-                {{ permission.name }} · {{ permission.code }}
-              </option>
-            </select>
-          </label>
-          <form @submit.prevent="saveRoleDataScopes(role, $event)">
-            <label>
-              数据范围
-              <textarea
-                name="scopes"
-                rows="4"
-                :value="formatRoleDataScopes(role.id)"
-              ></textarea>
-            </label>
-            <button :disabled="saving">保存数据范围</button>
-          </form>
-          <form @submit.prevent="saveSensitiveGrants(role, $event)">
-            <label>
-              敏感字段
-              <textarea
-                name="grants"
-                rows="4"
-                :value="formatSensitiveGrants(role.id)"
-              ></textarea>
-            </label>
-            <button :disabled="saving">保存敏感字段</button>
-          </form>
         </article>
       </section>
     </template>
@@ -1352,3 +2079,302 @@ onMounted(load);
     </section>
   </main>
 </template>
+
+<style scoped>
+.workflow-steps {
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+}
+
+.workflow-steps button,
+.org-console button,
+.compact-create button,
+.inline-editor button,
+.mini-form button,
+.role-card button {
+  border: 1px solid #cfd8e6;
+  background: #fff;
+  color: #17324d;
+}
+
+.workflow-steps button:hover,
+.org-console button:hover,
+.compact-create button:hover,
+.inline-editor button:hover,
+.mini-form button:hover,
+.role-card button:hover {
+  border-color: #00a99d;
+  color: #008f86;
+}
+
+.org-console {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  min-height: 720px;
+  margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid #dfe6ef;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(21, 45, 78, 0.08);
+}
+
+.org-sidebar {
+  padding: 24px 18px;
+  border-right: 1px solid #e4ebf3;
+  background: #fbfcfe;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #edf1f6;
+}
+
+.segment button,
+.quick-filter button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-weight: 800;
+}
+
+.segment button.active,
+.quick-filter button.active {
+  background: #fff;
+  color: #00a99d;
+  box-shadow: 0 2px 8px rgba(29, 47, 73, 0.08);
+}
+
+.quick-filter {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0;
+}
+
+.search-box,
+.mini-form,
+.compact-create,
+.inline-editor,
+.role-card {
+  display: grid;
+  gap: 10px;
+}
+
+.search-box span {
+  color: #667085;
+}
+
+.department-tree,
+.role-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+}
+
+.department-tree button,
+.role-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+}
+
+.department-tree button.selected {
+  background: #e7f8f6;
+  color: #072f2d;
+  font-weight: 900;
+}
+
+.tree-icon,
+.role-chip {
+  color: #00a99d;
+}
+
+.department-tree small,
+.role-list small {
+  color: #8a95a7;
+}
+
+.org-main {
+  min-width: 0;
+  padding: 26px 30px 34px;
+}
+
+.org-toolbar,
+.member-toolbar,
+.role-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.org-toolbar {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.org-toolbar h2,
+.role-card h3,
+.mini-form h3,
+.compact-create h3 {
+  margin: 0;
+}
+
+.org-toolbar p,
+.role-card p,
+.muted {
+  margin: 4px 0 0;
+  color: #748095;
+}
+
+.link-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.link-actions button,
+.row-actions button {
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: #008f86;
+}
+
+.danger-link {
+  color: #d14343 !important;
+}
+
+.inline-editor,
+.compact-create,
+.role-card {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.inline-editor,
+.compact-create {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
+  align-items: end;
+}
+
+.compact-create h3,
+.compact-create p {
+  grid-column: 1 / -1;
+}
+
+.mini-form {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.mini-form select,
+.role-card select[multiple] {
+  min-height: 140px;
+}
+
+.member-toolbar {
+  margin: 22px 0 14px;
+}
+
+.member-toolbar input {
+  max-width: 360px;
+  margin-left: auto;
+}
+
+.member-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.member-table th,
+.member-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #edf1f5;
+  text-align: left;
+  vertical-align: top;
+}
+
+.member-table th {
+  color: #22304a;
+  background: #f6f8fb;
+}
+
+.member-table td strong,
+.member-table td small {
+  display: block;
+}
+
+.role-chip {
+  display: inline-flex;
+  margin: 0 6px 6px 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #f0f7ff;
+  color: #2878ff;
+  font-weight: 700;
+}
+
+.editor-row td {
+  background: #fbfdff;
+}
+
+.role-card {
+  gap: 16px;
+}
+
+.role-card > label,
+.role-card select {
+  width: 100%;
+}
+
+.role-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.role-config-grid form {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .org-console {
+    grid-template-columns: 1fr;
+  }
+
+  .org-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #e4ebf3;
+  }
+
+  .inline-editor,
+  .compact-create,
+  .role-config-grid,
+  .member-toolbar,
+  .org-toolbar {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}
+</style>

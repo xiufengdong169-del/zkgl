@@ -4,11 +4,15 @@ CREATE TABLE IF NOT EXISTS org_department (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   code VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(128) NOT NULL,
+  parent_id BIGINT UNSIGNED NULL,
+  manager_employee_id BIGINT UNSIGNED NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'ENABLED',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-  version INT UNSIGNED NOT NULL DEFAULT 0
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  CONSTRAINT fk_department_parent FOREIGN KEY (parent_id) REFERENCES org_department(id),
+  INDEX idx_department_parent (parent_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS iam_role (
@@ -1558,7 +1562,7 @@ INSERT INTO iam_role(code,name,status,created_at,updated_at)
 VALUES ('ADMIN','系统管理员','ENABLED',NOW(3),NOW(3)),('COMPANY_PRINCIPAL','公司负责人','ENABLED',NOW(3),NOW(3)),
 ('MARKET_BUSINESS','市场商务','ENABLED',NOW(3),NOW(3)),('PROJECT_MANAGER','项目经理','ENABLED',NOW(3),NOW(3)),
 ('PROJECT_MEMBER','项目成员','ENABLED',NOW(3),NOW(3)),('BID_STAFF','投标人员','ENABLED',NOW(3),NOW(3)),
-('FINANCE','财务资金','ENABLED',NOW(3),NOW(3)),('EMPLOYEE','普通员工','ENABLED',NOW(3),NOW(3))
+('FINANCE','商务财务','ENABLED',NOW(3),NOW(3)),('EMPLOYEE','普通员工','ENABLED',NOW(3),NOW(3))
 ON DUPLICATE KEY UPDATE name=VALUES(name),status='ENABLED';
 
 INSERT INTO iam_permission(code,name,permission_type)

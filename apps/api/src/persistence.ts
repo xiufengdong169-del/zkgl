@@ -799,13 +799,13 @@ export class MySqlActionExecutor {
         }
         case "admin.overview": {
           const [departments] = await selectRows(connection,
-              `SELECT id,code,name,status FROM org_department WHERE is_deleted=0 ORDER BY id`,
+              `SELECT CAST(d.id AS CHAR) id,d.code,d.name,CAST(d.parent_id AS CHAR) parentId,CAST(d.manager_employee_id AS CHAR) managerEmployeeId,m.name managerName,d.status,d.version FROM org_department d LEFT JOIN org_employee m ON m.id=d.manager_employee_id AND m.is_deleted=0 WHERE d.is_deleted=0 ORDER BY COALESCE(d.parent_id,0),d.id`,
             ),
             [employees] = await selectRows(connection,
-              `SELECT e.id,e.employee_code employeeCode,e.name,e.employee_type employeeType,e.department_id departmentId,d.name departmentName,e.position_name positionName,e.account_status accountStatus FROM org_employee e JOIN org_department d ON d.id=e.department_id WHERE e.is_deleted=0 ORDER BY e.id DESC LIMIT 200`,
+              `SELECT CAST(e.id AS CHAR) id,e.employee_code employeeCode,e.name,e.employee_type employeeType,CAST(e.department_id AS CHAR) departmentId,d.name departmentName,e.position_name positionName,e.mobile,e.email,e.joined_on joinedOn,e.left_on leftOn,CAST(e.supervisor_id AS CHAR) supervisorId,s.name supervisorName,e.account_status accountStatus,e.version FROM org_employee e JOIN org_department d ON d.id=e.department_id LEFT JOIN org_employee s ON s.id=e.supervisor_id WHERE e.is_deleted=0 ORDER BY e.id DESC LIMIT 500`,
             ),
             [roles] = await selectRows(connection,
-              `SELECT id,code,name,status FROM iam_role WHERE is_deleted=0 ORDER BY id`,
+              `SELECT CAST(r.id AS CHAR) id,r.code,r.name,r.status,r.version,COUNT(DISTINCT ur.user_id) userCount,COUNT(DISTINCT rp.permission_id) permissionCount FROM iam_role r LEFT JOIN iam_user_role ur ON ur.role_id=r.id LEFT JOIN iam_role_permission rp ON rp.role_id=r.id WHERE r.is_deleted=0 GROUP BY r.id ORDER BY r.id`,
             ),
             [permissions] = await selectRows(connection,
               `SELECT CAST(id AS CHAR) id,code,name,permission_type permissionType FROM iam_permission ORDER BY permission_type,code`,
@@ -820,7 +820,7 @@ export class MySqlActionExecutor {
               `SELECT CAST(id AS CHAR) id,CAST(role_id AS CHAR) roleId,field_code fieldCode,access_level accessLevel,explicit_deny explicitDeny,status FROM iam_sensitive_field_grant ORDER BY role_id,field_code`,
             ),
             [users] = await selectRows(connection,
-              `SELECT u.id,u.username,u.cloudbase_uid cloudbaseUid,u.status,u.last_synced_at lastSyncedAt,e.name employeeName,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(r.id ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 200`,
+              `SELECT CAST(u.id AS CHAR) id,u.username,u.cloudbase_uid cloudbaseUid,u.status,u.last_synced_at lastSyncedAt,CAST(u.employee_id AS CHAR) employeeId,e.name employeeName,d.name departmentName,e.mobile,e.email,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(CAST(r.id AS CHAR) ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id JOIN org_department d ON d.id=u.department_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 500`,
             );
           const [numberRules] = await selectRows(connection,
               `SELECT CAST(id AS CHAR) id,rule_code ruleCode,prefix,year_pattern yearPattern,serial_length serialLength,next_serial nextSerial,current_year currentYear,status,version FROM sys_number_rule ORDER BY rule_code`,
@@ -875,10 +875,78 @@ export class MySqlActionExecutor {
         }
         case "admin.department.create": {
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO org_department(code,name) VALUES(?,?)`,
-            [input.code, input.name],
+            `INSERT INTO org_department(code,name,parent_id,manager_employee_id) VALUES(?,?,?,?)`,
+            [
+              input.code,
+              input.name,
+              input.parentId ?? null,
+              input.managerEmployeeId ?? null,
+            ],
           );
           return { id: String(result.insertId) };
+        }
+        case "admin.department.update": {
+          if (input.parentId && input.parentId === input.departmentId)
+            throw new AppError(
+              "DEPARTMENT_PARENT_INVALID",
+              "上级部门不能选择自身",
+              409,
+            );
+          if (input.parentId) {
+            const [descendants] = await selectRows(connection,
+              `WITH RECURSIVE descendants AS (
+                 SELECT id FROM org_department WHERE parent_id=? AND is_deleted=0
+                 UNION ALL
+                 SELECT child.id FROM org_department child JOIN descendants d ON child.parent_id=d.id WHERE child.is_deleted=0
+               )
+               SELECT id FROM descendants WHERE id=? LIMIT 1`,
+              [input.departmentId, input.parentId],
+            );
+            if (descendants[0])
+              throw new AppError(
+                "DEPARTMENT_PARENT_INVALID",
+                "上级部门不能选择当前部门的下级",
+                409,
+              );
+          }
+          const [rows] = await selectRows(connection,
+            `SELECT id FROM org_department WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.departmentId],
+          );
+          if (!rows[0])
+            throw new AppError("DEPARTMENT_NOT_FOUND", "部门不存在", 404);
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_department SET name=?,parent_id=?,manager_employee_id=?,status=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [
+              input.name,
+              input.parentId ?? null,
+              input.managerEmployeeId ?? null,
+              input.status,
+              input.departmentId,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError("DEPARTMENT_NOT_FOUND", "部门不存在", 404);
+          return { id: input.departmentId };
+        }
+        case "admin.department.delete": {
+          const [usage] = await selectRows(connection,
+            `SELECT
+              (SELECT COUNT(*) FROM org_employee WHERE department_id=? AND is_deleted=0) employeeCount,
+              (SELECT COUNT(*) FROM org_department WHERE parent_id=? AND is_deleted=0) childCount`,
+            [input.departmentId, input.departmentId],
+          );
+          if (Number(usage[0]?.employeeCount ?? 0) > 0)
+            throw new AppError("DEPARTMENT_IN_USE", "部门下仍有成员，不能删除", 409);
+          if (Number(usage[0]?.childCount ?? 0) > 0)
+            throw new AppError("DEPARTMENT_HAS_CHILDREN", "部门下仍有子部门，不能删除", 409);
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_department SET is_deleted=1,status='DISABLED',version=version+1 WHERE id=? AND is_deleted=0`,
+            [input.departmentId],
+          );
+          if (!result.affectedRows)
+            throw new AppError("DEPARTMENT_NOT_FOUND", "部门不存在", 404);
+          return { id: input.departmentId, deleted: true };
         }
         case "admin.employee.create": {
           const [result] = await connection.execute<ResultSetHeader>(
@@ -897,6 +965,66 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "admin.employee.update": {
+          if (input.supervisorId && input.supervisorId === input.employeeId)
+            throw new AppError(
+              "EMPLOYEE_SUPERVISOR_INVALID",
+              "直属主管不能选择本人",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_employee SET name=?,employee_type=?,department_id=?,position_name=?,mobile=?,email=?,joined_on=?,left_on=?,supervisor_id=?,account_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [
+              input.name,
+              input.employeeType,
+              input.departmentId,
+              input.positionName ?? null,
+              input.mobile ?? null,
+              input.email ?? null,
+              input.joinedOn ?? null,
+              input.leftOn ?? null,
+              input.supervisorId ?? null,
+              input.accountStatus,
+              user.id,
+              input.employeeId,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError("EMPLOYEE_NOT_FOUND", "人员不存在", 404);
+          await connection.execute(
+            `UPDATE iam_user SET department_id=?,status=?,version=version+1 WHERE employee_id=? AND is_deleted=0`,
+            [input.departmentId, input.accountStatus, input.employeeId],
+          );
+          return { id: input.employeeId };
+        }
+        case "admin.employee.delete": {
+          const [targetUsers] = await selectRows(connection,
+            `SELECT CAST(u.id AS CHAR) id,EXISTS(SELECT 1 FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN') isAdmin FROM iam_user u WHERE u.employee_id=? AND u.is_deleted=0 FOR UPDATE`,
+            [input.employeeId],
+          );
+          if (targetUsers.some((target) => Number(target.isAdmin) === 1)) {
+            const [adminCounts] = await selectRows(connection,
+              `SELECT COUNT(DISTINCT u.id) count FROM iam_user u JOIN iam_user_role ur ON ur.user_id=u.id JOIN iam_role r ON r.id=ur.role_id WHERE u.status='ENABLED' AND u.is_deleted=0 AND r.code='ADMIN'`,
+            );
+            if (Number(adminCounts[0]?.count ?? 0) <= 1)
+              throw new AppError(
+                "LAST_ADMIN_REQUIRED",
+                "系统至少必须保留一名启用的管理员",
+                409,
+              );
+          }
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_employee SET is_deleted=1,account_status='DISABLED',left_on=COALESCE(left_on,CURRENT_DATE),updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [user.id, input.employeeId],
+          );
+          if (!result.affectedRows)
+            throw new AppError("EMPLOYEE_NOT_FOUND", "人员不存在", 404);
+          await connection.execute(
+            `UPDATE iam_user SET status='DISABLED',is_deleted=1,version=version+1 WHERE employee_id=? AND is_deleted=0`,
+            [input.employeeId],
+          );
+          return { id: input.employeeId, deleted: true };
         }
         case "admin.positionAssignment.create": {
           const [positions] = await selectRows(connection,
@@ -1002,6 +1130,88 @@ export class MySqlActionExecutor {
               [input.userId, roleId],
             );
           return { userId: input.userId, roleCount: input.roleIds.length };
+        }
+        case "admin.role.create": {
+          const permissionIds = [
+            ...new Set((input.permissionIds as string[] | undefined) ?? []),
+          ];
+          if (permissionIds.length) {
+            const placeholders = permissionIds.map(() => "?").join(",");
+            const [valid] = await selectRows(connection,
+              `SELECT id FROM iam_permission WHERE id IN (${placeholders})`,
+              permissionIds,
+            );
+            if (valid.length !== permissionIds.length)
+              throw new AppError("PERMISSION_INVALID", "所选权限不存在", 409);
+          }
+          const [result] = await connection.execute<ResultSetHeader>(
+            `INSERT INTO iam_role(code,name,status) VALUES(?,?, 'ENABLED')`,
+            [input.code, input.name],
+          );
+          for (const permissionId of permissionIds)
+            await connection.execute(
+              `INSERT INTO iam_role_permission(role_id,permission_id) VALUES(?,?)`,
+              [result.insertId, permissionId],
+            );
+          return { id: String(result.insertId) };
+        }
+        case "admin.role.update": {
+          const [roles] = await selectRows(connection,
+            `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.roleId],
+          );
+          const role = roles[0];
+          if (!role)
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (role.code === "ADMIN" && input.status !== "ENABLED")
+            throw new AppError(
+              "ADMIN_ROLE_REQUIRED",
+              "管理员角色必须保持启用",
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE iam_role SET name=?,status=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [input.name, input.status, input.roleId],
+          );
+          if (!result.affectedRows)
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          return { id: input.roleId };
+        }
+        case "admin.role.delete": {
+          const [roles] = await selectRows(connection,
+            `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.roleId],
+          );
+          const role = roles[0];
+          if (!role)
+            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (role.code === "ADMIN")
+            throw new AppError(
+              "ADMIN_ROLE_REQUIRED",
+              "管理员角色不能删除",
+              409,
+            );
+          const [usage] = await selectRows(connection,
+            `SELECT COUNT(*) count FROM iam_user_role ur JOIN iam_user u ON u.id=ur.user_id AND u.is_deleted=0 WHERE ur.role_id=?`,
+            [input.roleId],
+          );
+          if (Number(usage[0]?.count ?? 0) > 0)
+            throw new AppError("ROLE_IN_USE", "仍有账号使用该角色，不能删除", 409);
+          await connection.execute(`DELETE FROM iam_role_permission WHERE role_id=?`, [
+            input.roleId,
+          ]);
+          await connection.execute(`DELETE FROM iam_role_data_scope WHERE role_id=?`, [
+            input.roleId,
+          ]);
+          await connection.execute(
+            `DELETE FROM iam_sensitive_field_grant WHERE role_id=?`,
+            [input.roleId],
+          );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE iam_role SET is_deleted=1,status='DISABLED',version=version+1 WHERE id=? AND is_deleted=0`,
+            [input.roleId],
+          );
+          return { id: input.roleId, deleted: result.affectedRows > 0 };
         }
         case "admin.role.permission.set": {
           const roleId = input.roleId as string,
