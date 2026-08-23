@@ -239,6 +239,83 @@ const showAccountForm = ref(false);
 const showAccountRolePanel = ref(false);
 const showAdvancedPermissionPanel = ref(false);
 const showRoleForm = ref(false);
+const numberRuleDisplay: Record<
+  string,
+  { name: string; remark: string }
+> = {
+  BID: {
+    name: "投标申请",
+    remark: "用于投标登记、投标任务和投标结果相关单据编号。",
+  },
+  CONTRACT: {
+    name: "合同",
+    remark: "用于收入合同、支出合同等合同主档编号。",
+  },
+  CONTRACT_CHANGE: {
+    name: "合同变更",
+    remark: "用于合同金额、期限、内容发生变更时的变更单编号。",
+  },
+  COUNTERPARTY: {
+    name: "往来单位",
+    remark: "用于客户、供应商、合作方等单位档案编号。",
+  },
+  DAILY_PURCHASE: {
+    name: "日常采购",
+    remark: "用于办公、项目零星采购等采购申请编号。",
+  },
+  DEPOSIT: {
+    name: "保证金",
+    remark: "用于投标保证金、履约保证金等保证金台账编号。",
+  },
+  EXPORT_TASK: {
+    name: "导出任务",
+    remark: "用于后台导出文件生成任务编号，便于追踪下载记录。",
+  },
+  INVOICE_APPLICATION: {
+    name: "开票申请",
+    remark: "用于项目或合同收款前的开票申请编号。",
+  },
+  LEAD: {
+    name: "商机线索",
+    remark: "用于市场线索、销售机会登记编号。",
+  },
+  PARTNER_PLAN: {
+    name: "合作方案",
+    remark: "用于外协、合作伙伴分成或结算方案编号。",
+  },
+  PARTNER_SETTLEMENT: {
+    name: "合作结算",
+    remark: "用于合作方结算单编号。",
+  },
+  PAYMENT: {
+    name: "付款申请",
+    remark: "用于项目成本、采购、保证金等付款申请编号。",
+  },
+  PROJECT: {
+    name: "正式项目",
+    remark: "用于立项通过后的项目主编号。",
+  },
+  PROJECT_APPLICATION: {
+    name: "立项申请",
+    remark: "用于项目立项申请单编号。",
+  },
+  PROJECT_CLOSE: {
+    name: "项目结项",
+    remark: "用于项目完工结项、特殊结项申请编号。",
+  },
+  RECEIPT: {
+    name: "收款登记",
+    remark: "用于项目回款、合同收款登记编号。",
+  },
+  REIMBURSEMENT: {
+    name: "费用报销",
+    remark: "用于项目费用、日常费用报销单编号。",
+  },
+  VISIT: {
+    name: "客户拜访",
+    remark: "用于客户拜访、跟进记录编号。",
+  },
+};
 const simpleScopeTypes: DataScopeType[] = [
   "ALL",
   "SELF",
@@ -736,6 +813,20 @@ function formatDateOnly(value?: string | null) {
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+function numberRuleMeta(ruleCode: string) {
+  return (
+    numberRuleDisplay[ruleCode] ?? {
+      name: ruleCode,
+      remark: "系统内部业务编号规则，暂未配置中文备注。",
+    }
+  );
+}
+
+function previewNextBusinessCode(rule: NumberRule) {
+  const serial = String(rule.nextSerial).padStart(rule.serialLength, "0");
+  return `${rule.prefix}-${rule.currentYear}-${serial}`;
 }
 
 function employeeTypeText(type: string) {
@@ -2120,7 +2211,11 @@ onMounted(load);
 
     <section v-else-if="activeTab === 'numbers'" class="data-panel">
       <h2>业务编号规则</h2>
-      <table>
+      <p class="section-help">
+        用来配置各类业务单据的自动编号。系统实际生成编号时会读取这里的前缀、年份和流水位数；“下一个流水号”不是写死值，
+        每生成一张对应单据会自动加 1，跨年后会按新年份从 1 开始。
+      </p>
+      <table class="number-rule-table">
         <thead>
           <tr>
             <th>业务</th>
@@ -2129,12 +2224,16 @@ onMounted(load);
             <th>流水位数</th>
             <th>下一个流水号</th>
             <th>状态</th>
+            <th>备注</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="rule in numberRules" :key="rule.id">
-            <td>{{ rule.ruleCode }}</td>
+            <td class="business-cell">
+              <strong>{{ numberRuleMeta(rule.ruleCode).name }}</strong>
+              <small>{{ rule.ruleCode }}</small>
+            </td>
             <td><input v-model="rule.prefix" maxlength="32" /></td>
             <td>{{ rule.currentYear }}</td>
             <td>
@@ -2145,12 +2244,18 @@ onMounted(load);
                 max="12"
               />
             </td>
-            <td>{{ rule.nextSerial }}</td>
+            <td class="serial-cell">
+              <strong>{{ rule.nextSerial }}</strong>
+              <small>下次编号：{{ previewNextBusinessCode(rule) }}</small>
+            </td>
             <td>
               <select v-model="rule.status">
                 <option value="ENABLED">启用</option>
                 <option value="DISABLED">停用</option>
               </select>
+            </td>
+            <td class="remark-cell">
+              {{ numberRuleMeta(rule.ruleCode).remark }}
             </td>
             <td>
               <button :disabled="saving" @click="saveNumberRule(rule)">
@@ -2779,6 +2884,47 @@ onMounted(load);
 .member-table td strong,
 .member-table td small {
   display: block;
+}
+
+.section-help {
+  max-width: 980px;
+  margin: 6px 0 18px;
+  color: #667085;
+  line-height: 1.7;
+}
+
+.number-rule-table {
+  min-width: 1180px;
+}
+
+.business-cell strong,
+.serial-cell strong {
+  display: block;
+  color: #071d3a;
+}
+
+.business-cell small,
+.serial-cell small {
+  display: block;
+  margin-top: 4px;
+  color: #748095;
+  font-size: 12px;
+}
+
+.remark-cell {
+  max-width: 260px;
+  color: #4c5d75;
+  line-height: 1.55;
+}
+
+.number-rule-table input {
+  min-width: 120px;
+}
+
+.number-rule-table button {
+  width: auto;
+  min-width: 86px;
+  margin: 0;
 }
 
 .role-chip {
