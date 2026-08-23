@@ -229,6 +229,7 @@ const departmentKeyword = ref("");
 const memberKeyword = ref("");
 const accountStatusFilter = ref<"" | "ENABLED" | "DISABLED">("");
 const selectedDepartmentId = ref("");
+const selectedRoleId = ref("");
 const editingDepartment = ref(false);
 const editingEmployeeId = ref("");
 const editingRoleId = ref("");
@@ -237,6 +238,7 @@ const showEmployeeForm = ref(false);
 const showAccountForm = ref(false);
 const showAccountRolePanel = ref(false);
 const showAdvancedPermissionPanel = ref(false);
+const showRoleForm = ref(false);
 const simpleScopeTypes: DataScopeType[] = [
   "ALL",
   "SELF",
@@ -390,6 +392,15 @@ async function load() {
         departments.value.find((item) => departmentIdsWithMembers.has(item.id))?.id ||
         departments.value.find((item) => item.status === "ENABLED")?.id ||
         departments.value[0]?.id ||
+        "";
+    }
+    if (
+      !selectedRoleId.value ||
+      !roles.value.some((item) => item.id === selectedRoleId.value)
+    ) {
+      selectedRoleId.value =
+        roles.value.find((item) => item.code === "ADMIN")?.id ||
+        roles.value[0]?.id ||
         "";
     }
   } catch (e) {
@@ -737,6 +748,12 @@ const selectedDepartment = computed(
     departments.value[0],
 );
 
+const selectedRole = computed(
+  () =>
+    roles.value.find((item) => item.id === selectedRoleId.value) ||
+    roles.value[0],
+);
+
 const availableParentDepartments = computed(() =>
   departments.value.filter((item) => item.id !== selectedDepartmentId.value),
 );
@@ -828,6 +845,11 @@ function userForEmployee(employeeId: string) {
 
 function roleNamesForUser(user?: User) {
   return user?.roleNames?.split("、").filter(Boolean) ?? [];
+}
+
+function selectRole(role: Role) {
+  selectedRoleId.value = role.id;
+  editingRoleId.value = "";
 }
 
 function exportSelectedDepartmentMembers() {
@@ -997,8 +1019,10 @@ async function createRole() {
   saving.value = true;
   error.value = null;
   try {
-    await callApi("admin.role.create", roleForm.value);
+    const result = await callApi<{ id: string }>("admin.role.create", roleForm.value);
     roleForm.value = { code: "", name: "", permissionIds: [] };
+    selectedRoleId.value = result.id;
+    showRoleForm.value = false;
     await load();
     notice.value = "角色已创建";
   } catch (e) {
@@ -1422,7 +1446,14 @@ onMounted(load);
             </nav>
           </template>
           <template v-else>
-            <form class="mini-form" @submit.prevent="createRole">
+            <button
+              class="create-inline-button"
+              type="button"
+              @click="showRoleForm = !showRoleForm"
+            >
+              {{ showRoleForm ? "收起新增角色" : "新增角色" }}
+            </button>
+            <form v-if="showRoleForm" class="mini-form" @submit.prevent="createRole">
               <h3>新增角色</h3>
               <input
                 v-model="roleForm.code"
@@ -1445,8 +1476,9 @@ onMounted(load);
               <button
                 v-for="role in roles"
                 :key="role.id"
+                :class="{ selected: selectedRoleId === role.id }"
                 type="button"
-                @click="startEditRole(role)"
+                @click="selectRole(role)"
               >
                 <span>{{ role.name }}</span>
                 <small>{{ role.permissionCount || 0 }} 项权限</small>
@@ -1742,27 +1774,31 @@ onMounted(load);
               </p>
             </div>
           </header>
-          <article v-for="role in roles" :key="role.id" class="role-card">
+          <article v-if="selectedRole" class="role-card">
             <header>
               <div>
-                <strong>{{ role.name }} · {{ role.code }}</strong>
+                <strong>{{ selectedRole.name }} · {{ selectedRole.code }}</strong>
                 <p>
-                  {{ statusText(role.status) }} ·
-                  {{ role.userCount || 0 }} 个账号 ·
-                  {{ role.permissionCount || 0 }} 项权限
+                  {{ statusText(selectedRole.status) }} ·
+                  {{ selectedRole.userCount || 0 }} 个账号 ·
+                  {{ selectedRole.permissionCount || 0 }} 项权限
                 </p>
               </div>
               <div class="row-actions">
-                <button type="button" @click="startEditRole(role)">编辑</button>
-                <button type="button" class="danger-link" @click="deleteRole(role)">
+                <button type="button" @click="startEditRole(selectedRole)">编辑</button>
+                <button
+                  type="button"
+                  class="danger-link"
+                  @click="deleteRole(selectedRole)"
+                >
                   删除
                 </button>
               </div>
             </header>
             <form
-              v-if="editingRoleId === role.id"
+              v-if="editingRoleId === selectedRole.id"
               class="inline-editor"
-              @submit.prevent="saveRole(role)"
+              @submit.prevent="saveRole(selectedRole)"
             >
               <label>角色名称<input v-model="roleEdit.name" required /></label>
               <label
@@ -1790,10 +1826,10 @@ onMounted(load);
                   >
                     <input
                       type="checkbox"
-                      :checked="roleHasPermission(role.id, permission.id)"
+                      :checked="roleHasPermission(selectedRole.id, permission.id)"
                       :disabled="saving"
                       @change="
-                        setRolePermissionChecked(role, permission.id, $event)
+                        setRolePermissionChecked(selectedRole, permission.id, $event)
                       "
                     />
                     <span>{{ permission.name }}</span>
@@ -1813,10 +1849,10 @@ onMounted(load);
                   >
                     <input
                       type="checkbox"
-                      :checked="roleHasScope(role.id, scopeType)"
+                      :checked="roleHasScope(selectedRole.id, scopeType)"
                       :disabled="saving"
                       @change="
-                        setRoleScopeChecked(role, scopeType, '', $event)
+                        setRoleScopeChecked(selectedRole, scopeType, '', $event)
                       "
                     />
                     <span>{{ scopeTypeLabels[scopeType] }}</span>
@@ -1833,12 +1869,16 @@ onMounted(load);
                       <input
                         type="checkbox"
                         :checked="
-                          roleHasScope(role.id, 'DEPARTMENT', departmentItem.id)
+                          roleHasScope(
+                            selectedRole.id,
+                            'DEPARTMENT',
+                            departmentItem.id,
+                          )
                         "
                         :disabled="saving"
                         @change="
                           setRoleScopeChecked(
-                            role,
+                            selectedRole,
                             'DEPARTMENT',
                             departmentItem.id,
                             $event,
@@ -1859,10 +1899,15 @@ onMounted(load);
                     >
                       <input
                         type="checkbox"
-                        :checked="roleHasScope(role.id, 'PROJECT', project.id)"
+                        :checked="roleHasScope(selectedRole.id, 'PROJECT', project.id)"
                         :disabled="saving"
                         @change="
-                          setRoleScopeChecked(role, 'PROJECT', project.id, $event)
+                          setRoleScopeChecked(
+                            selectedRole,
+                            'PROJECT',
+                            project.id,
+                            $event,
+                          )
                         "
                       />
                       <span>{{ project.projectName }}</span>
@@ -1880,9 +1925,11 @@ onMounted(load);
                 >
                   <span>{{ field.name }}</span>
                   <select
-                    :value="sensitiveFieldChoice(role.id, field.code)"
+                    :value="sensitiveFieldChoice(selectedRole.id, field.code)"
                     :disabled="saving"
-                    @change="setSensitiveFieldChoice(role, field.code, $event)"
+                    @change="
+                      setSensitiveFieldChoice(selectedRole, field.code, $event)
+                    "
                   >
                     <option value="NONE">无权限</option>
                     <option value="MASKED">脱敏查看</option>
@@ -1893,6 +1940,11 @@ onMounted(load);
               </section>
             </div>
           </article>
+          <section v-else class="empty-state">
+            <span>!</span>
+            <h2>暂无角色</h2>
+            <p>请先在左侧新增角色，再配置权限。</p>
+          </section>
         </section>
       </section>
       <section v-if="showAccountRolePanel" class="data-list account-role-panel">
@@ -2524,6 +2576,25 @@ onMounted(load);
   background: #e7f8f6;
   color: #072f2d;
   font-weight: 900;
+}
+
+.role-list button {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+
+.role-list button.selected {
+  background: #e7f8f6;
+  color: #072f2d;
+  font-weight: 900;
+}
+
+.create-inline-button {
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  color: #008f86;
+  background: #fff;
 }
 
 .tree-icon,
