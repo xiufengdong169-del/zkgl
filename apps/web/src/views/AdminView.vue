@@ -2215,56 +2215,58 @@ onMounted(load);
         用来配置各类业务单据的自动编号。系统实际生成编号时会读取这里的前缀、年份和流水位数；“下一个流水号”不是写死值，
         每生成一张对应单据会自动加 1，跨年后会按新年份从 1 开始。
       </p>
-      <table class="number-rule-table">
-        <thead>
-          <tr>
-            <th>业务</th>
-            <th>前缀</th>
-            <th>年份</th>
-            <th>流水位数</th>
-            <th>下一个流水号</th>
-            <th>状态</th>
-            <th>备注</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="rule in numberRules" :key="rule.id">
-            <td class="business-cell">
-              <strong>{{ numberRuleMeta(rule.ruleCode).name }}</strong>
-              <small>{{ rule.ruleCode }}</small>
-            </td>
-            <td><input v-model="rule.prefix" maxlength="32" /></td>
-            <td>{{ rule.currentYear }}</td>
-            <td>
-              <input
-                v-model.number="rule.serialLength"
-                type="number"
-                min="2"
-                max="12"
-              />
-            </td>
-            <td class="serial-cell">
-              <strong>{{ rule.nextSerial }}</strong>
-              <small>下次编号：{{ previewNextBusinessCode(rule) }}</small>
-            </td>
-            <td>
-              <select v-model="rule.status">
-                <option value="ENABLED">启用</option>
-                <option value="DISABLED">停用</option>
-              </select>
-            </td>
-            <td class="remark-cell">
-              {{ numberRuleMeta(rule.ruleCode).remark }}
-            </td>
-            <td>
-              <button :disabled="saving" @click="saveNumberRule(rule)">
-                保存
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="number-rule-table-wrap">
+        <table class="number-rule-table">
+          <thead>
+            <tr>
+              <th>业务</th>
+              <th>前缀</th>
+              <th>年份</th>
+              <th>位数</th>
+              <th>下一个流水号</th>
+              <th>状态</th>
+              <th>备注</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="rule in numberRules" :key="rule.id">
+              <td class="business-cell">
+                <strong>{{ numberRuleMeta(rule.ruleCode).name }}</strong>
+                <small>{{ rule.ruleCode }}</small>
+              </td>
+              <td><input v-model="rule.prefix" maxlength="32" /></td>
+              <td class="year-cell">{{ rule.currentYear }}</td>
+              <td>
+                <input
+                  v-model.number="rule.serialLength"
+                  type="number"
+                  min="2"
+                  max="12"
+                />
+              </td>
+              <td class="serial-cell">
+                <strong>{{ rule.nextSerial }}</strong>
+                <small>{{ previewNextBusinessCode(rule) }}</small>
+              </td>
+              <td>
+                <select v-model="rule.status">
+                  <option value="ENABLED">启用</option>
+                  <option value="DISABLED">停用</option>
+                </select>
+              </td>
+              <td class="remark-cell">
+                {{ numberRuleMeta(rule.ruleCode).remark }}
+              </td>
+              <td>
+                <button :disabled="saving" @click="saveNumberRule(rule)">
+                  保存
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'parameters'" class="data-panel">
@@ -2893,8 +2895,63 @@ onMounted(load);
   line-height: 1.7;
 }
 
+.number-rule-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #edf1f5;
+  border-radius: 14px;
+  background: #fff;
+}
+
 .number-rule-table {
-  min-width: 1180px;
+  width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.number-rule-table th,
+.number-rule-table td {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.number-rule-table th {
+  color: #53627a;
+  font-size: 13px;
+  font-weight: 800;
+  background: #f8fafc;
+}
+
+.number-rule-table th:nth-child(1) {
+  width: 150px;
+}
+
+.number-rule-table th:nth-child(2) {
+  width: 120px;
+}
+
+.number-rule-table th:nth-child(3) {
+  width: 82px;
+}
+
+.number-rule-table th:nth-child(4) {
+  width: 82px;
+}
+
+.number-rule-table th:nth-child(5) {
+  width: 150px;
+}
+
+.number-rule-table th:nth-child(6) {
+  width: 92px;
+}
+
+.number-rule-table th:nth-child(8) {
+  width: 86px;
+}
+
+.number-rule-table tr:not(:last-child) td {
+  border-bottom: 1px solid #edf1f5;
 }
 
 .business-cell strong,
@@ -2911,20 +2968,37 @@ onMounted(load);
   font-size: 12px;
 }
 
+.year-cell {
+  font-weight: 800;
+  color: #17324d;
+}
+
 .remark-cell {
-  max-width: 260px;
   color: #4c5d75;
   line-height: 1.55;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .number-rule-table input {
-  min-width: 120px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.number-rule-table select {
+  width: 74px;
+  margin: 0;
+  padding: 6px 8px;
 }
 
 .number-rule-table button {
   width: auto;
-  min-width: 86px;
+  min-width: 66px;
   margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
 }
 
 .role-chip {
