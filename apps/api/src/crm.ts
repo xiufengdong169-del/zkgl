@@ -4,14 +4,14 @@ export const counterpartyInput = z.object({
   name: z.string().trim().min(2).max(255),
   shortName: z.string().trim().max(128).nullable().optional(),
   creditCode: z.string().trim().min(15).max(32).nullable().optional(),
-  type: z.enum(['CUSTOMER', 'SUPPLIER', 'GENERAL_CONTRACTOR', 'PARTNER', 'OTHER']),
+  type: z.string().trim().min(1).max(64),
   industry: z.string().trim().max(128).nullable().optional(),
   region: z.string().trim().max(128).nullable().optional(),
   address: z.string().trim().max(512).nullable().optional(),
   phone: z.string().trim().max(32).nullable().optional(),
   website: z.url().max(255).nullable().optional(),
   sourceCode: z.string().trim().max(64).nullable().optional(),
-  cooperationStatus: z.enum(['POTENTIAL', 'ACTIVE', 'SUSPENDED', 'ENDED']).default('POTENTIAL'),
+  cooperationStatus: z.string().trim().min(1).max(64).default('POTENTIAL'),
   remark: z.string().trim().max(1000).nullable().optional()
 })
 

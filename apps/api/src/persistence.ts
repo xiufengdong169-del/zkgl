@@ -1905,8 +1905,20 @@ export class MySqlActionExecutor {
             [visits] = await selectRows(connection,
               `SELECT CAST(id AS CHAR) id,visit_code code,visited_at visitedAt,visit_method method,purpose,communication,next_action nextAction,next_follow_up_at nextFollowUpAt,generate_lead generateLead FROM crm_visit WHERE customer_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY visited_at DESC LIMIT 100`,
               [input.counterpartyId],
-            );
+          );
           return { counterparty, contacts, visits };
+        }
+        case "dictionary.crmOptions": {
+          const [rows] = await selectRows(connection,
+            `SELECT t.type_code typeCode,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder
+               FROM sys_dictionary_type t
+               JOIN sys_dictionary_item i ON i.type_id=t.id
+              WHERE t.status='ENABLED'
+                AND i.status='ENABLED'
+                AND t.type_code IN ('CRM_COUNTERPARTY_TYPE','CRM_COOPERATION_STATUS','CRM_INDUSTRY')
+              ORDER BY t.type_code,i.sort_order,i.id`,
+          );
+          return { items: rows };
         }
         case "lead.list": {
           const page = input.page as number,

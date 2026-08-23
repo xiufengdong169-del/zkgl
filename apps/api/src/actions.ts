@@ -85,6 +85,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "crm.counterparty.read",
     input: z.object({ counterpartyId: z.string().min(1) }),
   },
+  "dictionary.crmOptions": {
+    permission: "crm.counterparty.read",
+    input: z.object({}).default({}),
+  },
   "lead.list": { permission: "lead.read", input: listInput },
   "lead.detail": {
     permission: "lead.read",

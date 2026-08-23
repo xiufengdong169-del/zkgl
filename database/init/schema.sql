@@ -391,6 +391,38 @@ VALUES ('PROJECT_APPLICATION', 'LA', YEAR(CURRENT_DATE), 0), ('PROJECT', 'ZK', Y
   , ('PROJECT_CLOSE', 'JX', YEAR(CURRENT_DATE), 0)
 ON DUPLICATE KEY UPDATE rule_code = VALUES(rule_code);
 
+INSERT INTO sys_dictionary_type(type_code,name,description,created_by,updated_by)
+VALUES
+('CRM_COUNTERPARTY_TYPE','往来单位类型','客户管理中往来单位的类型下拉项',0,0),
+('CRM_COOPERATION_STATUS','合作状态','客户管理中往来单位的合作状态下拉项',0,0),
+('CRM_INDUSTRY','所属行业','客户管理中往来单位的行业下拉项',0,0)
+ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description);
+
+INSERT INTO sys_dictionary_item(type_id,item_code,label,value_text,sort_order,created_by,updated_by)
+SELECT t.id,x.item_code,x.label,x.value_text,x.sort_order,0,0
+FROM sys_dictionary_type t
+JOIN (
+  SELECT 'CRM_COUNTERPARTY_TYPE' type_code,'CUSTOMER' item_code,'客户' label,'CUSTOMER' value_text,10 sort_order
+  UNION ALL SELECT 'CRM_COUNTERPARTY_TYPE','SUPPLIER','供应商','SUPPLIER',20
+  UNION ALL SELECT 'CRM_COUNTERPARTY_TYPE','GENERAL_CONTRACTOR','总包单位','GENERAL_CONTRACTOR',30
+  UNION ALL SELECT 'CRM_COUNTERPARTY_TYPE','PARTNER','合作伙伴','PARTNER',40
+  UNION ALL SELECT 'CRM_COUNTERPARTY_TYPE','OTHER','其他','OTHER',90
+  UNION ALL SELECT 'CRM_COOPERATION_STATUS','POTENTIAL','潜在合作','POTENTIAL',10
+  UNION ALL SELECT 'CRM_COOPERATION_STATUS','ACTIVE','合作中','ACTIVE',20
+  UNION ALL SELECT 'CRM_COOPERATION_STATUS','SUSPENDED','暂停合作','SUSPENDED',30
+  UNION ALL SELECT 'CRM_COOPERATION_STATUS','ENDED','已结束','ENDED',40
+  UNION ALL SELECT 'CRM_INDUSTRY','GOVERNMENT','政府/事业单位','政府/事业单位',10
+  UNION ALL SELECT 'CRM_INDUSTRY','CONSTRUCTION','建筑工程','建筑工程',20
+  UNION ALL SELECT 'CRM_INDUSTRY','IT_SOFTWARE','信息化/软件','信息化/软件',30
+  UNION ALL SELECT 'CRM_INDUSTRY','PARK_REAL_ESTATE','园区/地产','园区/地产',40
+  UNION ALL SELECT 'CRM_INDUSTRY','ENERGY_ENVIRONMENT','能源环保','能源环保',50
+  UNION ALL SELECT 'CRM_INDUSTRY','EDUCATION_HEALTHCARE','教育医疗','教育医疗',60
+  UNION ALL SELECT 'CRM_INDUSTRY','FINANCIAL_SERVICE','金融服务','金融服务',70
+  UNION ALL SELECT 'CRM_INDUSTRY','MANUFACTURING','制造业','制造业',80
+  UNION ALL SELECT 'CRM_INDUSTRY','OTHER','其他','其他',90
+) x ON x.type_code=t.type_code
+ON DUPLICATE KEY UPDATE label=VALUES(label),value_text=VALUES(value_text),sort_order=VALUES(sort_order);
+
 INSERT INTO sys_parameter(param_key,name,param_value,value_type,description,created_by,updated_by)
 VALUES
 ('company.name','公司名称','众肯科技','STRING','用于页面、导出和通知中的公司名称展示',0,0),

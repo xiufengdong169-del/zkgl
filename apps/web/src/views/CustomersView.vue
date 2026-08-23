@@ -45,6 +45,11 @@ interface Detail {
   visits: VisitRecord[];
 }
 
+interface DictionaryOption {
+  value: string;
+  label: string;
+}
+
 const auth = useAuthStore();
 const items = ref<CounterpartySummary[]>([]);
 const detail = ref<Detail | null>(null);
@@ -57,7 +62,7 @@ const saving = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const typeOptions = [
+const defaultTypeOptions = [
   { value: "CUSTOMER", label: "客户" },
   { value: "SUPPLIER", label: "供应商" },
   { value: "GENERAL_CONTRACTOR", label: "总包单位" },
@@ -65,24 +70,29 @@ const typeOptions = [
   { value: "OTHER", label: "其他" },
 ];
 
-const cooperationStatusOptions = [
+const defaultCooperationStatusOptions = [
   { value: "POTENTIAL", label: "潜在合作" },
   { value: "ACTIVE", label: "合作中" },
   { value: "SUSPENDED", label: "暂停合作" },
   { value: "ENDED", label: "已结束" },
 ];
 
-const industryOptions = [
-  "政府/事业单位",
-  "建筑工程",
-  "信息化/软件",
-  "园区/地产",
-  "能源环保",
-  "教育医疗",
-  "金融服务",
-  "制造业",
-  "其他",
+const defaultIndustryOptions = [
+  { value: "政府/事业单位", label: "政府/事业单位" },
+  { value: "建筑工程", label: "建筑工程" },
+  { value: "信息化/软件", label: "信息化/软件" },
+  { value: "园区/地产", label: "园区/地产" },
+  { value: "能源环保", label: "能源环保" },
+  { value: "教育医疗", label: "教育医疗" },
+  { value: "金融服务", label: "金融服务" },
+  { value: "制造业", label: "制造业" },
+  { value: "其他", label: "其他" },
 ];
+const typeOptions = ref<DictionaryOption[]>(defaultTypeOptions);
+const cooperationStatusOptions = ref<DictionaryOption[]>(
+  defaultCooperationStatusOptions,
+);
+const industryOptions = ref<DictionaryOption[]>(defaultIndustryOptions);
 
 const form = ref({
   name: "",
@@ -160,15 +170,57 @@ const selectedCounterpartySummary = computed(() =>
 );
 
 function typeText(value?: string | null) {
-  return typeOptions.find((item) => item.value === value)?.label || value || "-";
+  return (
+    typeOptions.value.find((item) => item.value === value)?.label ||
+    value ||
+    "-"
+  );
 }
 
 function cooperationStatusText(value?: string | null) {
   return (
-    cooperationStatusOptions.find((item) => item.value === value)?.label ||
+    cooperationStatusOptions.value.find((item) => item.value === value)?.label ||
     value ||
     "-"
   );
+}
+
+function applyDictionaryOptions(
+  typeCode: string,
+  items: Array<{ typeCode: string; label: string; valueText: string }>,
+  fallback: DictionaryOption[],
+) {
+  const options = items
+    .filter((item) => item.typeCode === typeCode)
+    .map((item) => ({ value: item.valueText, label: item.label }));
+  return options.length ? options : fallback;
+}
+
+async function loadCrmOptions() {
+  try {
+    const result = await callApi<{
+      items: Array<{ typeCode: string; label: string; valueText: string }>;
+    }>("dictionary.crmOptions", {});
+    typeOptions.value = applyDictionaryOptions(
+      "CRM_COUNTERPARTY_TYPE",
+      result.items,
+      defaultTypeOptions,
+    );
+    cooperationStatusOptions.value = applyDictionaryOptions(
+      "CRM_COOPERATION_STATUS",
+      result.items,
+      defaultCooperationStatusOptions,
+    );
+    industryOptions.value = applyDictionaryOptions(
+      "CRM_INDUSTRY",
+      result.items,
+      defaultIndustryOptions,
+    );
+  } catch {
+    typeOptions.value = defaultTypeOptions;
+    cooperationStatusOptions.value = defaultCooperationStatusOptions;
+    industryOptions.value = defaultIndustryOptions;
+  }
 }
 
 async function load() {
@@ -359,7 +411,10 @@ async function createVisit() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await loadCrmOptions();
+  await load();
+});
 </script>
 
 <template>
@@ -415,8 +470,12 @@ onMounted(load);
       <label
         >所属行业<select v-model="form.industry">
           <option value="">请选择</option>
-          <option v-for="item in industryOptions" :key="item" :value="item">
-            {{ item }}
+          <option
+            v-for="option in industryOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
           </option>
         </select></label
       >
@@ -463,8 +522,12 @@ onMounted(load);
       <label
         >所属行业<select v-model="editForm.industry">
           <option value="">请选择</option>
-          <option v-for="item in industryOptions" :key="item" :value="item">
-            {{ item }}
+          <option
+            v-for="option in industryOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
           </option>
         </select></label
       >
