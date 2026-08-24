@@ -49,6 +49,7 @@ import {
   counterpartyInput,
   counterpartyUpdateInput,
   visitInput,
+  visitUpdateInput,
 } from "./crm.js";
 import { followUpInput, leadInput } from "./leads.js";
 import { projectApplicationInput } from "./project-applications.js";
@@ -335,6 +336,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     input: contactInput,
   },
   "crm.visit.create": { permission: "crm.visit.create", input: visitInput },
+  "crm.visit.update": {
+    permission: "crm.visit.create",
+    input: visitUpdateInput,
+  },
+  "crm.visit.delete": {
+    permission: "crm.visit.create",
+    input: z.object({ visitId: z.string().min(1) }),
+  },
   "lead.create": { permission: "lead.create", input: leadInput },
   "lead.followUp.create": {
     permission: "lead.followUp.create",

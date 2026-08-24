@@ -54,6 +54,15 @@ export const visitInput = z.object({
   generateLead: z.boolean().default(false)
 })
 
+export const visitUpdateInput = visitInput.omit({
+  customerId: true,
+  participantIds: true,
+  generateLead: true,
+}).extend({
+  visitId: z.string().min(1),
+})
+
 export type CounterpartyInput = z.infer<typeof counterpartyInput>
 export type ContactInput = z.infer<typeof contactInput>
 export type VisitInput = z.infer<typeof visitInput>
+export type VisitUpdateInput = z.infer<typeof visitUpdateInput>

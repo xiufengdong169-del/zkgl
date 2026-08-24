@@ -17,11 +17,18 @@ interface ContactRecord {
 interface VisitRecord {
   id: string;
   code: string;
+  contactId?: string | null;
   visitedAt: string;
   method: string;
+  location?: string | null;
   purpose: string;
   communication: string;
+  customerNeeds?: string | null;
+  opportunityAssessment?: string | null;
   nextAction?: string;
+  nextFollowUpAt?: string | null;
+  generateLead?: boolean;
+  version?: number;
 }
 
 interface CounterpartyDetail {
@@ -55,10 +62,12 @@ const auth = useAuthStore();
 const items = ref<CounterpartySummary[]>([]);
 const detail = ref<Detail | null>(null);
 const selectedId = ref("");
+const selectedVisit = ref<VisitRecord | null>(null);
 const showForm = ref(false);
 const showEdit = ref(false);
 const showContact = ref(false);
 const showVisit = ref(false);
+const showVisitEdit = ref(false);
 const saving = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -162,11 +171,29 @@ const visit = ref({
   generateLead: false,
 });
 
+const visitEdit = ref({
+  visitId: "",
+  contactId: "",
+  visitedAt: "",
+  method: "ONSITE",
+  location: "",
+  purpose: "",
+  communication: "",
+  customerNeeds: "",
+  opportunityAssessment: "",
+  nextAction: "",
+  nextFollowUpAt: "",
+});
+
 function switchSection(section: "counterparties" | "contacts" | "visits") {
   activeSection.value = section;
   if (section !== "counterparties") showForm.value = false;
   if (section !== "contacts") showContact.value = false;
-  if (section !== "visits") showVisit.value = false;
+  if (section !== "visits") {
+    showVisit.value = false;
+    showVisitEdit.value = false;
+    selectedVisit.value = null;
+  }
 }
 
 function openCounterpartyForm() {
@@ -188,10 +215,6 @@ function openVisitForm() {
   showVisit.value = !showVisit.value;
   showForm.value = false;
   showContact.value = false;
-}
-
-function enterVisitRecords() {
-  switchSection("visits");
 }
 
 const modules = [
@@ -244,6 +267,61 @@ function visitMethodText(value?: string | null) {
     OTHER: "其他",
   };
   return (value && labels[value]) || value || "-";
+}
+
+function contactName(contactId?: string | null) {
+  if (!contactId) return "未关联";
+  return (
+    detail.value?.contacts.find((item) => item.id === contactId)?.name ||
+    "联系人已不存在"
+  );
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, 16);
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function toDateTimeInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function selectVisit(record: VisitRecord) {
+  selectedVisit.value = record;
+  showVisitEdit.value = false;
+  switchSection("visits");
+}
+
+function startEditVisit() {
+  if (!selectedVisit.value) return;
+  const item = selectedVisit.value;
+  visitEdit.value = {
+    visitId: item.id,
+    contactId: item.contactId || "",
+    visitedAt: toDateTimeInput(item.visitedAt),
+    method: item.method || "ONSITE",
+    location: item.location || "",
+    purpose: item.purpose || "",
+    communication: item.communication || "",
+    customerNeeds: item.customerNeeds || "",
+    opportunityAssessment: item.opportunityAssessment || "",
+    nextAction: item.nextAction || "",
+    nextFollowUpAt: toDateTimeInput(item.nextFollowUpAt),
+  };
+  showVisitEdit.value = true;
 }
 
 function applyDictionaryOptions(
@@ -321,6 +399,11 @@ async function loadDetail(id: string) {
     detail.value = await callApi<Detail>("crm.counterparty.detail", {
       counterpartyId: id,
     });
+    if (selectedVisit.value) {
+      selectedVisit.value =
+        detail.value.visits.find((item) => item.id === selectedVisit.value?.id) ||
+        null;
+    }
     showEdit.value = false;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载详情失败";
@@ -483,6 +566,53 @@ async function createVisit() {
     await loadDetail(selectedId.value);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function updateVisit() {
+  if (!auth.user || !selectedId.value || !selectedVisit.value) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = visitEdit.value;
+    await callApi("crm.visit.update", {
+      visitId: f.visitId,
+      contactId: f.contactId || null,
+      visitedAt: new Date(f.visitedAt).toISOString(),
+      method: f.method,
+      location: f.location || null,
+      purpose: f.purpose,
+      communication: f.communication,
+      customerNeeds: f.customerNeeds || null,
+      opportunityAssessment: f.opportunityAssessment || null,
+      nextAction: f.nextAction || null,
+      nextFollowUpAt: f.nextFollowUpAt
+        ? new Date(f.nextFollowUpAt).toISOString()
+        : null,
+    });
+    showVisitEdit.value = false;
+    await loadDetail(selectedId.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存拜访失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteVisit() {
+  if (!auth.user || !selectedId.value || !selectedVisit.value) return;
+  if (!window.confirm("确认删除这条拜访记录？")) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("crm.visit.delete", { visitId: selectedVisit.value.id });
+    selectedVisit.value = null;
+    showVisitEdit.value = false;
+    await loadDetail(selectedId.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "删除拜访失败";
   } finally {
     saving.value = false;
   }
@@ -818,6 +948,8 @@ onMounted(async () => {
               detail = null;
               selectedId = '';
               showEdit = false;
+              selectedVisit = null;
+              showVisitEdit = false;
             "
           >
             关闭
@@ -852,9 +984,9 @@ onMounted(async () => {
             :key="v.id"
             type="button"
             class="inline-list-button"
-            @click="enterVisitRecords"
+            @click="selectVisit(v)"
           >
-            {{ v.visitedAt }} · {{ v.purpose }}
+            {{ formatDateTime(v.visitedAt) }} · {{ v.purpose }}
           </button>
           <p v-if="!detail.visits.length">暂无</p>
         </article>
@@ -936,9 +1068,10 @@ onMounted(async () => {
             v-for="v in detail.visits"
             :key="v.id"
             class="clickable"
-            @click="enterVisitRecords"
+            :class="{ selected: selectedVisit?.id === v.id }"
+            @click="selectVisit(v)"
           >
-            <td>{{ v.visitedAt }}</td>
+            <td>{{ formatDateTime(v.visitedAt) }}</td>
             <td>{{ visitMethodText(v.method) }}</td>
             <td>{{ v.purpose }}</td>
             <td>{{ v.communication }}</td>
@@ -947,6 +1080,119 @@ onMounted(async () => {
         </tbody>
       </table>
       <p v-else>当前单位暂无拜访记录，可点击“登记拜访”。</p>
+
+      <section v-if="selectedVisit" class="visit-detail-card">
+        <header class="related-header">
+          <div>
+            <p class="eyebrow">拜访明细</p>
+            <h3>{{ selectedVisit.purpose }}</h3>
+            <p>
+              {{ formatDateTime(selectedVisit.visitedAt) }} ·
+              {{ visitMethodText(selectedVisit.method) }}
+            </p>
+          </div>
+          <div class="detail-actions">
+            <button
+              type="button"
+              class="secondary-button"
+              @click="startEditVisit"
+            >
+              修改拜访
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              :disabled="saving"
+              @click="deleteVisit"
+            >
+              删除拜访
+            </button>
+            <button
+              type="button"
+              class="secondary-button"
+              @click="
+                selectedVisit = null;
+                showVisitEdit = false;
+              "
+            >
+              关闭
+            </button>
+          </div>
+        </header>
+
+        <div class="detail-grid">
+          <span>拜访地点：{{ selectedVisit.location || "-" }}</span>
+          <span>下次跟进：{{ formatDateTime(selectedVisit.nextFollowUpAt) }}</span>
+          <span>关联联系人：{{ contactName(selectedVisit.contactId) }}</span>
+          <span>是否生成线索：{{ selectedVisit.generateLead ? "是" : "否" }}</span>
+        </div>
+        <div class="visit-detail-text">
+          <strong>沟通内容</strong>
+          <p>{{ selectedVisit.communication || "-" }}</p>
+          <strong>客户需求</strong>
+          <p>{{ selectedVisit.customerNeeds || "-" }}</p>
+          <strong>机会判断</strong>
+          <p>{{ selectedVisit.opportunityAssessment || "-" }}</p>
+          <strong>下一步</strong>
+          <p>{{ selectedVisit.nextAction || "-" }}</p>
+        </div>
+
+        <form
+          v-if="showVisitEdit"
+          class="entity-form"
+          @submit.prevent="updateVisit"
+        >
+          <h3 class="wide">修改拜访记录</h3>
+          <label
+            >联系人<select v-model="visitEdit.contactId">
+              <option value="">无</option>
+              <option
+                v-for="c in detail?.contacts || []"
+                :key="c.id"
+                :value="c.id"
+              >
+                {{ c.name }}
+              </option>
+            </select></label
+          ><label
+            >拜访时间<input
+              v-model="visitEdit.visitedAt"
+              type="datetime-local"
+              required /></label
+          ><label
+            >方式<select v-model="visitEdit.method">
+              <option value="ONSITE">上门</option>
+              <option value="PHONE">电话</option>
+              <option value="VIDEO">视频</option>
+              <option value="OTHER">其他</option>
+            </select></label
+          ><label>地点<input v-model="visitEdit.location" /></label
+          ><label class="wide"
+            >拜访目的<textarea
+              v-model="visitEdit.purpose"
+              required
+            ></textarea></label
+          ><label class="wide"
+            >沟通内容<textarea
+              v-model="visitEdit.communication"
+              required
+            ></textarea></label
+          ><label class="wide"
+            >客户需求<textarea v-model="visitEdit.customerNeeds"></textarea></label
+          ><label class="wide"
+            >机会判断<textarea
+              v-model="visitEdit.opportunityAssessment"
+            ></textarea></label
+          ><label class="wide"
+            >下一步<textarea v-model="visitEdit.nextAction"></textarea></label
+          ><label
+            >下次跟进<input
+              v-model="visitEdit.nextFollowUpAt"
+              type="datetime-local" /></label
+          ><button :disabled="saving">保存修改</button>
+          <button type="button" @click="showVisitEdit = false">取消</button>
+        </form>
+      </section>
     </section>
   </main>
 </template>
@@ -1125,6 +1371,32 @@ onMounted(async () => {
 
 .clickable:hover {
   background: #f4f8fd;
+}
+
+.visit-detail-card {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e6edf5;
+}
+
+.visit-detail-card h3 {
+  margin: 4px 0 8px;
+}
+
+.visit-detail-text {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.visit-detail-text strong {
+  color: #0b1f3a;
+}
+
+.visit-detail-text p {
+  margin: 0 0 8px;
+  color: #52647c;
+  line-height: 1.6;
 }
 
 .checkbox-field {

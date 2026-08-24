@@ -1990,7 +1990,7 @@ export class MySqlActionExecutor {
               [input.counterpartyId],
             ),
             [visits] = await selectRows(connection,
-              `SELECT CAST(id AS CHAR) id,visit_code code,visited_at visitedAt,visit_method method,purpose,communication,next_action nextAction,next_follow_up_at nextFollowUpAt,generate_lead generateLead FROM crm_visit WHERE customer_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY visited_at DESC LIMIT 100`,
+              `SELECT CAST(id AS CHAR) id,visit_code code,CAST(contact_id AS CHAR) contactId,visited_at visitedAt,visit_method method,location,purpose,communication,customer_needs customerNeeds,opportunity_assessment opportunityAssessment,next_action nextAction,next_follow_up_at nextFollowUpAt,generate_lead generateLead,version FROM crm_visit WHERE customer_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY visited_at DESC LIMIT 100`,
               [input.counterpartyId],
           );
           return { counterparty, contacts, visits };
@@ -3913,6 +3913,70 @@ export class MySqlActionExecutor {
             leadId = String(lead.insertId);
           }
           return { id: String(result.insertId), code, leadId };
+        }
+        case "crm.visit.update": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [visits] = await selectRows(connection,
+            `SELECT id,customer_id customerId FROM crm_visit WHERE id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+            [input.visitId, all ? 1 : 0, user.employeeId, user.id],
+          );
+          const existing = visits[0];
+          if (!existing)
+            throw new AppError(
+              "VISIT_NOT_FOUND",
+              "拜访记录不存在或无权访问",
+              404,
+            );
+          if (input.contactId) {
+            const [contacts] = await selectRows(connection,
+              `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0`,
+              [input.contactId, existing.customerId],
+            );
+            if (!contacts[0])
+              throw new AppError(
+                "CONTACT_CUSTOMER_MISMATCH",
+                "联系人不属于当前客户",
+                409,
+              );
+          }
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE crm_visit
+                SET contact_id=?,visited_at=?,visit_method=?,location=?,purpose=?,communication=?,customer_needs=?,opportunity_assessment=?,next_action=?,next_follow_up_at=?,updated_by=?,version=version+1
+              WHERE id=? AND status='ACTIVE' AND is_deleted=0`,
+            [
+              input.contactId ?? null,
+              toMySqlDateTime(input.visitedAt),
+              input.method,
+              input.location ?? null,
+              input.purpose,
+              input.communication,
+              input.customerNeeds ?? null,
+              input.opportunityAssessment ?? null,
+              input.nextAction ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
+              user.id,
+              input.visitId,
+            ],
+          );
+          if (result.affectedRows !== 1)
+            throw new AppError("VISIT_UPDATE_FAILED", "拜访记录更新失败", 409);
+          return { id: input.visitId };
+        }
+        case "crm.visit.delete": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE crm_visit
+                SET is_deleted=1,status='DELETED',updated_by=?,version=version+1
+              WHERE id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?)`,
+            [user.id, input.visitId, all ? 1 : 0, user.employeeId, user.id],
+          );
+          if (result.affectedRows !== 1)
+            throw new AppError(
+              "VISIT_NOT_FOUND",
+              "拜访记录不存在或无权访问",
+              404,
+            );
+          return { id: input.visitId };
         }
         case "lead.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
