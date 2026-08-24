@@ -59,6 +59,63 @@ function crmWriteConnection(options: {
 }
 
 describe("CRM write data scopes", () => {
+  it("continues counterparty numbering after the highest existing code when the rule serial falls behind", async () => {
+    const year = new Date().getFullYear();
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM sys_number_rule")) {
+          return [
+            [
+              {
+                id: 1,
+                prefix: "DW",
+                serial_length: 4,
+                next_serial: 1,
+                current_year: year,
+                version: 0,
+              },
+            ],
+            [],
+          ];
+        }
+        if (sql.includes("MAX(CAST(SUBSTRING")) return [[{ maxSerial: 3 }], []];
+        if (sql.startsWith("INSERT INTO crm_counterparty"))
+          return [{ affectedRows: 1, insertId: 14 }, []];
+        return [{ affectedRows: 1 }, []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    const result = await executor.execute(
+      "crm.counterparty.create",
+      {
+        name: "测试客户有限公司",
+        type: "CUSTOMER",
+        cooperationStatus: "ACTIVE",
+      },
+      scopedUser,
+    );
+
+    expect(result).toEqual({ id: "14", code: `DW-${year}-0004` });
+    expect(
+      calls.find((call) => call.sql.startsWith("INSERT INTO crm_counterparty"))
+        ?.params[0],
+    ).toBe(`DW-${year}-0004`);
+    expect(
+      calls.find((call) =>
+        call.sql.startsWith("UPDATE sys_number_rule SET"),
+      )?.params,
+    ).toEqual([year, 5, 1, 0]);
+  });
+
   it("requires counterparty ownership before creating contacts", async () => {
     const connection = crmWriteConnection({ counterpartyAccessible: true });
     const executor = new MySqlActionExecutor({

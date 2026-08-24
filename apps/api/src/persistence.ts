@@ -85,6 +85,57 @@ interface NumberRow extends RowDataPacket {
   current_year: number;
   version: number;
 }
+
+const numberRuleBusinessTables: Record<
+  string,
+  { table: string; column: string }
+> = {
+  BID: { table: "bid_application", column: "bid_code" },
+  CONTRACT: { table: "con_contract", column: "contract_code" },
+  CONTRACT_CHANGE: { table: "con_contract_change", column: "change_code" },
+  COUNTERPARTY: { table: "crm_counterparty", column: "counterparty_code" },
+  DAILY_PURCHASE: { table: "fin_daily_purchase", column: "purchase_code" },
+  DEPOSIT: { table: "fin_deposit", column: "deposit_code" },
+  EXPORT_TASK: { table: "sys_export_task", column: "task_code" },
+  INVOICE_APPLICATION: {
+    table: "fin_invoice_application",
+    column: "application_code",
+  },
+  LEAD: { table: "mkt_lead", column: "lead_code" },
+  PARTNER_PLAN: { table: "partner_plan", column: "plan_code" },
+  PARTNER_SETTLEMENT: { table: "partner_settlement", column: "settlement_code" },
+  PAYMENT: { table: "fin_payment_application", column: "payment_code" },
+  PROJECT: { table: "prj_project", column: "project_code" },
+  PROJECT_APPLICATION: {
+    table: "prj_project_application",
+    column: "application_code",
+  },
+  RECEIPT: { table: "fin_receipt", column: "receipt_code" },
+  REIMBURSEMENT: { table: "fin_reimbursement", column: "reimbursement_code" },
+  VISIT: { table: "crm_visit", column: "visit_code" },
+};
+
+const quoteIdentifier = (value: string) => `\`${value.replaceAll("`", "``")}\``;
+
+async function loadMaxUsedSerial(
+  connection: PoolConnection,
+  ruleCode: string,
+  prefix: string,
+  year: number,
+) {
+  const businessTable = numberRuleBusinessTables[ruleCode];
+  if (!businessTable) return 0;
+  const codePrefix = `${prefix}-${year}-`;
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT MAX(CAST(SUBSTRING(${quoteIdentifier(businessTable.column)}, ?) AS UNSIGNED)) maxSerial
+       FROM ${quoteIdentifier(businessTable.table)}
+      WHERE ${quoteIdentifier(businessTable.column)} LIKE ?`,
+    [codePrefix.length + 1, `${codePrefix}%`],
+  );
+  const maxSerial = Number(rows[0]?.maxSerial ?? 0);
+  return Number.isSafeInteger(maxSerial) && maxSerial > 0 ? maxSerial : 0;
+}
+
 interface ApprovalTaskRow extends RowDataPacket {
   task_id: string;
   instance_id: string;
@@ -115,7 +166,14 @@ async function allocateNumber(
       500,
     );
   const year = new Date().getFullYear();
-  const serial = row.current_year === year ? row.next_serial : 1;
+  const maxUsedSerial = await loadMaxUsedSerial(
+    connection,
+    ruleCode,
+    row.prefix,
+    year,
+  );
+  const configuredSerial = row.current_year === year ? row.next_serial : 1;
+  const serial = Math.max(configuredSerial, maxUsedSerial + 1);
   await connection.execute(
     "UPDATE sys_number_rule SET current_year=?,next_serial=?,version=version+1 WHERE id=? AND version=?",
     [year, serial + 1, row.id, row.version],
