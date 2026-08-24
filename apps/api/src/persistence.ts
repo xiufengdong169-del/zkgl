@@ -2035,7 +2035,7 @@ export class MySqlActionExecutor {
         case "lead.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(connection,
-              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,l.customer_id customerId,c.name customerName,l.source_code sourceCode,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.project_type projectType,l.requirement_summary requirementSummary,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
+              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
               [input.leadId, all ? 1 : 0, user.employeeId, user.id],
             );
           const lead = rows[0];
@@ -2065,6 +2065,94 @@ export class MySqlActionExecutor {
             [input.leadId, from, status, input.reason, user.id],
           );
           return { id: input.leadId, status };
+        }
+        case "lead.update": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [leads] = await selectRows(connection,
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
+            [input.leadId, all ? 1 : 0, user.employeeId, user.id],
+          );
+          const existing = leads[0];
+          if (!existing)
+            throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
+          if (!["DRAFT", "RETURNED"].includes(existing.status))
+            throw new AppError(
+              "LEAD_NOT_EDITABLE",
+              "当前状态不允许修改线索",
+              409,
+            );
+          const [customers] = await selectRows(connection,
+            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            [input.customerId, all ? 1 : 0, user.employeeId],
+          );
+          if (!customers[0])
+            throw new AppError(
+              "LEAD_CUSTOMER_NOT_FOUND",
+              "客户不存在或无权访问",
+              404,
+            );
+          const [duplicates] = await selectRows(connection,
+            `SELECT CAST(id AS CHAR) id,lead_code code FROM mkt_lead
+              WHERE id<>? AND customer_id=? AND project_name=? AND status NOT IN('INVALID','CONVERTED') AND is_deleted=0
+              LIMIT 1 FOR UPDATE`,
+            [input.leadId, input.customerId, input.projectName],
+          );
+          if (duplicates[0])
+            throw new AppError(
+              "DUPLICATE_LEAD",
+              `该客户已存在同名有效线索（${duplicates[0].code}）`,
+              409,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE mkt_lead
+                SET project_name=?,customer_id=?,source_code=?,source_description=?,discovered_on=?,estimated_amount=?,estimated_start_on=?,project_type=?,project_background=?,requirement_summary=?,competition=?,success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1
+              WHERE id=? AND is_deleted=0`,
+            [
+              input.projectName,
+              input.customerId,
+              input.sourceCode,
+              input.sourceDescription ?? null,
+              input.discoveredOn,
+              input.estimatedAmount ?? null,
+              input.estimatedStartOn ?? null,
+              input.projectType,
+              input.projectBackground ?? null,
+              input.requirementSummary,
+              input.competition ?? null,
+              input.successProbability,
+              input.nextFollowUpAt ?? null,
+              user.id,
+              input.leadId,
+            ],
+          );
+          if (result.affectedRows !== 1)
+            throw new AppError("LEAD_UPDATE_FAILED", "线索更新失败", 409);
+          return { id: input.leadId };
+        }
+        case "lead.delete": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [leads] = await selectRows(connection,
+            `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
+            [input.leadId, all ? 1 : 0, user.employeeId, user.id],
+          );
+          const existing = leads[0];
+          if (!existing)
+            throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
+          if (!["DRAFT", "RETURNED"].includes(existing.status))
+            throw new AppError(
+              "LEAD_NOT_DELETABLE",
+              "当前状态不允许删除线索",
+              409,
+            );
+          await connection.execute(
+            `UPDATE mkt_lead SET is_deleted=1,status='INVALID',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [user.id, input.leadId],
+          );
+          await connection.execute(
+            `INSERT INTO sys_status_history(object_type,object_id,from_status,to_status,action,reason,operated_by) VALUES('LEAD',?,?,?,'DELETE','草稿删除',?)`,
+            [input.leadId, existing.status, "INVALID", user.id],
+          );
+          return { id: input.leadId };
         }
         case "project.application.list": {
           const page = input.page as number,

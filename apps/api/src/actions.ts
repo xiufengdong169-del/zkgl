@@ -51,7 +51,7 @@ import {
   visitInput,
   visitUpdateInput,
 } from "./crm.js";
-import { followUpInput, leadInput } from "./leads.js";
+import { followUpInput, leadInput, leadUpdateInput } from "./leads.js";
 import { projectApplicationInput } from "./project-applications.js";
 import {
   fileCompleteInput,
@@ -101,6 +101,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       leadId: z.string().min(1),
       reason: z.string().trim().min(2).max(1000),
     }),
+  },
+  "lead.update": {
+    permission: "lead.create",
+    input: leadUpdateInput,
+  },
+  "lead.delete": {
+    permission: "lead.create",
+    input: z.object({ leadId: z.string().min(1) }),
   },
   "project.application.list": {
     permission: "project.application.read",

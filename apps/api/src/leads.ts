@@ -21,6 +21,13 @@ export const leadInput = z.object({
   sourceVisitId: z.string().nullable().optional()
 })
 
+export const leadUpdateInput = leadInput.omit({
+  collaboratorIds: true,
+  sourceVisitId: true,
+}).extend({
+  leadId: z.string().min(1),
+})
+
 export const followUpInput = z.object({
   leadId: z.string().min(1),
   followedUpAt: z.iso.datetime(),
@@ -53,4 +60,5 @@ export function transitionLead(status: LeadStatus, action: LeadAction): LeadStat
 }
 
 export type LeadInput = z.infer<typeof leadInput>
+export type LeadUpdateInput = z.infer<typeof leadUpdateInput>
 export type FollowUpInput = z.infer<typeof followUpInput>

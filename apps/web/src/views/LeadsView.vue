@@ -11,10 +11,16 @@ interface CustomerOption {
 interface LeadDetail extends LeadSummary {
   customerName: string;
   sourceCode: string;
+  sourceDescription?: string | null;
   discoveredOn: string;
   estimatedAmount: number | null;
+  estimatedStartOn?: string | null;
   projectType: string;
+  projectBackground?: string | null;
   requirementSummary: string;
+  competition?: string | null;
+  nextFollowUpAt: string | null;
+  version?: number;
 }
 interface FollowUp {
   id: string;
@@ -36,6 +42,7 @@ const error = ref<string | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const showForm = ref(false);
+const showEdit = ref(false);
 const showFollowUp = ref(false);
 const form = ref({
   projectName: "",
@@ -57,6 +64,19 @@ const followUpForm = ref({
   opportunityChange: "",
   successProbability: 50,
   nextAction: "",
+  nextFollowUpAt: null as string | null,
+});
+const editForm = ref({
+  leadId: "",
+  projectName: "",
+  customerId: "",
+  sourceCode: "VISIT",
+  discoveredOn: new Date().toISOString().slice(0, 10),
+  estimatedAmount: null as number | null,
+  estimatedStartOn: null as string | null,
+  projectType: "CONSULTING",
+  requirementSummary: "",
+  successProbability: 50,
   nextFollowUpAt: null as string | null,
 });
 const statusColumns = [
@@ -98,6 +118,19 @@ function followUpMethodText(value?: string | null) {
   return (value && labels[value]) || value || "-";
 }
 
+function toDateInput(value?: string | null) {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
+function toDateTimeInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 async function load() {
   loading.value = true;
   error.value = null;
@@ -131,8 +164,71 @@ async function openDetail(id: string) {
     selected.value = result.lead;
     followUps.value = result.followUps;
     followUpForm.value.successProbability = result.lead.successProbability;
+    showEdit.value = false;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "详情加载失败";
+  }
+}
+
+function startEditLead() {
+  if (!selected.value) return;
+  editForm.value = {
+    leadId: selected.value.id,
+    projectName: selected.value.projectName,
+    customerId: selected.value.customerId,
+    sourceCode: selected.value.sourceCode || "VISIT",
+    discoveredOn: toDateInput(selected.value.discoveredOn),
+    estimatedAmount:
+      selected.value.estimatedAmount == null
+        ? null
+        : Number(selected.value.estimatedAmount),
+    estimatedStartOn: toDateInput(selected.value.estimatedStartOn) || null,
+    projectType: selected.value.projectType || "CONSULTING",
+    requirementSummary: selected.value.requirementSummary,
+    successProbability: selected.value.successProbability,
+    nextFollowUpAt: toDateTimeInput(selected.value.nextFollowUpAt) || null,
+  };
+  showEdit.value = true;
+}
+
+async function updateLead() {
+  if (!auth.user || !selected.value) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("lead.update", {
+      ...editForm.value,
+      sourceDescription: null,
+      projectBackground: null,
+      competition: null,
+      estimatedStartOn: editForm.value.estimatedStartOn || null,
+      nextFollowUpAt: editForm.value.nextFollowUpAt
+        ? new Date(editForm.value.nextFollowUpAt).toISOString()
+        : null,
+    });
+    showEdit.value = false;
+    await load();
+    await openDetail(editForm.value.leadId);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存线索失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteLead(lead: LeadDetail) {
+  if (!window.confirm("确认删除这条草稿线索？")) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("lead.delete", { leadId: lead.id });
+    selected.value = null;
+    showEdit.value = false;
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "删除线索失败";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -358,7 +454,14 @@ onMounted(load);
           <p class="eyebrow">{{ selected.code }}</p>
           <h2>{{ selected.projectName }}</h2>
         </div>
-        <button @click="selected = null">关闭详情</button>
+        <button
+          @click="
+            selected = null;
+            showEdit = false;
+          "
+        >
+          关闭详情
+        </button>
       </header>
       <p>
         客户：{{ selected.customerName }}　成功概率：{{
@@ -366,6 +469,101 @@ onMounted(load);
         }}%　状态：{{ leadStatusText(selected.status) }}
       </p>
       <p>{{ selected.requirementSummary }}</p>
+      <div class="approval-actions">
+        <button
+          v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
+          class="secondary"
+          type="button"
+          :disabled="saving"
+          @click="startEditLead"
+        >
+          修改线索
+        </button>
+        <button
+          v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
+          class="danger"
+          type="button"
+          :disabled="saving"
+          @click="deleteLead(selected)"
+        >
+          删除线索
+        </button>
+      </div>
+      <form
+        v-if="showEdit"
+        class="entity-form"
+        @submit.prevent="updateLead"
+      >
+        <h3 class="wide">修改线索</h3>
+        <label
+          >项目名称<input v-model="editForm.projectName" required minlength="2"
+        /></label>
+        <label
+          >客户<select v-model="editForm.customerId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="customer in customers"
+              :key="customer.id"
+              :value="customer.id"
+            >
+              {{ customer.name }}
+            </option>
+          </select></label
+        >
+        <label
+          >来源<select v-model="editForm.sourceCode">
+            <option value="VISIT">客户拜访</option>
+            <option value="REFERRAL">转介绍</option>
+            <option value="PUBLIC">公开信息</option>
+            <option value="OTHER">其他</option>
+          </select></label
+        >
+        <label
+          >发现日期<input
+            v-model="editForm.discoveredOn"
+            type="date"
+            required
+        /></label>
+        <label
+          >预计金额<input
+            v-model.number="editForm.estimatedAmount"
+            type="number"
+            min="0"
+            step="0.01"
+        /></label>
+        <label
+          >预计启动<input v-model="editForm.estimatedStartOn" type="date"
+        /></label>
+        <label
+          >项目类型<select v-model="editForm.projectType">
+            <option value="CONSULTING">信息化咨询</option>
+            <option value="SUPERVISION">信息化监理</option>
+            <option value="OTHER">其他</option>
+          </select></label
+        >
+        <label
+          >成功概率<input
+            v-model.number="editForm.successProbability"
+            type="number"
+            min="0"
+            max="100"
+            required
+        /></label>
+        <label
+          >下次跟进<input
+            v-model="editForm.nextFollowUpAt"
+            type="datetime-local"
+        /></label>
+        <label class="wide"
+          >需求概述<textarea
+            v-model="editForm.requirementSummary"
+            required
+            minlength="2"
+          ></textarea>
+        </label>
+        <button type="submit" :disabled="saving">保存修改</button>
+        <button type="button" @click="showEdit = false">取消</button>
+      </form>
       <button
         v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
         :disabled="saving"
