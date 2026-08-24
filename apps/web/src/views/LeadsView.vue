@@ -131,6 +131,12 @@ function toDateTimeInput(value?: string | null) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function nullableNumber(value: unknown) {
+  if (value == null || value === "") return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 async function load() {
   loading.value = true;
   error.value = null;
@@ -267,7 +273,7 @@ async function submitApproval(lead: LeadDetail) {
       businessType: "LEAD",
       businessId: lead.id,
       title: `线索登记：${lead.projectName}`,
-      amount: lead.estimatedAmount,
+      amount: nullableNumber(lead.estimatedAmount),
     });
     await load();
     await openDetail(lead.id);
