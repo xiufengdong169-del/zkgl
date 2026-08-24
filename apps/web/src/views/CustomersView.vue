@@ -758,10 +758,6 @@ onMounted(async () => {
         </article>
       </div>
     </section>
-    <section v-else class="data-panel detail-panel empty-detail">
-      <h2>请选择左侧单位</h2>
-      <p>点击左侧任一往来单位后，可在这里查看详情、修改信息、删除单位，并继续维护联系人和拜访记录。</p>
-    </section>
     </div>
   </main>
 </template>
@@ -826,14 +822,6 @@ onMounted(async () => {
 .pager span {
   text-align: center;
   line-height: 1.6;
-}
-
-.empty-detail {
-  min-height: 260px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  color: #52647c;
 }
 
 .detail-actions {
