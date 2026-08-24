@@ -74,6 +74,30 @@ const grouped = computed(() =>
   ),
 );
 
+function leadStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    PENDING_REGISTRATION: "待登记",
+    FOLLOWING: "跟进中",
+    CONVERTED: "已转项目",
+    RETURNED: "已退回",
+    CLOSED: "已关闭",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function followUpMethodText(value?: string | null) {
+  const labels: Record<string, string> = {
+    PHONE: "电话",
+    ONSITE: "现场",
+    VIDEO: "视频",
+    WECHAT: "微信",
+    EMAIL: "邮件",
+    OTHER: "其他",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
 async function load() {
   loading.value = true;
   error.value = null;
@@ -302,7 +326,7 @@ onMounted(load);
           {{ lead.projectName }} · {{ lead.successProbability }}%
         </button>
         <p v-if="!grouped[column.code]?.length">暂无记录</p>
-        <small>{{ column.code }}</small>
+        <small>{{ leadStatusText(column.code) }}</small>
       </article>
     </section>
     <section class="data-panel">
@@ -322,7 +346,7 @@ onMounted(load);
             <td>{{ item.code }}</td>
             <td>{{ item.projectName }}</td>
             <td>{{ item.successProbability }}%</td>
-            <td>{{ item.status }}</td>
+            <td>{{ leadStatusText(item.status) }}</td>
           </tr>
         </tbody>
       </table>
@@ -339,7 +363,7 @@ onMounted(load);
       <p>
         客户：{{ selected.customerName }}　成功概率：{{
           selected.successProbability
-        }}%　状态：{{ selected.status }}
+        }}%　状态：{{ leadStatusText(selected.status) }}
       </p>
       <p>{{ selected.requirementSummary }}</p>
       <button
@@ -418,7 +442,7 @@ onMounted(load);
       <article v-for="followUp in followUps" :key="followUp.id">
         <strong
           >{{ new Date(followUp.followedUpAt).toLocaleString() }} ·
-          {{ followUp.method }}</strong
+          {{ followUpMethodText(followUp.method) }}</strong
         >
         <p>{{ followUp.communication }}</p>
         <small

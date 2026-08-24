@@ -115,6 +115,35 @@ const resultForm = ref({
   competitors: "",
   retrospective: "",
 });
+
+function bidStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    PENDING_APPROVAL: "审批中",
+    APPROVED: "已审批",
+    RETURNED: "已退回",
+    PREPARING: "编制中",
+    SUBMITTED: "已投标",
+    OPENED: "已开标",
+    WON: "已中标",
+    LOST: "未中标",
+    ABANDONED: "已放弃",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function taskStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    PENDING: "待开始",
+    IN_PROGRESS: "处理中",
+    PENDING_CHECK: "待检查",
+    OVERDUE: "已逾期",
+    COMPLETED: "已完成",
+    CANCELLED: "已取消",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
 async function load() {
   try {
     const [b, p, c, e] = await Promise.all([
@@ -525,7 +554,7 @@ const areas = [
               <button @click="openDetail(item)">{{ item.projectName }}</button>
             </td>
             <td>{{ item.deadlineAt }}</td>
-            <td>{{ item.status }}</td>
+            <td>{{ bidStatusText(item.status) }}</td>
             <td>
               <button
                 v-if="canSubmitApprovalStatus(item.status)"
@@ -620,7 +649,7 @@ const areas = [
       <h3>任务分工</h3>
       <article v-for="task in tasks" :key="task.id" class="data-row">
         <div>
-          <strong>{{ task.taskName }} · {{ task.status }}</strong>
+          <strong>{{ task.taskName }} · {{ taskStatusText(task.status) }}</strong>
           <p>
             {{ task.taskType }} · 截止
             {{ new Date(task.dueAt).toLocaleString() }}

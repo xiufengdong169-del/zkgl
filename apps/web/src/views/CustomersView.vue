@@ -232,6 +232,16 @@ function cooperationStatusText(value?: string | null) {
   );
 }
 
+function visitMethodText(value?: string | null) {
+  const labels: Record<string, string> = {
+    ONSITE: "上门",
+    PHONE: "电话",
+    VIDEO: "视频",
+    OTHER: "其他",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
 function applyDictionaryOptions(
   typeCode: string,
   items: Array<{ typeCode: string; label: string; valueText: string }>,
@@ -914,7 +924,7 @@ onMounted(async () => {
         <tbody>
           <tr v-for="v in detail.visits" :key="v.id">
             <td>{{ v.visitedAt }}</td>
-            <td>{{ v.method }}</td>
+            <td>{{ visitMethodText(v.method) }}</td>
             <td>{{ v.purpose }}</td>
             <td>{{ v.communication }}</td>
             <td>{{ v.nextAction || "-" }}</td>
