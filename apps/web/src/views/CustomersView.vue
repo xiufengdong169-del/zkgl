@@ -738,7 +738,7 @@ onMounted(async () => {
 
     <div v-if="activeSection === 'counterparties'" class="customer-workspace">
     <section class="data-panel list-panel">
-      <h2>最近往来单位</h2>
+      <h2>往来单位</h2>
       <p v-if="loading">正在加载…</p>
       <p v-else-if="error" class="error">{{ error }}</p>
       <table v-else-if="items.length">
