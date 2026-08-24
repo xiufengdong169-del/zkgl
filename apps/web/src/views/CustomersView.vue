@@ -661,9 +661,12 @@ onMounted(async () => {
       ><label>职务<input v-model="contact.positionName" /></label
       ><label>手机<input v-model="contact.mobile" /></label
       ><label>邮箱<input v-model="contact.email" type="email" /></label
-      ><label
-        ><input v-model="contact.isKeyContact" type="checkbox" />
-        关键联系人</label
+      ><label class="checkbox-field"
+        ><span>关键联系人</span>
+        <span class="checkbox-line">
+          <input v-model="contact.isKeyContact" type="checkbox" />
+          <em>{{ contact.isKeyContact ? "是" : "否" }}</em>
+        </span></label
       ><label
         >关系程度<select v-model="contact.relationshipLevel">
           <option value="NORMAL">一般</option>
@@ -714,9 +717,12 @@ onMounted(async () => {
         ></textarea></label
       ><label class="wide"
         >下一步<textarea v-model="visit.nextAction"></textarea></label
-      ><label
-        ><input v-model="visit.generateLead" type="checkbox" />
-        同时生成线索</label
+      ><label class="checkbox-field wide"
+        ><span>同时生成线索</span>
+        <span class="checkbox-line">
+          <input v-model="visit.generateLead" type="checkbox" />
+          <em>{{ visit.generateLead ? "是" : "否" }}</em>
+        </span></label
       ><button :disabled="saving">保存拜访</button>
     </form>
 
@@ -1067,6 +1073,37 @@ onMounted(async () => {
   border-radius: 10px;
   background: #f6f9fc;
   color: #66758a;
+}
+
+.checkbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkbox-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid #cdd7e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.checkbox-line input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: #245f9f;
+}
+
+.checkbox-line em {
+  color: #0b1f3a;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .detail-actions {
