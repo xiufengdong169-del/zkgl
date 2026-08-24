@@ -61,6 +61,18 @@ const showVisit = ref(false);
 const saving = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const pageSize = 6;
+const currentPage = ref(1);
+const totalItems = ref(0);
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(totalItems.value / pageSize)),
+);
+const pageStart = computed(() =>
+  totalItems.value ? (currentPage.value - 1) * pageSize + 1 : 0,
+);
+const pageEnd = computed(() =>
+  Math.min(currentPage.value * pageSize, totalItems.value),
+);
 
 const defaultTypeOptions = [
   { value: "CUSTOMER", label: "客户" },
@@ -223,20 +235,35 @@ async function loadCrmOptions() {
   }
 }
 
-async function load() {
+async function load(page = currentPage.value) {
   loading.value = true;
   error.value = null;
   try {
-    const result = await callApi<{ items: CounterpartySummary[] }>(
-      "crm.counterparty.list",
-      { page: 1, pageSize: 20 },
-    );
+    const requestedPage = Math.max(1, page);
+    const result = await callApi<{
+      items: CounterpartySummary[];
+      page: number;
+      pageSize: number;
+      total?: number;
+    }>("crm.counterparty.list", { page: requestedPage, pageSize });
+    const total = Number(result.total ?? result.items.length);
+    if (!result.items.length && total > 0 && requestedPage > 1) {
+      await load(Math.max(1, Math.ceil(total / pageSize)));
+      return;
+    }
     items.value = result.items;
+    totalItems.value = total;
+    currentPage.value = result.page || requestedPage;
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "加载失败";
   } finally {
     loading.value = false;
   }
+}
+
+async function goToPage(page: number) {
+  if (page < 1 || page > totalPages.value || page === currentPage.value) return;
+  await load(page);
 }
 
 async function loadDetail(id: string) {
@@ -256,7 +283,7 @@ async function createCounterparty() {
   saving.value = true;
   error.value = null;
   try {
-    await callApi("crm.counterparty.create", {
+    const created = await callApi<{ id?: string }>("crm.counterparty.create", {
       ...form.value,
       shortName: form.value.shortName || null,
       industry: form.value.industry || null,
@@ -277,7 +304,8 @@ async function createCounterparty() {
       cooperationStatus: "POTENTIAL",
       remark: "",
     };
-    await load();
+    await load(1);
+    if (created.id) await loadDetail(created.id);
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "保存失败";
   } finally {
@@ -323,7 +351,7 @@ async function updateCounterparty() {
       version: f.version,
     });
     showEdit.value = false;
-    await load();
+    await load(currentPage.value);
     await loadDetail(id);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "往来单位更新失败";
@@ -347,7 +375,7 @@ async function deleteCounterparty() {
     detail.value = null;
     selectedId.value = "";
     showEdit.value = false;
-    await load();
+    await load(currentPage.value);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "往来单位删除失败";
   } finally {
@@ -625,7 +653,8 @@ onMounted(async () => {
       </article>
     </section>
 
-    <section class="data-panel">
+    <div class="customer-workspace">
+    <section class="data-panel list-panel">
       <h2>最近往来单位</h2>
       <p v-if="loading">正在加载…</p>
       <p v-else-if="error" class="error">{{ error }}</p>
@@ -643,6 +672,7 @@ onMounted(async () => {
             v-for="item in items"
             :key="item.id"
             class="clickable"
+            :class="{ selected: item.id === selectedId }"
             @click="loadDetail(item.id)"
           >
             <td>{{ item.code }}</td>
@@ -652,13 +682,35 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <p v-else>暂无往来单位</p>
+      <div v-if="!loading && !error && totalItems > pageSize" class="pager">
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="currentPage <= 1"
+          @click="goToPage(currentPage - 1)"
+        >
+          上一页
+        </button>
+        <span
+          >第 {{ currentPage }} / {{ totalPages }} 页，显示
+          {{ pageStart }}-{{ pageEnd }} 条，共 {{ totalItems }} 条</span
+        >
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="currentPage >= totalPages"
+          @click="goToPage(currentPage + 1)"
+        >
+          下一页
+        </button>
+      </div>
+      <p v-if="!loading && !error && !items.length">暂无往来单位</p>
     </section>
 
-    <section v-if="detail" class="data-panel">
+    <section v-if="detail" class="data-panel detail-panel">
       <header class="page-header">
         <div>
-          <p class="eyebrow">CUSTOMER 360</p>
+          <p class="eyebrow">单位详情</p>
           <h2>{{ detail.counterparty.name }}</h2>
           <p>{{ selectedCounterpartySummary }}</p>
         </div>
@@ -715,10 +767,71 @@ onMounted(async () => {
         </article>
       </div>
     </section>
+    <section v-else class="data-panel detail-panel empty-detail">
+      <h2>请选择左侧单位</h2>
+      <p>点击左侧任一往来单位后，可在这里查看详情、修改信息、删除单位，并继续维护联系人和拜访记录。</p>
+    </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
+.customer-workspace {
+  display: grid;
+  grid-template-columns: minmax(420px, 0.95fr) minmax(520px, 1.25fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.list-panel,
+.detail-panel {
+  margin-top: 0;
+}
+
+.detail-panel {
+  position: sticky;
+  top: 18px;
+}
+
+.list-panel table {
+  table-layout: fixed;
+}
+
+.list-panel td,
+.list-panel th {
+  vertical-align: middle;
+}
+
+.clickable.selected {
+  background: #eaf4ff;
+  box-shadow: inset 4px 0 0 #2f6bab;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e6edf5;
+  color: #52647c;
+  font-size: 14px;
+}
+
+.pager span {
+  text-align: center;
+  line-height: 1.6;
+}
+
+.empty-detail {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #52647c;
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
@@ -747,6 +860,19 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
+  .customer-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-panel {
+    position: static;
+  }
+
+  .pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .detail-grid {
     grid-template-columns: 1fr;
   }

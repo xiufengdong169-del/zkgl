@@ -51,6 +51,16 @@ describe("domain actions", () => {
     }
   });
 
+  it("allows compact six-row pages for CRM customer lists", () => {
+    const reader = { ...user, permissionCodes: ["crm.counterparty.read"] };
+    expect(
+      authorizeAndParseAction(reader, "crm.counterparty.list", {
+        page: 1,
+        pageSize: 6,
+      }),
+    ).toMatchObject({ page: 1, pageSize: 6 });
+  });
+
   it("accepts only persisted audit outcomes for audit log filters", () => {
     const admin = { ...user, permissionCodes: ["system.admin"] };
     for (const outcome of ["SUCCESS", "DENIED", "FAILED"]) {

@@ -71,7 +71,7 @@ interface ActionDefinition {
 const listInput = z
   .object({
     page: z.number().int().positive().default(1),
-    pageSize: z.union([z.literal(20), z.literal(50)]).default(20),
+    pageSize: z.union([z.literal(6), z.literal(20), z.literal(50)]).default(20),
     keyword: z.string().trim().max(100).optional(),
   })
   .default({ page: 1, pageSize: 20 });

@@ -1926,22 +1926,37 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "";
           const pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`;
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const scopeParams = [
+            all ? 1 : 0,
+            user.employeeId,
+            keyword,
+            pattern,
+            pattern,
+          ];
+          const [countRows] = await selectRows(
+            connection,
+            `SELECT COUNT(*) total
+             FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
+              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')`,
+            scopeParams,
+          );
           const [rows] = await selectRows(connection,
             `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus
              FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
               AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
              ORDER BY id DESC LIMIT ? OFFSET ?`,
             [
-              all ? 1 : 0,
-              user.employeeId,
-              keyword,
-              pattern,
-              pattern,
+              ...scopeParams,
               pageSize,
               (page - 1) * pageSize,
             ],
           );
-          return { items: rows, page, pageSize };
+          return {
+            items: rows,
+            page,
+            pageSize,
+            total: Number(countRows[0]?.total ?? 0),
+          };
         }
         case "crm.counterparty.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
