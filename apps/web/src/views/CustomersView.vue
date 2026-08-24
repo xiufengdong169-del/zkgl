@@ -644,15 +644,6 @@ onMounted(async () => {
       ><button :disabled="saving">保存拜访</button>
     </form>
 
-    <section class="module-grid">
-      <article v-for="item in modules" :key="item.title" class="module-card">
-        <span class="module-icon">{{ item.title.slice(0, 1) }}</span>
-        <h2>{{ item.title }}</h2>
-        <p>{{ item.description }}</p>
-        <small>{{ item.permission }}</small>
-      </article>
-    </section>
-
     <div class="customer-workspace">
     <section class="data-panel list-panel">
       <h2>最近往来单位</h2>
@@ -778,8 +769,8 @@ onMounted(async () => {
 <style scoped>
 .customer-workspace {
   display: grid;
-  grid-template-columns: minmax(420px, 0.95fr) minmax(520px, 1.25fr);
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 18px;
   align-items: start;
 }
 
@@ -788,18 +779,31 @@ onMounted(async () => {
   margin-top: 0;
 }
 
-.detail-panel {
-  position: sticky;
-  top: 18px;
-}
-
 .list-panel table {
-  table-layout: fixed;
+  table-layout: auto;
+  min-width: 760px;
 }
 
 .list-panel td,
 .list-panel th {
   vertical-align: middle;
+}
+
+.list-panel th:first-child,
+.list-panel td:first-child {
+  width: 170px;
+}
+
+.list-panel th:nth-child(3),
+.list-panel td:nth-child(3),
+.list-panel th:nth-child(4),
+.list-panel td:nth-child(4) {
+  width: 120px;
+}
+
+.list-panel td:nth-child(2) {
+  white-space: normal;
+  word-break: break-word;
 }
 
 .clickable.selected {
@@ -839,9 +843,21 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+.detail-actions button,
+.pager button {
+  width: auto;
+  min-width: 96px;
+  margin: 0;
+  padding: 10px 16px;
+}
+
+.detail-actions .danger-button {
+  min-width: 118px;
+}
+
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
   margin: 16px 0 22px;
 }
@@ -860,14 +876,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-  .customer-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-panel {
-    position: static;
-  }
-
   .pager {
     flex-direction: column;
     align-items: stretch;
