@@ -190,6 +190,10 @@ function openVisitForm() {
   showContact.value = false;
 }
 
+function enterVisitRecords() {
+  switchSection("visits");
+}
+
 const modules = [
   {
     title: "往来单位",
@@ -843,9 +847,15 @@ onMounted(async () => {
         </article>
         <article class="module-card">
           <h3>拜访记录</h3>
-          <p v-for="v in detail.visits" :key="v.id">
+          <button
+            v-for="v in detail.visits"
+            :key="v.id"
+            type="button"
+            class="inline-list-button"
+            @click="enterVisitRecords"
+          >
             {{ v.visitedAt }} · {{ v.purpose }}
-          </p>
+          </button>
           <p v-if="!detail.visits.length">暂无</p>
         </article>
       </div>
@@ -922,7 +932,12 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="v in detail.visits" :key="v.id">
+          <tr
+            v-for="v in detail.visits"
+            :key="v.id"
+            class="clickable"
+            @click="enterVisitRecords"
+          >
             <td>{{ v.visitedAt }}</td>
             <td>{{ visitMethodText(v.method) }}</td>
             <td>{{ v.purpose }}</td>
@@ -1083,6 +1098,33 @@ onMounted(async () => {
   border-radius: 10px;
   background: #f6f9fc;
   color: #66758a;
+}
+
+.inline-list-button {
+  display: block;
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #53657d;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.inline-list-button:hover {
+  color: #245f9f;
+  text-decoration: underline;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: #f4f8fd;
 }
 
 .checkbox-field {
