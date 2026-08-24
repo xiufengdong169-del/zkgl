@@ -7,6 +7,7 @@ import { useAuthStore } from "../stores/auth";
 interface ContactRecord {
   id: string;
   name: string;
+  departmentName?: string;
   positionName?: string;
   mobile?: string;
   email?: string;
@@ -61,6 +62,9 @@ const showVisit = ref(false);
 const saving = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const activeSection = ref<"counterparties" | "contacts" | "visits">(
+  "counterparties",
+);
 const pageSize = 6;
 const currentPage = ref(1);
 const totalItems = ref(0);
@@ -72,6 +76,9 @@ const pageStart = computed(() =>
 );
 const pageEnd = computed(() =>
   Math.min(currentPage.value * pageSize, totalItems.value),
+);
+const selectedCounterpartyName = computed(
+  () => detail.value?.counterparty.name || "未选择往来单位",
 );
 
 const defaultTypeOptions = [
@@ -154,6 +161,34 @@ const visit = ref({
   nextFollowUpAt: "",
   generateLead: false,
 });
+
+function switchSection(section: "counterparties" | "contacts" | "visits") {
+  activeSection.value = section;
+  if (section !== "counterparties") showForm.value = false;
+  if (section !== "contacts") showContact.value = false;
+  if (section !== "visits") showVisit.value = false;
+}
+
+function openCounterpartyForm() {
+  activeSection.value = "counterparties";
+  showForm.value = !showForm.value;
+  showContact.value = false;
+  showVisit.value = false;
+}
+
+function openContactForm() {
+  activeSection.value = "contacts";
+  showContact.value = !showContact.value;
+  showForm.value = false;
+  showVisit.value = false;
+}
+
+function openVisitForm() {
+  activeSection.value = "visits";
+  showVisit.value = !showVisit.value;
+  showForm.value = false;
+  showContact.value = false;
+}
 
 const modules = [
   {
@@ -453,26 +488,63 @@ onMounted(async () => {
         <h1>客户管理</h1>
       </div>
       <div class="header-actions">
-        <button class="primary-action" @click="showForm = !showForm">
+        <button class="primary-action" @click="openCounterpartyForm">
           新增往来单位</button
         ><button
           class="primary-action"
           :disabled="!selectedId"
-          @click="showContact = !showContact"
+          @click="openContactForm"
         >
           新增联系人</button
         ><button
           class="primary-action"
           :disabled="!selectedId"
-          @click="showVisit = !showVisit"
+          @click="openVisitForm"
         >
           登记拜访
         </button>
       </div>
     </header>
 
+    <nav class="crm-subnav" aria-label="客户管理分类">
+      <button
+        type="button"
+        :class="{ active: activeSection === 'counterparties' }"
+        @click="switchSection('counterparties')"
+      >
+        <strong>往来单位</strong>
+        <span>客户、供应商、合作伙伴档案</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeSection === 'contacts' }"
+        @click="switchSection('contacts')"
+      >
+        <strong>联系人</strong>
+        <span>围绕当前单位维护联系人</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeSection === 'visits' }"
+        @click="switchSection('visits')"
+      >
+        <strong>拜访记录</strong>
+        <span>记录沟通、跟进和线索</span>
+      </button>
+    </nav>
+
+    <div v-if="selectedId" class="crm-context-bar">
+      <span>当前单位</span>
+      <strong>{{ selectedCounterpartyName }}</strong>
+      <button type="button" @click="switchSection('counterparties')">
+        查看单位信息
+      </button>
+      <button type="button" @click="openContactForm">新增联系人</button>
+      <button type="button" @click="openVisitForm">登记拜访</button>
+    </div>
+
     <form
-      v-if="showForm"
+      v-if="activeSection === 'counterparties' && showForm"
       class="entity-form"
       @submit.prevent="createCounterparty"
     >
@@ -529,7 +601,7 @@ onMounted(async () => {
     </form>
 
     <form
-      v-if="showEdit"
+      v-if="activeSection === 'counterparties' && showEdit"
       class="entity-form"
       @submit.prevent="updateCounterparty"
     >
@@ -580,7 +652,7 @@ onMounted(async () => {
     </form>
 
     <form
-      v-if="showContact"
+      v-if="activeSection === 'contacts' && showContact && selectedId"
       class="entity-form"
       @submit.prevent="createContact"
     >
@@ -602,7 +674,11 @@ onMounted(async () => {
       ><button :disabled="saving">保存联系人</button>
     </form>
 
-    <form v-if="showVisit" class="entity-form" @submit.prevent="createVisit">
+    <form
+      v-if="activeSection === 'visits' && showVisit && selectedId"
+      class="entity-form"
+      @submit.prevent="createVisit"
+    >
       <label
         >联系人<select v-model="visit.contactId">
           <option value="">无</option>
@@ -644,7 +720,7 @@ onMounted(async () => {
       ><button :disabled="saving">保存拜访</button>
     </form>
 
-    <div class="customer-workspace">
+    <div v-if="activeSection === 'counterparties'" class="customer-workspace">
     <section class="data-panel list-panel">
       <h2>最近往来单位</h2>
       <p v-if="loading">正在加载…</p>
@@ -759,10 +835,154 @@ onMounted(async () => {
       </div>
     </section>
     </div>
+
+    <section v-if="activeSection === 'contacts'" class="data-panel crm-related-panel">
+      <header class="related-header">
+        <div>
+          <p class="eyebrow">联系人</p>
+          <h2>{{ selectedCounterpartyName }}</h2>
+        </div>
+        <button
+          class="primary-action"
+          :disabled="!selectedId"
+          @click="openContactForm"
+        >
+          新增联系人
+        </button>
+      </header>
+      <p v-if="!selectedId" class="compact-tip">
+        请先在“往来单位”中选择一个单位，再维护该单位的联系人。
+      </p>
+      <table v-else-if="detail?.contacts.length">
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>部门</th>
+            <th>职务</th>
+            <th>手机</th>
+            <th>邮箱</th>
+            <th>关键联系人</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in detail.contacts" :key="c.id">
+            <td>{{ c.name }}</td>
+            <td>{{ c.departmentName || "-" }}</td>
+            <td>{{ c.positionName || "-" }}</td>
+            <td>{{ c.mobile || "-" }}</td>
+            <td>{{ c.email || "-" }}</td>
+            <td>{{ c.isKeyContact ? "是" : "否" }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else>当前单位暂无联系人，可点击“新增联系人”。</p>
+    </section>
+
+    <section v-if="activeSection === 'visits'" class="data-panel crm-related-panel">
+      <header class="related-header">
+        <div>
+          <p class="eyebrow">拜访记录</p>
+          <h2>{{ selectedCounterpartyName }}</h2>
+        </div>
+        <button
+          class="primary-action"
+          :disabled="!selectedId"
+          @click="openVisitForm"
+        >
+          登记拜访
+        </button>
+      </header>
+      <p v-if="!selectedId" class="compact-tip">
+        请先在“往来单位”中选择一个单位，再登记该单位的拜访记录。
+      </p>
+      <table v-else-if="detail?.visits.length">
+        <thead>
+          <tr>
+            <th>拜访时间</th>
+            <th>方式</th>
+            <th>目的</th>
+            <th>沟通内容</th>
+            <th>下一步</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="v in detail.visits" :key="v.id">
+            <td>{{ v.visitedAt }}</td>
+            <td>{{ v.method }}</td>
+            <td>{{ v.purpose }}</td>
+            <td>{{ v.communication }}</td>
+            <td>{{ v.nextAction || "-" }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else>当前单位暂无拜访记录，可点击“登记拜访”。</p>
+    </section>
   </main>
 </template>
 
 <style scoped>
+.crm-subnav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.crm-subnav button {
+  width: auto;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid #d8e2ee;
+  border-radius: 14px;
+  background: #fff;
+  color: #0b1f3a;
+  text-align: left;
+}
+
+.crm-subnav button.active {
+  border-color: #2f6bab;
+  background: #eaf4ff;
+  box-shadow: inset 0 -4px 0 #2f6bab;
+}
+
+.crm-subnav strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.crm-subnav span {
+  color: #66758a;
+  font-size: 13px;
+}
+
+.crm-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1px solid #d8e2ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.crm-context-bar span {
+  color: #66758a;
+}
+
+.crm-context-bar strong {
+  margin-right: auto;
+}
+
+.crm-context-bar button {
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  color: #245f9f;
+  background: #e6f0fa;
+}
+
 .customer-workspace {
   display: grid;
   grid-template-columns: 1fr;
@@ -824,6 +1044,31 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
+.related-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.related-header h2 {
+  margin: 4px 0 0;
+}
+
+.related-header button {
+  width: auto;
+  margin: 0;
+}
+
+.compact-tip {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f6f9fc;
+  color: #66758a;
+}
+
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
@@ -864,6 +1109,20 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
+  .crm-subnav {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-context-bar,
+  .related-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .crm-context-bar strong {
+    margin-right: 0;
+  }
+
   .pager {
     flex-direction: column;
     align-items: stretch;
