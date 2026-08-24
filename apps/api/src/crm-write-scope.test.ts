@@ -223,4 +223,41 @@ describe("CRM write data scopes", () => {
       ),
     ).toBe(false);
   });
+
+  it("normalizes ISO datetimes before saving visits and generated leads", async () => {
+    const connection = crmWriteConnection({ counterpartyAccessible: true });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await executor.execute(
+      "crm.visit.create",
+      {
+        customerId: "c1",
+        contactId: null,
+        visitedAt: "2026-08-24T15:30:00.000Z",
+        method: "ONSITE",
+        location: null,
+        participantIds: ["e1"],
+        purpose: "测试拜访",
+        communication: "测试沟通",
+        customerNeeds: "CCCC",
+        opportunityAssessment: "RRRRR",
+        nextAction: "DFASDFASFSAF",
+        nextFollowUpAt: null,
+        generateLead: true,
+      },
+      scopedUser,
+    );
+
+    const visitInsert = connection.calls.find((call) =>
+      call.sql.startsWith("INSERT INTO crm_visit"),
+    )!;
+    expect(visitInsert.params[3]).toBe("2026-08-24 15:30:00");
+
+    const leadInsert = connection.calls.find((call) =>
+      call.sql.startsWith("INSERT INTO mkt_lead"),
+    )!;
+    expect(leadInsert.params[5]).toBe("2026-08-24");
+  });
 });

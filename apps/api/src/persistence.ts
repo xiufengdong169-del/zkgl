@@ -37,6 +37,20 @@ const toCents = (value: unknown) =>
   BigInt(Math.round(Number(value ?? 0) * 100));
 const fromCents = (value: bigint) => (Number(value) / 100).toFixed(2);
 
+function toMySqlDateTime(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function toMySqlDate(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
 function isPastDateTime(value: unknown, now = new Date()) {
   if (value == null) return false;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -3855,7 +3869,7 @@ export class MySqlActionExecutor {
               code,
               input.customerId,
               input.contactId ?? null,
-              input.visitedAt,
+              toMySqlDateTime(input.visitedAt),
               input.method,
               input.location ?? null,
               input.purpose,
@@ -3863,7 +3877,7 @@ export class MySqlActionExecutor {
               input.customerNeeds ?? null,
               input.opportunityAssessment ?? null,
               input.nextAction ?? null,
-              input.nextFollowUpAt ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
               user.employeeId,
               input.generateLead,
               user.id,
@@ -3886,11 +3900,11 @@ export class MySqlActionExecutor {
                 input.customerId,
                 "CUSTOMER_VISIT",
                 input.opportunityAssessment ?? null,
-                input.visitedAt,
+                toMySqlDate(input.visitedAt),
                 input.communication,
                 10,
                 user.employeeId,
-                input.nextFollowUpAt ?? null,
+                toMySqlDateTime(input.nextFollowUpAt),
                 result.insertId,
                 user.id,
                 user.id,
