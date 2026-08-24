@@ -2443,11 +2443,19 @@ onMounted(load);
         </thead>
         <tbody>
           <tr v-for="item in dictionaryItems" :key="item.id">
-            <td>
-              {{
-                dictionaryTypes.find((type) => type.id === item.typeId)
-                  ?.typeCode
-              }}
+            <td class="dictionary-type-cell">
+              <strong>
+                {{
+                  dictionaryTypes.find((type) => type.id === item.typeId)
+                    ?.name || "-"
+                }}
+              </strong>
+              <small>
+                {{
+                  dictionaryTypes.find((type) => type.id === item.typeId)
+                    ?.typeCode || ""
+                }}
+              </small>
             </td>
             <td>{{ item.itemCode }}</td>
             <td><input v-model="item.label" /></td>
@@ -3073,6 +3081,17 @@ onMounted(load);
   margin: 0;
   padding: 8px 14px;
   border-radius: 8px;
+}
+
+.dictionary-type-cell strong,
+.dictionary-type-cell small {
+  display: block;
+}
+
+.dictionary-type-cell small {
+  margin-top: 4px;
+  color: #748095;
+  font-size: 12px;
 }
 
 .approval-header,
