@@ -365,7 +365,7 @@ onMounted(load);
         >发现日期<input v-model="form.discoveredOn" type="date" required
       /></label>
       <label
-        >预计金额<input
+        >预计金额（万元）<input
           v-model.number="form.estimatedAmount"
           type="number"
           min="0"
@@ -382,7 +382,7 @@ onMounted(load);
         </select></label
       >
       <label
-        >成功概率<input
+        >成功概率（%）<input
           v-model.number="form.successProbability"
           type="number"
           min="0"
@@ -525,7 +525,7 @@ onMounted(load);
             required
         /></label>
         <label
-          >预计金额<input
+          >预计金额（万元）<input
             v-model.number="editForm.estimatedAmount"
             type="number"
             min="0"
@@ -542,7 +542,7 @@ onMounted(load);
           </select></label
         >
         <label
-          >成功概率<input
+          >成功概率（%）<input
             v-model.number="editForm.successProbability"
             type="number"
             min="0"
@@ -606,7 +606,7 @@ onMounted(load);
           </select></label
         >
         <label
-          >成功概率<input
+          >成功概率（%）<input
             v-model.number="followUpForm.successProbability"
             type="number"
             min="0"
