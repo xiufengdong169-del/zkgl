@@ -5398,7 +5398,7 @@ export class MySqlActionExecutor {
         }
         case "org.employee.options": {
           const [rows] = await selectRows(connection,
-            `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name FROM org_employee WHERE status='ACTIVE' AND is_deleted=0 ORDER BY name,id LIMIT 1000`,
+            `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name,position_name positionName FROM org_employee WHERE account_status='ENABLED' AND is_deleted=0 ORDER BY name,id LIMIT 1000`,
           );
           return { items: rows };
         }
