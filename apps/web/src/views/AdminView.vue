@@ -1514,6 +1514,7 @@ onMounted(load);
 
 <template>
   <main class="page">
+    <p v-if="notice" class="admin-toast" role="status">{{ notice }}</p>
     <header class="page-header">
       <div>
         <p class="eyebrow">SYSTEM ADMINISTRATION</p>
@@ -2642,6 +2643,22 @@ onMounted(load);
 <style scoped>
 .page {
   max-width: 1400px;
+}
+
+.admin-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 1000;
+  max-width: min(420px, calc(100vw - 48px));
+  margin: 0;
+  padding: 14px 18px;
+  border: 1px solid #b8eadf;
+  border-radius: 12px;
+  background: #e8fff8;
+  color: #07694f;
+  font-weight: 900;
+  box-shadow: 0 16px 36px rgba(7, 35, 60, 0.16);
 }
 
 .workflow-steps {
