@@ -253,7 +253,7 @@ async function updateLead() {
 }
 
 async function deleteLead(lead: LeadDetail) {
-  if (!window.confirm("确认删除这条草稿线索？")) return;
+  if (!window.confirm(`确认删除这条${leadStatusText(lead.status)}线索？删除后列表中不再显示。`)) return;
   saving.value = true;
   error.value = null;
   try {
@@ -566,7 +566,7 @@ onMounted(load);
           修改线索
         </button>
         <button
-          v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
+          v-if="['DRAFT', 'RETURNED', 'INVALID'].includes(selected.status)"
           class="danger"
           type="button"
           :disabled="saving"

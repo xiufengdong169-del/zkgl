@@ -2158,7 +2158,7 @@ export class MySqlActionExecutor {
           const existing = leads[0];
           if (!existing)
             throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
-          if (!["DRAFT", "RETURNED"].includes(existing.status))
+          if (!["DRAFT", "RETURNED", "INVALID"].includes(existing.status))
             throw new AppError(
               "LEAD_NOT_DELETABLE",
               "当前状态不允许删除线索",
@@ -2169,8 +2169,14 @@ export class MySqlActionExecutor {
             [user.id, input.leadId],
           );
           await connection.execute(
-            `INSERT INTO sys_status_history(object_type,object_id,from_status,to_status,action,reason,operated_by) VALUES('LEAD',?,?,?,'DELETE','草稿删除',?)`,
-            [input.leadId, existing.status, "INVALID", user.id],
+            `INSERT INTO sys_status_history(object_type,object_id,from_status,to_status,action,reason,operated_by) VALUES('LEAD',?,?,?,'DELETE',?,?)`,
+            [
+              input.leadId,
+              existing.status,
+              "INVALID",
+              existing.status === "INVALID" ? "失效线索删除" : "草稿删除",
+              user.id,
+            ],
           );
           return { id: input.leadId };
         }
