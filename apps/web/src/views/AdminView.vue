@@ -584,10 +584,16 @@ async function createEmployee() {
 }
 
 async function createAccount() {
-  saving.value = true;
   error.value = null;
+  notice.value = null;
+  if (!account.value.roleIds.length) {
+    error.value = "请至少勾选一个账号角色";
+    return;
+  }
+  saving.value = true;
   try {
     await callApi("admin.user.create", account.value);
+    notice.value = "账号角色已保存";
     account.value = {
       employeeId: "",
       username: "",
@@ -666,16 +672,32 @@ async function toggleProjectGrant(item: ProjectGrant) {
   }
 }
 
-async function setRoles(user: User, event: Event) {
-  const values = Array.from(
-    (event.target as HTMLSelectElement).selectedOptions,
-  ).map((option) => option.value);
+function userRoleIds(user: User) {
+  return (user.roleIds || "").split(",").filter(Boolean);
+}
+
+function userHasRole(user: User, roleId: string) {
+  return userRoleIds(user).includes(roleId);
+}
+
+async function setRoles(user: User, values: string[]) {
+  error.value = null;
+  notice.value = null;
   try {
     await callApi("admin.user.role.set", { userId: user.id, roleIds: values });
     await load();
+    notice.value = `${user.employeeName} 的账号角色已保存`;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "授权失败";
   }
+}
+
+async function toggleUserRole(user: User, roleId: string, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const roleIds = new Set(userRoleIds(user));
+  if (checked) roleIds.add(roleId);
+  else roleIds.delete(roleId);
+  await setRoles(user, Array.from(roleIds));
 }
 
 async function toggleUserStatus(item: User) {
@@ -1921,11 +1943,15 @@ onMounted(load);
             </select>
             <input v-model="account.username" placeholder="登录账号" required />
             <input v-model="account.cloudbaseUid" placeholder="本地/身份 UID" required />
-            <select v-model="account.roleIds" multiple required>
-              <option v-for="role in roles" :key="role.id" :value="role.id">
-                {{ role.name }}
-              </option>
-            </select>
+            <fieldset class="role-checkbox-field">
+              <legend>账号角色</legend>
+              <div class="role-checkbox-grid">
+                <label v-for="role in roles" :key="role.id" class="role-checkbox">
+                  <input v-model="account.roleIds" type="checkbox" :value="role.id" />
+                  <span>{{ role.name }}</span>
+                </label>
+              </div>
+            </fieldset>
             <button :disabled="saving">保存账号映射</button>
             <button type="button" @click="showAccountForm = false">取消</button>
             <p class="muted">本系统不保存密码；后续部署到服务器后再接正式身份服务。</p>
@@ -2116,22 +2142,25 @@ onMounted(load);
       </section>
       <section v-if="showAccountRolePanel" class="data-list account-role-panel">
         <h2>账号角色</h2>
-        <article v-for="item in users" :key="item.id" class="data-row">
-          <div>
-            <strong>{{ item.employeeName }} · {{ item.username }}</strong>
-            <p>{{ item.roleNames || "未授权" }} · {{ item.status }}</p>
+        <article v-for="item in users" :key="item.id" class="account-role-row">
+          <div class="account-role-user">
+            <strong>{{ item.employeeName || "未关联人员" }}</strong>
+            <span>{{ item.username }}</span>
+            <p>{{ item.roleNames || "未授权" }} · {{ statusText(item.status) }}</p>
             <small>UID：{{ item.cloudbaseUid }}</small>
           </div>
-          <select
-            multiple
-            :value="item.roleIds?.split(',') || []"
-            @change="setRoles(item, $event)"
-          >
-            <option v-for="role in roles" :key="role.id" :value="role.id">
-              {{ role.name }}
-            </option>
-          </select>
-          <button type="button" @click="toggleUserStatus(item)">
+          <div class="role-checkbox-grid account-role-options">
+            <label v-for="role in roles" :key="role.id" class="role-checkbox">
+              <input
+                type="checkbox"
+                :checked="userHasRole(item, role.id)"
+                :disabled="saving"
+                @change="toggleUserRole(item, role.id, $event)"
+              />
+              <span>{{ role.name }}</span>
+            </label>
+          </div>
+          <button type="button" class="account-status-button" @click="toggleUserStatus(item)">
             {{ item.status === "ENABLED" ? "停用" : "启用" }}
           </button>
         </article>
@@ -3512,6 +3541,91 @@ onMounted(load);
 
 .account-role-panel {
   margin-top: 14px;
+}
+
+.role-checkbox-field {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.role-checkbox-field legend {
+  padding: 0 6px;
+  color: #22304a;
+  font-weight: 900;
+}
+
+.role-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.role-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  background: #fbfdff;
+  color: #17324d;
+  font-weight: 800;
+}
+
+.role-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.account-role-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 2fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.account-role-row:last-child {
+  border-bottom: 0;
+}
+
+.account-role-user {
+  display: grid;
+  gap: 3px;
+}
+
+.account-role-user span {
+  font-weight: 800;
+}
+
+.account-role-user p,
+.account-role-user small {
+  margin: 0;
+  color: #667085;
+}
+
+.account-role-options {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.account-status-button {
+  width: auto;
+  min-width: 76px;
+  margin: 0;
+  padding: 9px 16px;
+  border-radius: 9px;
+  background: #eef5fc;
+  color: #245f9f;
 }
 
 .role-card > label,
