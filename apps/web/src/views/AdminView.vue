@@ -237,6 +237,7 @@ const editingRoleId = ref("");
 const showDepartmentForm = ref(false);
 const showEmployeeForm = ref(false);
 const showAccountForm = ref(false);
+const accountPanelEmployeeId = ref("");
 const showAccountRolePanel = ref(false);
 const showAdvancedPermissionPanel = ref(false);
 const showRoleForm = ref(false);
@@ -592,14 +593,8 @@ async function createAccount() {
   try {
     await callApi("admin.user.create", account.value);
     notice.value = "账号角色已保存";
-    account.value = {
-      employeeId: "",
-      username: "",
-      cloudbaseUid: "",
-      roleIds: [],
-    };
-    showAccountForm.value = false;
     await load();
+    closeAccountForm();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "账号创建失败";
   } finally {
@@ -1095,7 +1090,7 @@ function exportSelectedDepartmentMembers() {
     "姓名",
     "人员编码",
     "部门",
-    "岗位",
+    "职务",
     "手机",
     "邮箱",
     "账号状态",
@@ -1146,12 +1141,35 @@ function prepareChildDepartment() {
 
 function prepareEmployeeCreate() {
   employee.value.departmentId = selectedDepartmentId.value;
+  editingEmployeeId.value = "";
+  showAccountForm.value = false;
+  accountPanelEmployeeId.value = "";
   showEmployeeForm.value = true;
 }
 
 function prepareAccountCreate(person?: Employee) {
-  account.value.employeeId = person?.id || "";
+  const currentUser = person ? userForEmployee(person.id) : undefined;
+  account.value = {
+    employeeId: person?.id || "",
+    username: currentUser?.username || "",
+    cloudbaseUid: currentUser?.cloudbaseUid || "",
+    roleIds: currentUser ? userRoleIds(currentUser) : [],
+  };
+  accountPanelEmployeeId.value = person?.id || "";
+  editingEmployeeId.value = "";
+  showEmployeeForm.value = false;
   showAccountForm.value = true;
+}
+
+function closeAccountForm() {
+  showAccountForm.value = false;
+  accountPanelEmployeeId.value = "";
+  account.value = {
+    employeeId: "",
+    username: "",
+    cloudbaseUid: "",
+    roleIds: [],
+  };
 }
 
 async function saveDepartment() {
@@ -1196,6 +1214,9 @@ async function deleteSelectedDepartment() {
 
 function startEditEmployee(person: Employee) {
   editingEmployeeId.value = person.id;
+  showEmployeeForm.value = false;
+  showAccountForm.value = false;
+  accountPanelEmployeeId.value = "";
   employeeEdit.value = {
     name: person.name,
     employeeType: person.employeeType || "INTERNAL",
@@ -1899,7 +1920,7 @@ onMounted(load);
                     <strong>{{ person.name }}</strong>
                     <small
                       >{{ person.employeeCode }} ·
-                      {{ person.positionName || "未设置岗位" }}</small
+                      {{ person.positionName || "未设置职务" }}</small
                     >
                   </td>
                   <td>{{ person.mobile || "-" }}</td>
@@ -1950,9 +1971,10 @@ onMounted(load);
                 <tr v-if="editingEmployeeId === person.id" class="editor-row">
                   <td colspan="6">
                     <form
-                      class="inline-editor"
+                      class="inline-editor employee-edit-panel"
                       @submit.prevent="saveEmployee(person)"
                     >
+                      <h3>编辑人员：{{ person.name }}</h3>
                       <label
                         >姓名<input v-model="employeeEdit.name" required
                       /></label>
@@ -1978,7 +2000,7 @@ onMounted(load);
                         </select></label
                       >
                       <label
-                        >岗位<input v-model="employeeEdit.positionName"
+                        >职务<input v-model="employeeEdit.positionName"
                       /></label>
                       <label>手机<input v-model="employeeEdit.mobile" /></label>
                       <label
@@ -2015,6 +2037,130 @@ onMounted(load);
                         取消
                       </button>
                     </form>
+                  </td>
+                </tr>
+                <tr
+                  v-if="showAccountForm && accountPanelEmployeeId === person.id"
+                  class="editor-row"
+                >
+                  <td colspan="6">
+                    <section class="account-inline-panel">
+                      <header>
+                        <div>
+                          <h3>账号/角色：{{ person.name }}</h3>
+                          <p>
+                            先关联登录账号，再勾选账号角色。角色决定该账号能看哪些菜单、能操作哪些功能。
+                          </p>
+                        </div>
+                        <button type="button" @click="closeAccountForm">
+                          收起
+                        </button>
+                      </header>
+
+                      <div
+                        v-if="userForEmployee(person.id)"
+                        class="existing-account-box"
+                      >
+                        <div class="account-summary">
+                          <span>登录账号</span>
+                          <strong>{{
+                            userForEmployee(person.id)?.username
+                          }}</strong>
+                          <small
+                            >UID：{{
+                              userForEmployee(person.id)?.cloudbaseUid
+                            }}</small
+                          >
+                          <small
+                            >状态：{{
+                              statusText(
+                                userForEmployee(person.id)?.status || "",
+                              )
+                            }}</small
+                          >
+                        </div>
+                        <div>
+                          <strong class="field-title">账号角色</strong>
+                          <div class="role-checkbox-grid account-role-options">
+                            <label
+                              v-for="role in roles"
+                              :key="role.id"
+                              class="role-checkbox"
+                            >
+                              <input
+                                type="checkbox"
+                                :checked="
+                                  userHasRole(
+                                    userForEmployee(person.id)!,
+                                    role.id,
+                                  )
+                                "
+                                :disabled="saving"
+                                @change="
+                                  toggleUserRole(
+                                    userForEmployee(person.id)!,
+                                    role.id,
+                                    $event,
+                                  )
+                                "
+                              />
+                              <span>{{ role.name }}</span>
+                            </label>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          class="account-status-button"
+                          @click="toggleUserStatus(userForEmployee(person.id)!)"
+                        >
+                          {{
+                            userForEmployee(person.id)?.status === "ENABLED"
+                              ? "停用账号"
+                              : "启用账号"
+                          }}
+                        </button>
+                      </div>
+
+                      <form
+                        v-else
+                        class="account-create-panel"
+                        @submit.prevent="createAccount"
+                      >
+                        <label
+                          >登录账号<input
+                            v-model="account.username"
+                            placeholder="例如 lpcheng"
+                            required
+                        /></label>
+                        <label
+                          >本地/身份 UID<input
+                            v-model="account.cloudbaseUid"
+                            placeholder="例如 cb-lpc-001"
+                            required
+                        /></label>
+                        <fieldset class="role-checkbox-field">
+                          <legend>账号角色</legend>
+                          <div class="role-checkbox-grid">
+                            <label
+                              v-for="role in roles"
+                              :key="role.id"
+                              class="role-checkbox"
+                            >
+                              <input
+                                v-model="account.roleIds"
+                                type="checkbox"
+                                :value="role.id"
+                              />
+                              <span>{{ role.name }}</span>
+                            </label>
+                          </div>
+                        </fieldset>
+                        <button :disabled="saving">保存账号映射</button>
+                        <button type="button" @click="closeAccountForm">
+                          取消
+                        </button>
+                      </form>
+                    </section>
                   </td>
                 </tr>
               </template>
@@ -2062,7 +2208,7 @@ onMounted(load);
                 {{ item.name }}
               </option>
             </select>
-            <input v-model="employee.positionName" placeholder="岗位" />
+            <input v-model="employee.positionName" placeholder="职务" />
             <input v-model="employee.mobile" placeholder="手机" />
             <input v-model="employee.email" placeholder="邮箱" type="email" />
             <input v-model="employee.joinedOn" type="date" />
@@ -2070,52 +2216,6 @@ onMounted(load);
             <button type="button" @click="showEmployeeForm = false">
               取消
             </button>
-          </form>
-
-          <form
-            v-if="showAccountForm"
-            class="compact-create"
-            @submit.prevent="createAccount"
-          >
-            <h3>关联登录账号</h3>
-            <select v-model="account.employeeId" required>
-              <option value="" disabled>请选择人员</option>
-              <option
-                v-for="person in employees"
-                :key="person.id"
-                :value="person.id"
-              >
-                {{ person.name }}（{{ person.employeeCode }}）
-              </option>
-            </select>
-            <input v-model="account.username" placeholder="登录账号" required />
-            <input
-              v-model="account.cloudbaseUid"
-              placeholder="本地/身份 UID"
-              required
-            />
-            <fieldset class="role-checkbox-field">
-              <legend>账号角色</legend>
-              <div class="role-checkbox-grid">
-                <label
-                  v-for="role in roles"
-                  :key="role.id"
-                  class="role-checkbox"
-                >
-                  <input
-                    v-model="account.roleIds"
-                    type="checkbox"
-                    :value="role.id"
-                  />
-                  <span>{{ role.name }}</span>
-                </label>
-              </div>
-            </fieldset>
-            <button :disabled="saving">保存账号映射</button>
-            <button type="button" @click="showAccountForm = false">取消</button>
-            <p class="muted">
-              本系统不保存密码；后续部署到服务器后再接正式身份服务。
-            </p>
           </form>
         </section>
 
@@ -3137,6 +3237,11 @@ onMounted(load);
   align-items: end;
 }
 
+.employee-edit-panel h3 {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+}
+
 .inline-editor label,
 .compact-create label {
   margin-top: 0;
@@ -3739,6 +3844,88 @@ onMounted(load);
 
 .account-role-panel {
   margin-top: 14px;
+}
+
+.account-inline-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+.account-inline-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.account-inline-panel h3 {
+  margin: 0;
+}
+
+.account-inline-panel p {
+  margin: 6px 0 0;
+  color: #667085;
+}
+
+.account-inline-panel header button {
+  width: auto;
+  margin: 0;
+  padding: 8px 14px;
+  background: #eef5fc;
+  color: #245f9f;
+}
+
+.existing-account-box {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(360px, 2fr) auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.account-summary {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.account-summary span,
+.account-summary small {
+  color: #667085;
+}
+
+.account-summary strong {
+  font-size: 18px;
+}
+
+.field-title {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.account-create-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.account-create-panel .role-checkbox-field {
+  grid-column: 1 / -1;
+}
+
+.account-create-panel button {
+  width: auto;
+  margin: 0;
+  padding: 10px 18px;
 }
 
 .role-checkbox-field {
