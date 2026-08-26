@@ -787,6 +787,9 @@ async function saveDictionaryItem(item: DictionaryItem) {
 }
 async function saveApprovalNode(node: ApprovalNode) {
   saving.value = true;
+  error.value = null;
+  notice.value = null;
+  const savedNodeName = node.nodeName || "审批节点";
   try {
     await callApi("admin.approvalNode.update", {
       nodeId: node.id,
@@ -801,6 +804,7 @@ async function saveApprovalNode(node: ApprovalNode) {
       version: node.version,
     });
     await load();
+    notice.value = `审批节点已保存：${savedNodeName}`;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "审批节点更新失败";
   } finally {
