@@ -224,7 +224,7 @@ const activeTab = ref<
 const auditKeyword = ref("");
 const auditOutcome = ref("");
 const organizationPane = ref<"departments" | "roles">("departments");
-const memberFilter = ref<"active" | "left" | "all">("active");
+const memberFilter = ref<"active" | "left" | "all">("all");
 const departmentKeyword = ref("");
 const memberKeyword = ref("");
 const accountStatusFilter = ref<"" | "ENABLED" | "DISABLED">("");
@@ -240,10 +240,7 @@ const showAccountForm = ref(false);
 const showAccountRolePanel = ref(false);
 const showAdvancedPermissionPanel = ref(false);
 const showRoleForm = ref(false);
-const numberRuleDisplay: Record<
-  string,
-  { name: string; remark: string }
-> = {
+const numberRuleDisplay: Record<string, { name: string; remark: string }> = {
   BID: {
     name: "投标申请",
     remark: "用于投标登记、投标任务和投标结果相关单据编号。",
@@ -485,7 +482,8 @@ async function load() {
       );
       selectedDepartmentId.value =
         departments.value.find((item) => item.name === "商务财务部")?.id ||
-        departments.value.find((item) => departmentIdsWithMembers.has(item.id))?.id ||
+        departments.value.find((item) => departmentIdsWithMembers.has(item.id))
+          ?.id ||
         departments.value.find((item) => item.status === "ENABLED")?.id ||
         departments.value[0]?.id ||
         "";
@@ -991,8 +989,12 @@ const selectedDepartmentMembers = computed(() => {
       !keyword ||
       person.name.toLowerCase().includes(keyword) ||
       person.employeeCode.toLowerCase().includes(keyword) ||
-      String(person.mobile ?? "").toLowerCase().includes(keyword) ||
-      String(person.email ?? "").toLowerCase().includes(keyword);
+      String(person.mobile ?? "")
+        .toLowerCase()
+        .includes(keyword) ||
+      String(person.email ?? "")
+        .toLowerCase()
+        .includes(keyword);
     const matchMemberStatus =
       memberFilter.value === "all" ||
       (memberFilter.value === "active" && person.accountStatus === "ENABLED") ||
@@ -1001,16 +1003,37 @@ const selectedDepartmentMembers = computed(() => {
       !accountStatusFilter.value ||
       person.accountStatus === accountStatusFilter.value;
     return (
-      matchDepartment &&
-      matchKeyword &&
-      matchMemberStatus &&
-      matchAccountStatus
+      matchDepartment && matchKeyword && matchMemberStatus && matchAccountStatus
     );
   });
 });
 
-const activeUsers = computed(() =>
-  users.value.filter((item) => item.status === "ENABLED").length,
+const selectedDepartmentMemberSummary = computed(() => {
+  const members = employees.value.filter((person) =>
+    selectedDepartmentId.value
+      ? person.departmentId === selectedDepartmentId.value
+      : true,
+  );
+  return {
+    all: members.length,
+    active: members.filter((person) => person.accountStatus === "ENABLED")
+      .length,
+    left: members.filter((person) => person.accountStatus === "DISABLED")
+      .length,
+  };
+});
+
+const selectedDepartmentEmptyText = computed(() => {
+  if (memberKeyword.value.trim()) return "当前搜索条件下暂无成员";
+  if (memberFilter.value === "active")
+    return "当前部门暂无在职成员，可切换“全部成员”查看";
+  if (memberFilter.value === "left")
+    return "当前部门暂无离职成员，可切换“全部成员”查看";
+  return "当前部门暂无成员";
+});
+
+const activeUsers = computed(
+  () => users.value.filter((item) => item.status === "ENABLED").length,
 );
 
 const permissionGroups = computed(() => {
@@ -1041,7 +1064,15 @@ function selectRole(role: Role) {
 }
 
 function exportSelectedDepartmentMembers() {
-  const header = ["姓名", "人员编码", "部门", "岗位", "手机", "邮箱", "账号状态"];
+  const header = [
+    "姓名",
+    "人员编码",
+    "部门",
+    "岗位",
+    "手机",
+    "邮箱",
+    "账号状态",
+  ];
   const rows = selectedDepartmentMembers.value.map((person) => [
     person.name,
     person.employeeCode,
@@ -1053,9 +1084,7 @@ function exportSelectedDepartmentMembers() {
   ]);
   const csv = [header, ...rows]
     .map((row) =>
-      row
-        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-        .join(","),
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
     )
     .join("\n");
   const blob = new Blob([`\uFEFF${csv}`], {
@@ -1182,7 +1211,10 @@ async function toggleEmployeeStatus(person: Employee) {
   startEditEmployee(person);
   employeeEdit.value.accountStatus =
     person.accountStatus === "ENABLED" ? "DISABLED" : "ENABLED";
-  if (employeeEdit.value.accountStatus === "DISABLED" && !employeeEdit.value.leftOn) {
+  if (
+    employeeEdit.value.accountStatus === "DISABLED" &&
+    !employeeEdit.value.leftOn
+  ) {
     employeeEdit.value.leftOn = new Date().toISOString().slice(0, 10);
   }
   await saveEmployee(person);
@@ -1207,7 +1239,10 @@ async function createRole() {
   saving.value = true;
   error.value = null;
   try {
-    const result = await callApi<{ id: string }>("admin.role.create", roleForm.value);
+    const result = await callApi<{ id: string }>(
+      "admin.role.create",
+      roleForm.value,
+    );
     roleForm.value = { code: "", name: "", permissionIds: [] };
     selectedRoleId.value = result.id;
     showRoleForm.value = false;
@@ -1315,7 +1350,11 @@ function activeRoleScopes(roleId: string) {
   );
 }
 
-function roleHasScope(roleId: string, scopeType: DataScopeType, scopeValue = "") {
+function roleHasScope(
+  roleId: string,
+  scopeType: DataScopeType,
+  scopeValue = "",
+) {
   return activeRoleScopes(roleId).some(
     (item) => item.scopeType === scopeType && item.scopeValue === scopeValue,
   );
@@ -1372,10 +1411,7 @@ async function setSensitiveFieldChoice(
   event: Event,
 ) {
   const choice = (event.target as HTMLSelectElement).value as
-    | "NONE"
-    | "MASKED"
-    | "FULL"
-    | "DENY";
+    "NONE" | "MASKED" | "FULL" | "DENY";
   const grants = sensitiveGrants.value
     .filter(
       (item) =>
@@ -1597,18 +1633,25 @@ onMounted(load);
           <template v-if="organizationPane === 'departments'">
             <div class="quick-filter">
               <button
+                :class="{ active: memberFilter === 'all' }"
+                type="button"
+                @click="memberFilter = 'all'"
+              >
+                全部成员 {{ selectedDepartmentMemberSummary.all }}人
+              </button>
+              <button
                 :class="{ active: memberFilter === 'active' }"
                 type="button"
                 @click="memberFilter = 'active'"
               >
-                全部成员
+                在职成员 {{ selectedDepartmentMemberSummary.active }}人
               </button>
               <button
                 :class="{ active: memberFilter === 'left' }"
                 type="button"
                 @click="memberFilter = 'left'"
               >
-                离职成员
+                离职成员 {{ selectedDepartmentMemberSummary.left }}人
               </button>
             </div>
             <label class="search-box">
@@ -1624,13 +1667,14 @@ onMounted(load);
                 type="button"
                 @click="
                   selectedDepartmentId = item.id;
+                  memberFilter = 'all';
                   editingDepartment = false;
                   employee.departmentId = item.id;
                 "
               >
                 <span class="tree-icon">▦</span>
                 <span>{{ item.name }}</span>
-                <small>{{ departmentMemberCounts.get(item.id) || 0 }}</small>
+                <small>{{ departmentMemberCounts.get(item.id) || 0 }}人</small>
               </button>
             </nav>
           </template>
@@ -1642,7 +1686,11 @@ onMounted(load);
             >
               {{ showRoleForm ? "收起新增角色" : "新增角色" }}
             </button>
-            <form v-if="showRoleForm" class="mini-form" @submit.prevent="createRole">
+            <form
+              v-if="showRoleForm"
+              class="mini-form"
+              @submit.prevent="createRole"
+            >
               <h3>新增角色</h3>
               <input
                 v-model="roleForm.code"
@@ -1686,7 +1734,9 @@ onMounted(load);
               </p>
             </div>
             <div class="link-actions" v-if="selectedDepartment">
-              <button type="button" @click="startDepartmentEdit">修改名称</button>
+              <button type="button" @click="startDepartmentEdit">
+                修改名称
+              </button>
               <button type="button" @click="startDepartmentEdit">
                 调整上级部门
               </button>
@@ -1696,7 +1746,11 @@ onMounted(load);
               <button type="button" @click="prepareChildDepartment">
                 添加子部门
               </button>
-              <button class="danger-link" type="button" @click="deleteSelectedDepartment">
+              <button
+                class="danger-link"
+                type="button"
+                @click="deleteSelectedDepartment"
+              >
                 删除部门
               </button>
             </div>
@@ -1741,7 +1795,9 @@ onMounted(load);
               </select></label
             >
             <button :disabled="saving">保存部门</button>
-            <button type="button" @click="editingDepartment = false">取消</button>
+            <button type="button" @click="editingDepartment = false">
+              取消
+            </button>
           </form>
 
           <form
@@ -1754,7 +1810,11 @@ onMounted(load);
             <input v-model="department.name" placeholder="部门名称" required />
             <select v-model="department.parentId">
               <option value="">无上级部门</option>
-              <option v-for="item in departments" :key="item.id" :value="item.id">
+              <option
+                v-for="item in departments"
+                :key="item.id"
+                :value="item.id"
+              >
                 {{ item.name }}
               </option>
             </select>
@@ -1769,14 +1829,18 @@ onMounted(load);
               </option>
             </select>
             <button :disabled="saving">保存部门</button>
-            <button type="button" @click="showDepartmentForm = false">取消</button>
+            <button type="button" @click="showDepartmentForm = false">
+              取消
+            </button>
           </form>
 
           <div class="member-toolbar">
             <button type="button" @click="prepareEmployeeCreate">
               邀请成员
             </button>
-            <button type="button" @click="exportSelectedDepartmentMembers">导出</button>
+            <button type="button" @click="exportSelectedDepartmentMembers">
+              导出
+            </button>
             <input v-model="memberKeyword" placeholder="搜索成员" />
             <label
               >账号状态<select v-model="accountStatusFilter">
@@ -1799,44 +1863,72 @@ onMounted(load);
               </tr>
             </thead>
             <tbody>
-              <template v-for="person in selectedDepartmentMembers" :key="person.id">
+              <template
+                v-for="person in selectedDepartmentMembers"
+                :key="person.id"
+              >
                 <tr>
                   <td>
                     <strong>{{ person.name }}</strong>
-                    <small>{{ person.employeeCode }} · {{ person.positionName || "未设置岗位" }}</small>
+                    <small
+                      >{{ person.employeeCode }} ·
+                      {{ person.positionName || "未设置岗位" }}</small
+                    >
                   </td>
                   <td>{{ person.mobile || "-" }}</td>
                   <td>{{ person.email || "-" }}</td>
                   <td>
                     <span
-                      v-for="roleName in roleNamesForUser(userForEmployee(person.id))"
+                      v-for="roleName in roleNamesForUser(
+                        userForEmployee(person.id),
+                      )"
                       :key="roleName"
                       class="role-chip"
                     >
                       {{ roleName }}
                     </span>
-                    <span v-if="!roleNamesForUser(userForEmployee(person.id)).length" class="muted">
+                    <span
+                      v-if="
+                        !roleNamesForUser(userForEmployee(person.id)).length
+                      "
+                      class="muted"
+                    >
                       未授权
                     </span>
                   </td>
                   <td>{{ statusText(person.accountStatus) }}</td>
                   <td class="row-actions">
-                    <button type="button" @click="startEditEmployee(person)">编辑</button>
+                    <button type="button" @click="startEditEmployee(person)">
+                      编辑
+                    </button>
                     <button type="button" @click="prepareAccountCreate(person)">
                       账号/角色
                     </button>
                     <button type="button" @click="toggleEmployeeStatus(person)">
-                      {{ person.accountStatus === "ENABLED" ? "离职/停用" : "恢复" }}
+                      {{
+                        person.accountStatus === "ENABLED"
+                          ? "离职/停用"
+                          : "恢复"
+                      }}
                     </button>
-                    <button type="button" class="danger-link" @click="deleteEmployee(person)">
+                    <button
+                      type="button"
+                      class="danger-link"
+                      @click="deleteEmployee(person)"
+                    >
                       删除
                     </button>
                   </td>
                 </tr>
                 <tr v-if="editingEmployeeId === person.id" class="editor-row">
                   <td colspan="6">
-                    <form class="inline-editor" @submit.prevent="saveEmployee(person)">
-                      <label>姓名<input v-model="employeeEdit.name" required /></label>
+                    <form
+                      class="inline-editor"
+                      @submit.prevent="saveEmployee(person)"
+                    >
+                      <label
+                        >姓名<input v-model="employeeEdit.name" required
+                      /></label>
                       <label
                         >类型<select v-model="employeeEdit.employeeType">
                           <option value="INTERNAL">内部人员</option>
@@ -1845,7 +1937,10 @@ onMounted(load);
                         </select></label
                       >
                       <label
-                        >部门<select v-model="employeeEdit.departmentId" required>
+                        >部门<select
+                          v-model="employeeEdit.departmentId"
+                          required
+                        >
                           <option
                             v-for="item in departments"
                             :key="item.id"
@@ -1855,11 +1950,21 @@ onMounted(load);
                           </option>
                         </select></label
                       >
-                      <label>岗位<input v-model="employeeEdit.positionName" /></label>
+                      <label
+                        >岗位<input v-model="employeeEdit.positionName"
+                      /></label>
                       <label>手机<input v-model="employeeEdit.mobile" /></label>
-                      <label>邮箱<input v-model="employeeEdit.email" type="email" /></label>
-                      <label>入职日<input v-model="employeeEdit.joinedOn" type="date" /></label>
-                      <label>离职日<input v-model="employeeEdit.leftOn" type="date" /></label>
+                      <label
+                        >邮箱<input v-model="employeeEdit.email" type="email"
+                      /></label>
+                      <label
+                        >入职日<input
+                          v-model="employeeEdit.joinedOn"
+                          type="date"
+                      /></label>
+                      <label
+                        >离职日<input v-model="employeeEdit.leftOn" type="date"
+                      /></label>
                       <label
                         >直属主管<select v-model="employeeEdit.supervisorId">
                           <option value="">未设置</option>
@@ -1887,14 +1992,19 @@ onMounted(load);
                 </tr>
               </template>
               <tr v-if="!selectedDepartmentMembers.length">
-                <td colspan="6">当前筛选下暂无成员</td>
+                <td colspan="6">{{ selectedDepartmentEmptyText }}</td>
               </tr>
             </tbody>
           </table>
 
           <div class="subtle-panel-toggle">
-            <button type="button" @click="showAccountRolePanel = !showAccountRolePanel">
-              {{ showAccountRolePanel ? "收起账号角色维护" : "展开账号角色维护" }}
+            <button
+              type="button"
+              @click="showAccountRolePanel = !showAccountRolePanel"
+            >
+              {{
+                showAccountRolePanel ? "收起账号角色维护" : "展开账号角色维护"
+              }}
             </button>
           </div>
 
@@ -1904,7 +2014,11 @@ onMounted(load);
             @submit.prevent="createEmployee"
           >
             <h3>新增人员</h3>
-            <input v-model="employee.employeeCode" placeholder="人员编码" required />
+            <input
+              v-model="employee.employeeCode"
+              placeholder="人员编码"
+              required
+            />
             <input v-model="employee.name" placeholder="姓名" required />
             <select v-model="employee.employeeType">
               <option value="INTERNAL">内部人员</option>
@@ -1913,7 +2027,11 @@ onMounted(load);
             </select>
             <select v-model="employee.departmentId" required>
               <option value="" disabled>请选择部门</option>
-              <option v-for="item in departments" :key="item.id" :value="item.id">
+              <option
+                v-for="item in departments"
+                :key="item.id"
+                :value="item.id"
+              >
                 {{ item.name }}
               </option>
             </select>
@@ -1922,7 +2040,9 @@ onMounted(load);
             <input v-model="employee.email" placeholder="邮箱" type="email" />
             <input v-model="employee.joinedOn" type="date" />
             <button :disabled="saving">保存人员</button>
-            <button type="button" @click="showEmployeeForm = false">取消</button>
+            <button type="button" @click="showEmployeeForm = false">
+              取消
+            </button>
           </form>
 
           <form
@@ -1942,19 +2062,33 @@ onMounted(load);
               </option>
             </select>
             <input v-model="account.username" placeholder="登录账号" required />
-            <input v-model="account.cloudbaseUid" placeholder="本地/身份 UID" required />
+            <input
+              v-model="account.cloudbaseUid"
+              placeholder="本地/身份 UID"
+              required
+            />
             <fieldset class="role-checkbox-field">
               <legend>账号角色</legend>
               <div class="role-checkbox-grid">
-                <label v-for="role in roles" :key="role.id" class="role-checkbox">
-                  <input v-model="account.roleIds" type="checkbox" :value="role.id" />
+                <label
+                  v-for="role in roles"
+                  :key="role.id"
+                  class="role-checkbox"
+                >
+                  <input
+                    v-model="account.roleIds"
+                    type="checkbox"
+                    :value="role.id"
+                  />
                   <span>{{ role.name }}</span>
                 </label>
               </div>
             </fieldset>
             <button :disabled="saving">保存账号映射</button>
             <button type="button" @click="showAccountForm = false">取消</button>
-            <p class="muted">本系统不保存密码；后续部署到服务器后再接正式身份服务。</p>
+            <p class="muted">
+              本系统不保存密码；后续部署到服务器后再接正式身份服务。
+            </p>
           </form>
         </section>
 
@@ -1970,7 +2104,9 @@ onMounted(load);
           <article v-if="selectedRole" class="role-card">
             <header>
               <div>
-                <strong>{{ selectedRole.name }} · {{ selectedRole.code }}</strong>
+                <strong
+                  >{{ selectedRole.name }} · {{ selectedRole.code }}</strong
+                >
                 <p>
                   {{ statusText(selectedRole.status) }} ·
                   {{ selectedRole.userCount || 0 }} 个账号 ·
@@ -1978,7 +2114,9 @@ onMounted(load);
                 </p>
               </div>
               <div class="row-actions">
-                <button type="button" @click="startEditRole(selectedRole)">编辑</button>
+                <button type="button" @click="startEditRole(selectedRole)">
+                  编辑
+                </button>
                 <button
                   type="button"
                   class="danger-link"
@@ -2019,10 +2157,16 @@ onMounted(load);
                   >
                     <input
                       type="checkbox"
-                      :checked="roleHasPermission(selectedRole.id, permission.id)"
+                      :checked="
+                        roleHasPermission(selectedRole.id, permission.id)
+                      "
                       :disabled="saving"
                       @change="
-                        setRolePermissionChecked(selectedRole, permission.id, $event)
+                        setRolePermissionChecked(
+                          selectedRole,
+                          permission.id,
+                          $event,
+                        )
                       "
                     />
                     <span>{{ permission.name }}</span>
@@ -2092,7 +2236,9 @@ onMounted(load);
                     >
                       <input
                         type="checkbox"
-                        :checked="roleHasScope(selectedRole.id, 'PROJECT', project.id)"
+                        :checked="
+                          roleHasScope(selectedRole.id, 'PROJECT', project.id)
+                        "
                         :disabled="saving"
                         @change="
                           setRoleScopeChecked(
@@ -2146,7 +2292,9 @@ onMounted(load);
           <div class="account-role-user">
             <strong>{{ item.employeeName || "未关联人员" }}</strong>
             <span>{{ item.username }}</span>
-            <p>{{ item.roleNames || "未授权" }} · {{ statusText(item.status) }}</p>
+            <p>
+              {{ item.roleNames || "未授权" }} · {{ statusText(item.status) }}
+            </p>
             <small>UID：{{ item.cloudbaseUid }}</small>
           </div>
           <div class="role-checkbox-grid account-role-options">
@@ -2160,7 +2308,11 @@ onMounted(load);
               <span>{{ role.name }}</span>
             </label>
           </div>
-          <button type="button" class="account-status-button" @click="toggleUserStatus(item)">
+          <button
+            type="button"
+            class="account-status-button"
+            @click="toggleUserStatus(item)"
+          >
             {{ item.status === "ENABLED" ? "停用" : "启用" }}
           </button>
         </article>
@@ -2211,12 +2363,13 @@ onMounted(load);
               type="date"
               required /></label
           ><label
-            >结束日期<input v-model="assignmentForm.endsOn" type="date" /></label
+            >结束日期<input
+              v-model="assignmentForm.endsOn"
+              type="date" /></label
           ><label class="checkbox-line"
-            ><input
-              v-model="assignmentForm.isDelegate"
-              type="checkbox"
-            /><span>代理任职</span></label
+            ><input v-model="assignmentForm.isDelegate" type="checkbox" /><span
+              >代理任职</span
+            ></label
           ><button :disabled="saving">保存任职</button>
         </form>
         <section class="data-list position-list">
@@ -2278,16 +2431,26 @@ onMounted(load);
               type="date"
               required /></label
           ><label
-            >结束日期<input v-model="projectGrantForm.endsOn" type="date" /></label
+            >结束日期<input
+              v-model="projectGrantForm.endsOn"
+              type="date" /></label
           ><label class="wide"
-            >授权原因<input v-model="projectGrantForm.reason" maxlength="500" /></label
+            >授权原因<input
+              v-model="projectGrantForm.reason"
+              maxlength="500" /></label
           ><button :disabled="saving">保存临时授权</button>
         </form>
         <section class="data-list">
           <h2>临时项目授权记录</h2>
-          <article v-for="grant in projectGrants" :key="grant.id" class="data-row">
+          <article
+            v-for="grant in projectGrants"
+            :key="grant.id"
+            class="data-row"
+          >
             <div>
-              <strong>{{ grant.projectName }} · {{ grant.employeeName }}</strong>
+              <strong
+                >{{ grant.projectName }} · {{ grant.employeeName }}</strong
+              >
               <p>
                 {{ grant.startsOn }} 至 {{ grant.endsOn || "长期" }} ·
                 {{ grant.status }} · 授权人 {{ grant.grantedBy }}
@@ -2365,7 +2528,9 @@ onMounted(load);
 
     <section v-else-if="activeTab === 'parameters'" class="data-panel">
       <h2>系统参数</h2>
-      <p>维护公司名称、提醒提前量、导出保留期等运行参数；参数键与类型由初始化基线控制。</p>
+      <p>
+        维护公司名称、提醒提前量、导出保留期等运行参数；参数键与类型由初始化基线控制。
+      </p>
       <table>
         <thead>
           <tr>
@@ -2534,7 +2699,10 @@ onMounted(load);
           >
             <strong>{{ template.name }}</strong>
             <small>{{ approvalBusinessText(template.businessType) }}</small>
-            <span>{{ template.nodeCount }} 个节点 · {{ statusText(template.status) }}</span>
+            <span
+              >{{ template.nodeCount }} 个节点 ·
+              {{ statusText(template.status) }}</span
+            >
           </button>
         </aside>
 
@@ -2544,9 +2712,12 @@ onMounted(load);
               <p class="eyebrow">当前流程</p>
               <h3>{{ selectedApprovalTemplate.name }}</h3>
               <p>
-                {{ approvalBusinessText(selectedApprovalTemplate.businessType) }}
-                · 模板编码 {{ selectedApprovalTemplate.templateCode }}
-                · V{{ selectedApprovalTemplate.version }}
+                {{
+                  approvalBusinessText(selectedApprovalTemplate.businessType)
+                }}
+                · 模板编码 {{ selectedApprovalTemplate.templateCode }} · V{{
+                  selectedApprovalTemplate.version
+                }}
                 · {{ statusText(selectedApprovalTemplate.status) }}
               </p>
             </div>
