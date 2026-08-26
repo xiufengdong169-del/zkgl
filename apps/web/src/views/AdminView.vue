@@ -326,7 +326,7 @@ const approvalBusinessDisplay: Record<string, string> = {
   DEPOSIT_LOSS: "保证金没收损失",
   EXPENSE_REIMBURSEMENT: "费用报销",
   INVOICE_APPLICATION: "开票申请",
-  LEAD: "市场报备",
+  LEAD: "线索登记审批",
   PARTNER_SETTLEMENT: "合作方结算",
   PROJECT_ACCEPTANCE: "项目验收申请",
   PROJECT_APPLICATION: "项目立项",

@@ -686,7 +686,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO wf_template (template_code, name, business_type, created_by, updated_by)
 VALUES
-  ('MARKET_REGISTRATION', '市场报备', 'LEAD', 0, 0),
+  ('MARKET_REGISTRATION', '线索登记审批', 'LEAD', 0, 0),
   ('PROJECT_ESTABLISHMENT', '项目立项', 'PROJECT_APPLICATION', 0, 0),
   ('BID_APPLICATION', '投标申请', 'BID_APPLICATION', 0, 0),
   ('CONTRACT_APPROVAL', '合同审批', 'CONTRACT', 0, 0),

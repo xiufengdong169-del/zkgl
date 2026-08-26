@@ -2,7 +2,12 @@ import { defineStore } from 'pinia'
 import type { SessionUser } from '@zkgl/shared'
 
 import { getCloudbaseAuth } from '../cloudbase'
-import { callApi, localAuthMode } from '../api'
+import {
+  callApi,
+  clearLocalAuthTokenOverride,
+  localAuthMode,
+  setLocalAuthTokenOverride,
+} from '../api'
 import { demoMode, demoUser } from '../demo'
 
 interface AuthState {
@@ -10,6 +15,29 @@ interface AuthState {
   authenticated: boolean
   error: string | null
   user: SessionUser | null
+}
+
+const localAuthTokensByUsername: Record<string, string> = {
+  admin: 'local-admin-token-0001',
+  管理员: 'local-admin-token-0001',
+  ceo: 'local-ceo-token-0001',
+  公司负责人: 'local-ceo-token-0001',
+  biz: 'local-biz-token-0001',
+  市场商务: 'local-biz-token-0001',
+  pm: 'local-pm-token-0001',
+  项目经理: 'local-pm-token-0001',
+  finance: 'local-fin-token-0001',
+  财务: 'local-fin-token-0001',
+  bid: 'local-bid-token-0001',
+  投标人员: 'local-bid-token-0001',
+  member: 'local-member-token-0001',
+  项目成员: 'local-member-token-0001',
+  none: 'local-none-token-0001',
+  无权用户: 'local-none-token-0001',
+}
+
+function localAuthTokenFor(username: string) {
+  return localAuthTokensByUsername[username.trim().toLowerCase()] ?? 'local-admin-token-0001'
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -29,6 +57,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         if (localAuthMode) {
           if (!username.trim() || !password) throw new Error('请输入本地测试账号和口令')
+          setLocalAuthTokenOverride(localAuthTokenFor(username))
           this.user = await callApi<SessionUser>('session.get')
           this.authenticated = true
           return
@@ -56,6 +85,7 @@ export const useAuthStore = defineStore('auth', {
         return
       }
       if (!localAuthMode) await getCloudbaseAuth().signOut()
+      else clearLocalAuthTokenOverride()
       this.authenticated = false
       this.user = null
     },

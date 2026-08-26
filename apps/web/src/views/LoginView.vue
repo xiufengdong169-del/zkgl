@@ -25,6 +25,9 @@ async function submit() {
       <p class="muted">使用管理员分配的内部账号登录</p>
       <label>用户名<input v-model="username" autocomplete="username" required /></label>
       <label>密码<input v-model="password" type="password" autocomplete="current-password" required /></label>
+      <p class="muted">
+        本地演示账号：admin 管理员；biz 市场商务；ceo 公司负责人；pm 项目经理；finance 财务。密码可填任意非空内容。
+      </p>
       <p v-if="auth.error" class="error" role="alert">{{ auth.error }}</p>
       <button type="submit" :disabled="auth.loading">{{ auth.loading ? '登录中…' : '登录' }}</button>
     </form>

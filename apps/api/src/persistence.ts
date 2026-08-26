@@ -898,7 +898,7 @@ export class MySqlActionExecutor {
               `SELECT CAST(id AS CHAR) id,rule_code ruleCode,prefix,year_pattern yearPattern,serial_length serialLength,next_serial nextSerial,current_year currentYear,status,version FROM sys_number_rule ORDER BY rule_code`,
             ),
             [approvalTemplates] = await selectRows(connection,
-              `SELECT CAST(t.id AS CHAR) id,t.template_code templateCode,t.name,t.business_type businessType,t.version,t.status,COUNT(n.id) nodeCount FROM wf_template t LEFT JOIN wf_template_node n ON n.template_id=t.id AND n.status='ENABLED' WHERE t.is_deleted=0 GROUP BY t.id ORDER BY t.business_type`,
+              `SELECT CAST(t.id AS CHAR) id,t.template_code templateCode,t.name,t.business_type businessType,t.version,t.status,COUNT(n.id) nodeCount FROM wf_template t LEFT JOIN wf_template_node n ON n.template_id=t.id AND n.status='ENABLED' WHERE t.is_deleted=0 GROUP BY t.id ORDER BY CASE WHEN t.business_type='LEAD' THEN 0 ELSE 1 END,t.business_type`,
             ),
             [approvalNodes] = await selectRows(connection,
               `SELECT CAST(n.id AS CHAR) id,CAST(n.template_id AS CHAR) templateId,n.node_order nodeOrder,n.node_name nodeName,n.position_code positionCode,n.minimum_amount minimumAmount,n.maximum_amount maximumAmount,n.is_cc isCc,n.status,n.version FROM wf_template_node n ORDER BY n.template_id,n.node_order,n.is_cc`,

@@ -8,6 +8,8 @@ const authMocks = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
   callApi: vi.fn(),
+  setLocalAuthTokenOverride: vi.fn(),
+  clearLocalAuthTokenOverride: vi.fn(),
   localAuthMode: false,
 }));
 
@@ -20,6 +22,8 @@ vi.mock("../cloudbase", () => ({
 
 vi.mock("../api", () => ({
   callApi: authMocks.callApi,
+  setLocalAuthTokenOverride: authMocks.setLocalAuthTokenOverride,
+  clearLocalAuthTokenOverride: authMocks.clearLocalAuthTokenOverride,
   get localAuthMode() {
     return authMocks.localAuthMode;
   },
@@ -44,6 +48,8 @@ describe("auth store", () => {
     authMocks.signInWithPassword.mockReset();
     authMocks.signOut.mockReset();
     authMocks.callApi.mockReset();
+    authMocks.setLocalAuthTokenOverride.mockReset();
+    authMocks.clearLocalAuthTokenOverride.mockReset();
     authMocks.localAuthMode = false;
   });
 
