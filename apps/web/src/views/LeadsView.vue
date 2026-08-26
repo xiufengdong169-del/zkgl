@@ -20,6 +20,7 @@ interface LeadDetail extends LeadSummary {
   requirementSummary: string;
   competition?: string | null;
   nextFollowUpAt: string | null;
+  approvalInstanceId?: string | null;
   version?: number;
 }
 interface FollowUp {
@@ -32,12 +33,23 @@ interface FollowUp {
   nextAction: string;
   nextFollowUpAt: string | null;
 }
+interface PendingApproval {
+  taskId: string;
+  instanceId: string;
+  instanceCode: string;
+  nodeOrder: number;
+  positionCode: string;
+  positionName: string;
+  approverName: string;
+  assignedAt: string;
+}
 
 const auth = useAuthStore();
 const items = ref<LeadSummary[]>([]);
 const customers = ref<CustomerOption[]>([]);
 const selected = ref<LeadDetail | null>(null);
 const followUps = ref<FollowUp[]>([]);
+const pendingApprovals = ref<PendingApproval[]>([]);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const saving = ref(false);
@@ -93,6 +105,7 @@ const grouped = computed(() =>
     ]),
   ),
 );
+const currentPendingApproval = computed(() => pendingApprovals.value[0] || null);
 
 function leadStatusText(value?: string | null) {
   const labels: Record<string, string> = {
@@ -101,9 +114,24 @@ function leadStatusText(value?: string | null) {
     FOLLOWING: "跟进中",
     CONVERTED: "已转项目",
     RETURNED: "已退回",
-    CLOSED: "已关闭",
+    REJECTED: "已拒绝",
+    INVALID: "已失效",
   };
   return (value && labels[value]) || value || "-";
+}
+
+function leadStatusHint(value?: string | null) {
+  const hints: Record<string, string> = {
+    DRAFT: "草稿可以修改、删除，也可以提交登记审批。",
+    PENDING_REGISTRATION:
+      "待登记表示登记审批已提交，正在等待审批人处理。需要修改时，先撤回审批，回到草稿后再修改。",
+    RETURNED: "审批退回后可以修改线索，再重新提交登记审批。",
+    REJECTED: "审批已拒绝，该线索不再继续登记。",
+    FOLLOWING: "审批通过后进入跟进中，可以新增跟进记录。",
+    CONVERTED: "该线索已转为项目。",
+    INVALID: "该线索已关闭或失效。",
+  };
+  return (value && hints[value]) || "";
 }
 
 function followUpMethodText(value?: string | null) {
@@ -163,12 +191,14 @@ async function load() {
 async function openDetail(id: string) {
   error.value = null;
   try {
-    const result = await callApi<{ lead: LeadDetail; followUps: FollowUp[] }>(
-      "lead.detail",
-      { leadId: id },
-    );
+    const result = await callApi<{
+      lead: LeadDetail;
+      followUps: FollowUp[];
+      pendingApprovals?: PendingApproval[];
+    }>("lead.detail", { leadId: id });
     selected.value = result.lead;
     followUps.value = result.followUps;
+    pendingApprovals.value = result.pendingApprovals || [];
     followUpForm.value.successProbability = result.lead.successProbability;
     showEdit.value = false;
   } catch (e) {
@@ -229,6 +259,7 @@ async function deleteLead(lead: LeadDetail) {
   try {
     await callApi("lead.delete", { leadId: lead.id });
     selected.value = null;
+    pendingApprovals.value = [];
     showEdit.value = false;
     await load();
   } catch (e) {
@@ -279,6 +310,29 @@ async function submitApproval(lead: LeadDetail) {
     await openDetail(lead.id);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function withdrawApproval(lead: LeadDetail) {
+  if (!lead.approvalInstanceId) {
+    error.value = "未找到登记审批记录，请刷新后重试";
+    return;
+  }
+  if (!window.confirm("确认撤回登记审批？撤回后线索会回到草稿，可修改后重新提交。")) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("approval.instance.withdraw", {
+      instanceId: lead.approvalInstanceId,
+      actionKey: crypto.randomUUID(),
+      comment: "申请人撤回登记审批",
+    });
+    await load();
+    await openDetail(lead.id);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "撤回审批失败";
   } finally {
     saving.value = false;
   }
@@ -474,6 +528,32 @@ onMounted(load);
           selected.successProbability
         }}%　状态：{{ leadStatusText(selected.status) }}
       </p>
+      <p class="status-hint">{{ leadStatusHint(selected.status) }}</p>
+      <div
+        v-if="selected.status === 'PENDING_REGISTRATION'"
+        class="approval-guide"
+      >
+        <h3>当前登记审批</h3>
+        <p v-if="currentPendingApproval">
+          审批编号：{{ currentPendingApproval.instanceCode }}　当前环节：{{
+            currentPendingApproval.nodeOrder
+          }}. {{ currentPendingApproval.positionName }}　审批人：{{
+            currentPendingApproval.approverName
+          }}
+        </p>
+        <p v-else>审批已提交，正在等待审批人处理。</p>
+        <div class="approval-actions">
+          <RouterLink class="button-link secondary" to="/approvals">
+            去审批待办
+          </RouterLink>
+          <RouterLink class="button-link secondary" to="/admin">
+            配置审批人
+          </RouterLink>
+        </div>
+        <small>
+          配置路径：系统管理 → 组织与权限 → 审批岗位任职；审批路径：审批待办 → 待我审批。
+        </small>
+      </div>
       <p>{{ selected.requirementSummary }}</p>
       <div class="approval-actions">
         <button
@@ -493,6 +573,32 @@ onMounted(load);
           @click="deleteLead(selected)"
         >
           删除线索
+        </button>
+        <button
+          v-if="selected.status === 'PENDING_REGISTRATION'"
+          class="secondary"
+          type="button"
+          :disabled="saving"
+          @click="withdrawApproval(selected)"
+        >
+          撤回登记审批
+        </button>
+        <button
+          v-if="selected.status === 'FOLLOWING'"
+          class="secondary"
+          type="button"
+          :disabled="saving"
+          @click="showFollowUp = !showFollowUp"
+        >
+          {{ showFollowUp ? "取消跟进" : "新增跟进" }}
+        </button>
+        <button
+          v-if="['DRAFT', 'RETURNED', 'FOLLOWING'].includes(selected.status)"
+          type="button"
+          :disabled="saving"
+          @click="closeLead(selected)"
+        >
+          关闭线索
         </button>
       </div>
       <form
@@ -576,19 +682,6 @@ onMounted(load);
         @click="submitApproval(selected)"
       >
         提交登记审批
-      </button>
-      <button
-        v-if="selected.status === 'FOLLOWING'"
-        @click="showFollowUp = !showFollowUp"
-      >
-        新增跟进
-      </button>
-      <button
-        v-if="['DRAFT', 'RETURNED', 'FOLLOWING'].includes(selected.status)"
-        :disabled="saving"
-        @click="closeLead(selected)"
-      >
-        关闭线索
       </button>
       <form
         v-if="showFollowUp"

@@ -1,7 +1,9 @@
 const defaultTokenMap = {
   "local-admin-token-0001": "cb-admin-001",
   "local-ceo-token-0001": "cb-ceo-001",
+  "local-biz-token-0001": "cb-biz-001",
   "local-pm-token-0001": "cb-pm-001",
+  "local-bid-token-0001": "cb-bid-001",
   "local-fin-token-0001": "cb-fin-001",
   "local-member-token-0001": "cb-member-001",
   "local-none-token-0001": "cb-none-001",

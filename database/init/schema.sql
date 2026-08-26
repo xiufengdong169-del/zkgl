@@ -1629,7 +1629,7 @@ WHERE r.code='COMPANY_PRINCIPAL';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)
 SELECT r.id,p.id FROM iam_role r JOIN iam_permission p ON p.code IN
-('crm.counterparty.read','crm.counterparty.create','crm.contact.create','crm.visit.create','lead.read','lead.create','lead.followUp.create','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','deposit.create','deposit.event.create','message.read','approval.instance.submit')
+('crm.counterparty.read','crm.counterparty.create','crm.contact.create','crm.visit.create','lead.read','lead.create','lead.followUp.create','project.application.read','project.application.create','project.read','bid.application.read','bid.application.create','contract.read','deposit.create','deposit.event.create','message.read','approval.task.read','approval.task.process','approval.instance.withdraw','approval.instance.submit')
 WHERE r.code='MARKET_BUSINESS';
 
 INSERT IGNORE INTO iam_role_permission(role_id,permission_id)

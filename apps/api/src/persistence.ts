@@ -2035,7 +2035,7 @@ export class MySqlActionExecutor {
         case "lead.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(connection,
-              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
+              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
               [input.leadId, all ? 1 : 0, user.employeeId, user.id],
             );
           const lead = rows[0];
@@ -2045,7 +2045,27 @@ export class MySqlActionExecutor {
             `SELECT CAST(id AS CHAR) id,followed_up_at followedUpAt,follow_up_method method,communication,customer_feedback customerFeedback,opportunity_change opportunityChange,success_probability successProbability,next_action nextAction,next_follow_up_at nextFollowUpAt FROM mkt_lead_follow_up WHERE lead_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY followed_up_at DESC`,
             [input.leadId],
           );
-          return { lead, followUps };
+          const [pendingApprovals] = await selectRows(connection,
+            `SELECT CAST(t.id AS CHAR) taskId,
+                    CAST(i.id AS CHAR) instanceId,
+                    i.instance_code instanceCode,
+                    t.node_order nodeOrder,
+                    t.position_code positionCode,
+                    COALESCE(p.name,t.position_code) positionName,
+                    COALESCE(e.name,'未配置人员') approverName,
+                    t.assigned_at assignedAt
+               FROM wf_instance i
+               JOIN wf_task t ON t.instance_id=i.id
+               LEFT JOIN org_position p ON p.position_code=t.position_code
+               LEFT JOIN org_employee e ON e.id=t.assignee_id
+              WHERE i.business_type='LEAD'
+                AND i.business_id=?
+                AND i.status='PENDING'
+                AND t.status='PENDING'
+              ORDER BY t.node_order,t.id`,
+            [input.leadId],
+          );
+          return { lead, followUps, pendingApprovals };
         }
         case "lead.close": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
@@ -4157,7 +4177,7 @@ export class MySqlActionExecutor {
               ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               input.leadId,
-              input.followedUpAt,
+              toMySqlDateTime(input.followedUpAt),
               input.method,
               JSON.stringify(input.participantIds),
               input.communication,
@@ -4165,7 +4185,7 @@ export class MySqlActionExecutor {
               input.opportunityChange ?? null,
               input.successProbability,
               input.nextAction,
-              input.nextFollowUpAt ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
               user.employeeId,
               user.id,
               user.id,
@@ -4175,7 +4195,7 @@ export class MySqlActionExecutor {
             `UPDATE mkt_lead SET success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               input.successProbability,
-              input.nextFollowUpAt ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
               user.id,
               input.leadId,
             ],
