@@ -1053,10 +1053,10 @@ const selectedDepartmentMemberSummary = computed(() => {
 const selectedDepartmentEmptyText = computed(() => {
   if (memberKeyword.value.trim()) return "当前搜索条件下暂无成员";
   if (memberFilter.value === "active")
-    return "当前部门暂无在职成员，可切换“全部成员”查看";
+    return "当前范围暂无在职成员，可切换“当前范围全部”查看";
   if (memberFilter.value === "left")
-    return "当前部门暂无离职成员，可切换“全部成员”查看";
-  return "当前部门暂无成员";
+    return "当前范围暂无离职成员，可切换“当前范围全部”查看";
+  return "当前范围暂无成员";
 });
 
 const activeUsers = computed(
@@ -1664,21 +1664,21 @@ onMounted(load);
                 type="button"
                 @click="memberFilter = 'all'"
               >
-                全部成员 {{ selectedDepartmentMemberSummary.all }}人
+                当前范围全部 {{ selectedDepartmentMemberSummary.all }}人
               </button>
               <button
                 :class="{ active: memberFilter === 'active' }"
                 type="button"
                 @click="memberFilter = 'active'"
               >
-                在职成员 {{ selectedDepartmentMemberSummary.active }}人
+                当前范围在职 {{ selectedDepartmentMemberSummary.active }}人
               </button>
               <button
                 :class="{ active: memberFilter === 'left' }"
                 type="button"
                 @click="memberFilter = 'left'"
               >
-                离职成员 {{ selectedDepartmentMemberSummary.left }}人
+                当前范围离职 {{ selectedDepartmentMemberSummary.left }}人
               </button>
             </div>
             <label class="search-box">
