@@ -944,15 +944,7 @@ const availableParentDepartments = computed(() =>
   departments.value.filter((item) => item.id !== selectedDepartmentId.value),
 );
 
-const departmentMemberCounts = computed(() => {
-  const counts = new Map<string, number>();
-  for (const person of employees.value) {
-    counts.set(person.departmentId, (counts.get(person.departmentId) ?? 0) + 1);
-  }
-  return counts;
-});
-
-const departmentTreeRows = computed(() => {
+const departmentChildrenMap = computed(() => {
   const children = new Map<string, Department[]>();
   const departmentIds = new Set(departments.value.map((item) => item.id));
   for (const item of departments.value) {
@@ -962,9 +954,44 @@ const departmentTreeRows = computed(() => {
     list.push(item);
     children.set(parentId, list);
   }
+  return children;
+});
+
+function departmentAndChildIds(departmentId: string) {
+  const ids = new Set<string>();
+  const walk = (id: string) => {
+    ids.add(id);
+    for (const child of departmentChildrenMap.value.get(id) ?? []) {
+      walk(child.id);
+    }
+  };
+  if (departmentId) walk(departmentId);
+  return ids;
+}
+
+const selectedDepartmentScopeIds = computed(() =>
+  selectedDepartmentId.value
+    ? departmentAndChildIds(selectedDepartmentId.value)
+    : new Set(departments.value.map((item) => item.id)),
+);
+
+const departmentMemberCounts = computed(() => {
+  const counts = new Map<string, number>();
+  for (const department of departments.value) {
+    const scopeIds = departmentAndChildIds(department.id);
+    counts.set(
+      department.id,
+      employees.value.filter((person) => scopeIds.has(person.departmentId))
+        .length,
+    );
+  }
+  return counts;
+});
+
+const departmentTreeRows = computed(() => {
   const rows: Array<Department & { level: number }> = [];
   const walk = (parentId: string, level: number) => {
-    for (const child of children.get(parentId) ?? []) {
+    for (const child of departmentChildrenMap.value.get(parentId) ?? []) {
       rows.push({ ...child, level });
       walk(child.id, level + 1);
     }
@@ -982,9 +1009,9 @@ const departmentTreeRows = computed(() => {
 const selectedDepartmentMembers = computed(() => {
   const keyword = memberKeyword.value.trim().toLowerCase();
   return employees.value.filter((person) => {
-    const matchDepartment = selectedDepartmentId.value
-      ? person.departmentId === selectedDepartmentId.value
-      : true;
+    const matchDepartment = selectedDepartmentScopeIds.value.has(
+      person.departmentId,
+    );
     const matchKeyword =
       !keyword ||
       person.name.toLowerCase().includes(keyword) ||
@@ -1011,7 +1038,7 @@ const selectedDepartmentMembers = computed(() => {
 const selectedDepartmentMemberSummary = computed(() => {
   const members = employees.value.filter((person) =>
     selectedDepartmentId.value
-      ? person.departmentId === selectedDepartmentId.value
+      ? selectedDepartmentScopeIds.value.has(person.departmentId)
       : true,
   );
   return {
