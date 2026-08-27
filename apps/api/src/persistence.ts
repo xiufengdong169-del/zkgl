@@ -2452,11 +2452,15 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(
               connection,
-              `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,CAST(source_lead_id AS CHAR) sourceLeadId,project_type projectType,background,service_scope serviceScope,estimated_revenue estimatedRevenue,estimated_cost estimatedCost,estimated_start_on estimatedStartOn,estimated_end_on estimatedEndOn,CAST(proposed_manager_id AS CHAR) proposedManagerId,bidding_method biddingMethod,risk_description riskDescription,necessity,status,version FROM prj_project_application WHERE id=? AND is_deleted=0 AND (?=1 OR created_by=? OR applicant_id=? OR proposed_manager_id=?)`,
+              `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,CAST(source_lead_id AS CHAR) sourceLeadId,project_type projectType,background,service_scope serviceScope,estimated_revenue estimatedRevenue,estimated_cost estimatedCost,estimated_start_on estimatedStartOn,estimated_end_on estimatedEndOn,CAST(proposed_manager_id AS CHAR) proposedManagerId,bidding_method biddingMethod,risk_description riskDescription,necessity,status,version FROM prj_project_application WHERE id=? AND is_deleted=0 AND (?=1 OR created_by=? OR applicant_id=? OR proposed_manager_id=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='PROJECT_APPLICATION' AND wi.business_id=prj_project_application.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
               [
                 input.applicationId,
                 all ? 1 : 0,
                 user.id,
+                user.employeeId,
+                user.employeeId,
+                user.id,
+                user.employeeId,
                 user.employeeId,
                 user.employeeId,
               ],

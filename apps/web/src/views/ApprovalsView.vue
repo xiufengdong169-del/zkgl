@@ -6,6 +6,7 @@ import { callApi } from "../api";
 import { approvalCodeText, businessTypeText } from "../approval-display";
 
 type Mode = "PENDING" | "INITIATED" | "CC" | "PROCESSED";
+
 interface ApprovalItem {
   id: string;
   instanceId: string;
@@ -19,12 +20,14 @@ interface ApprovalItem {
   occurredAt: string;
   canAct: number;
 }
+
 const filters: Array<{ label: string; mode: Mode }> = [
   { label: "待我审批", mode: "PENDING" },
   { label: "我发起的", mode: "INITIATED" },
   { label: "抄送我的", mode: "CC" },
   { label: "已处理", mode: "PROCESSED" },
 ];
+
 const activeMode = ref<Mode>("PENDING");
 const items = ref<ApprovalItem[]>([]);
 const error = ref<string | null>(null);
@@ -42,6 +45,7 @@ function approvalStatusText(value?: string | null) {
     COMPLETED: "已完成",
     SKIPPED: "已跳过",
     CANCELED: "已取消",
+    CANCELLED: "已取消",
   };
   return (value && labels[value]) || value || "-";
 }
@@ -60,6 +64,21 @@ function positionText(value?: string | null) {
 function detailRoute(item: ApprovalItem): RouteLocationRaw | null {
   if (item.businessType === "LEAD") {
     return { path: "/leads", query: { leadId: item.businessId } };
+  }
+  if (item.businessType === "PROJECT_APPLICATION") {
+    return { path: "/projects", query: { applicationId: item.businessId } };
+  }
+  if (item.businessType === "BID_APPLICATION") return { path: "/bids" };
+  if (item.businessType === "CONTRACT") return { path: "/contracts" };
+  if (item.businessType.startsWith("PROJECT_")) return { path: "/delivery" };
+  if (
+    item.businessType.includes("INVOICE") ||
+    item.businessType.includes("PAYMENT") ||
+    item.businessType.includes("REIMBURSEMENT") ||
+    item.businessType.includes("DEPOSIT") ||
+    item.businessType.includes("DAILY_PURCHASE")
+  ) {
+    return { path: "/finance" };
   }
   return null;
 }
@@ -101,6 +120,7 @@ async function act(
   }
   processing.value = item.id;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("approval.task.action", {
       taskId: item.id,
@@ -108,6 +128,12 @@ async function act(
       actionKey: crypto.randomUUID(),
       comment,
     });
+    notice.value =
+      action === "APPROVE"
+        ? "审批已同意。"
+        : action === "RETURN"
+          ? "审批已退回。"
+          : "审批已驳回。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "审批操作失败";
@@ -121,12 +147,14 @@ async function withdraw(item: ApprovalItem) {
   if (!comment) return;
   processing.value = item.id;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("approval.instance.withdraw", {
       instanceId: item.instanceId,
       actionKey: crypto.randomUUID(),
       comment,
     });
+    notice.value = "审批已撤回。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "撤回失败";
@@ -146,7 +174,7 @@ async function deleteApprovalRecord(item: ApprovalItem) {
     await callApi("approval.instance.delete", {
       instanceId: item.instanceId,
     });
-    notice.value = "删除成功";
+    notice.value = "删除成功。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "删除失败";
@@ -167,6 +195,7 @@ onMounted(() => load());
       </div>
       <span class="badge">顺序审批</span>
     </header>
+
     <nav class="filter-tabs" aria-label="审批筛选">
       <button
         v-for="filter in filters"
@@ -177,16 +206,18 @@ onMounted(() => load());
         {{ filter.label }}
       </button>
     </nav>
+
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="notice" class="notice">{{ notice }}</p>
-    <p v-if="loading">正在加载…</p>
+    <p v-if="loading">正在加载...</p>
+
     <section v-else-if="items.length" class="approval-list">
       <article v-for="item in items" :key="item.id">
         <div>
-          <small
-            >{{ approvalCodeText(item.instanceCode, item.businessType) }} ·
-            {{ positionText(item.positionCode) }}</small
-          >
+          <small>
+            {{ approvalCodeText(item.instanceCode, item.businessType) }} ·
+            {{ positionText(item.positionCode) }}
+          </small>
           <h2>{{ item.title }}</h2>
           <p>
             {{ businessTypeText(item.businessType) }} ·
@@ -207,15 +238,17 @@ onMounted(() => load());
             :disabled="processing === item.id"
             @click="act(item, 'APPROVE')"
           >
-            同意</button
-          ><button
+            同意
+          </button>
+          <button
             v-if="activeMode === 'PENDING'"
             class="secondary"
             :disabled="processing === item.id"
             @click="act(item, 'RETURN')"
           >
-            退回</button
-          ><button
+            退回
+          </button>
+          <button
             v-if="activeMode === 'PENDING'"
             class="danger"
             :disabled="processing === item.id"
@@ -242,6 +275,7 @@ onMounted(() => load());
         </div>
       </article>
     </section>
+
     <section v-else-if="!loading" class="empty-state">
       <span>✓</span>
       <h2>当前分类没有审批事项</h2>

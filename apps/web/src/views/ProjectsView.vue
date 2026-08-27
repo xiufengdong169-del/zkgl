@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { callApi } from "../api";
 import { approvalCodeText, businessTypeText } from "../approval-display";
 import { canSubmitApprovalStatus } from "../approval-status";
@@ -86,6 +87,7 @@ interface ProjectDetail {
 }
 
 const auth = useAuthStore();
+const route = useRoute();
 const projects = ref<ProjectRow[]>([]);
 const applications = ref<ApplicationRow[]>([]);
 const customers = ref<Customer[]>([]);
@@ -96,6 +98,7 @@ const saving = ref(false);
 const editingApplicationId = ref<string | null>(null);
 const editingApplicationVersion = ref(0);
 const detail = ref<ProjectDetail | null>(null);
+const selectedApplication = ref<ApplicationDetail | null>(null);
 
 const pendingApplicationCount = computed(
   () =>
@@ -323,6 +326,23 @@ async function editApplication(item: ApplicationRow) {
   }
 }
 
+async function viewApplication(applicationId: string) {
+  error.value = null;
+  notice.value = null;
+  try {
+    const result = await callApi<{ application: ApplicationDetail }>(
+      "project.application.detail",
+      { applicationId },
+    );
+    selectedApplication.value = result.application;
+    detail.value = null;
+    showForm.value = false;
+    editingApplicationId.value = null;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "加载立项申请详情失败";
+  }
+}
+
 async function loadDetail(projectId: string) {
   error.value = null;
   try {
@@ -356,7 +376,26 @@ async function submitApplication(item: ApplicationRow) {
   }
 }
 
-onMounted(load);
+function routeApplicationId() {
+  const value = route.query.applicationId;
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+async function loadPage() {
+  await load();
+  const applicationId = routeApplicationId();
+  if (applicationId) await viewApplication(applicationId);
+}
+
+onMounted(loadPage);
+
+watch(
+  () => route.query.applicationId,
+  async () => {
+    const applicationId = routeApplicationId();
+    if (applicationId) await viewApplication(applicationId);
+  },
+);
 </script>
 
 <template>
@@ -366,7 +405,11 @@ onMounted(load);
         <p class="eyebrow">PROJECT PORTFOLIO</p>
         <h1>项目管理</h1>
       </div>
-      <button class="primary-action" @click="toggleApplicationForm">
+      <button
+        v-if="!selectedApplication"
+        class="primary-action"
+        @click="toggleApplicationForm"
+      >
         {{ showForm ? "取消" : "发起立项申请" }}
       </button>
     </header>
@@ -474,7 +517,7 @@ onMounted(load);
       <button type="button" @click="toggleApplicationForm">取消</button>
     </form>
 
-    <section class="project-summary">
+    <section v-if="!selectedApplication" class="project-summary">
       <div>
         <strong>{{ draftApplicationCount }}</strong>
         <span>草稿立项申请</span>
@@ -493,7 +536,7 @@ onMounted(load);
       </div>
     </section>
 
-    <section class="workflow-card">
+    <section v-if="!selectedApplication" class="workflow-card">
       <p class="eyebrow">立项流程</p>
       <div class="workflow-steps">
         <article v-for="step in workflow" :key="step.number">
@@ -504,7 +547,73 @@ onMounted(load);
       </div>
     </section>
 
-    <section class="data-panel">
+    <section v-if="selectedApplication" class="data-panel">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">立项申请详情</p>
+          <h2>{{ selectedApplication.projectName }}</h2>
+        </div>
+        <button
+          class="secondary-button"
+          type="button"
+          @click="selectedApplication = null"
+        >
+          返回项目管理
+        </button>
+      </header>
+      <p>
+        申请编号：{{ selectedApplication.code }}　状态：{{
+          statusText(selectedApplication.status)
+        }}　项目类型：{{ projectTypeText(selectedApplication.projectType) }}
+      </p>
+      <section class="contract-panels">
+        <article>
+          <p>预计收入</p>
+          <strong>{{ moneyText(selectedApplication.estimatedRevenue) }}</strong>
+        </article>
+        <article>
+          <p>预计成本</p>
+          <strong>{{ moneyText(selectedApplication.estimatedCost) }}</strong>
+        </article>
+        <article>
+          <p>预计利润</p>
+          <strong>
+            {{
+              moneyText(
+                Number(selectedApplication.estimatedRevenue) -
+                  Number(selectedApplication.estimatedCost),
+              )
+            }}
+          </strong>
+        </article>
+      </section>
+      <div class="module-grid">
+        <article class="module-card">
+          <h3>基本信息</h3>
+          <p>预计开始：{{ selectedApplication.estimatedStartOn }}</p>
+          <p>预计结束：{{ selectedApplication.estimatedEndOn }}</p>
+          <p>
+            投标方式：{{ biddingMethodText(selectedApplication.biddingMethod) }}
+          </p>
+        </article>
+        <article class="module-card">
+          <h3>服务范围</h3>
+          <p>{{ selectedApplication.serviceScope || "暂无" }}</p>
+        </article>
+        <article class="module-card">
+          <h3>立项必要性</h3>
+          <p>{{ selectedApplication.necessity || "暂无" }}</p>
+        </article>
+      </div>
+      <p v-if="selectedApplication.background">
+        项目背景：{{ selectedApplication.background }}
+      </p>
+      <p v-if="selectedApplication.riskDescription">
+        风险说明：{{ selectedApplication.riskDescription }}
+      </p>
+    </section>
+
+    <section v-if="!selectedApplication" class="data-panel">
       <h2>正式项目</h2>
       <table v-if="projects.length">
         <thead>
@@ -530,7 +639,7 @@ onMounted(load);
       <p v-else>暂无正式项目</p>
     </section>
 
-    <section v-if="detail" class="data-panel">
+    <section v-if="detail && !selectedApplication" class="data-panel">
       <header class="page-header">
         <div>
           <p class="eyebrow">项目详情</p>
@@ -653,7 +762,7 @@ onMounted(load);
       </section>
     </section>
 
-    <section class="data-panel">
+    <section v-if="!selectedApplication" class="data-panel">
       <h2>立项申请</h2>
       <p class="muted">
         从线索生成的立项申请会出现在这里。草稿可修改、提交审批；审批通过后自动进入“正式项目”。
@@ -680,6 +789,13 @@ onMounted(load);
             <td>{{ statusText(item.status) }}</td>
             <td>
               <div class="approval-actions">
+                <button
+                  class="secondary"
+                  type="button"
+                  @click="viewApplication(item.id)"
+                >
+                  查看详情
+                </button>
                 <button
                   v-if="
                     canSubmitApprovalStatus(item.status) &&

@@ -153,7 +153,18 @@ describe("project application write scopes", () => {
     )!;
     expect(detailQuery.sql).toContain("created_by=?");
     expect(detailQuery.sql).toContain("applicant_id=?");
-    expect(detailQuery.params).toEqual(["app-1", 0, "u1", "e1", "e1"]);
+    expect(detailQuery.sql).toContain("wf_task");
+    expect(detailQuery.params).toEqual([
+      "app-1",
+      0,
+      "u1",
+      "e1",
+      "e1",
+      "u1",
+      "e1",
+      "e1",
+      "e1",
+    ]);
   });
 
   it("stores applicant id as employee id while keeping audit columns as user id", async () => {
@@ -197,7 +208,9 @@ describe("project application write scopes", () => {
     )!;
     expect(customerCheck.params).toEqual(["c1", 0, "e1"]);
     expect(
-      connection.calls.some((call) => call.sql.includes("FROM sys_number_rule")),
+      connection.calls.some((call) =>
+        call.sql.includes("FROM sys_number_rule"),
+      ),
     ).toBe(false);
     expect(
       connection.calls.some((call) =>
