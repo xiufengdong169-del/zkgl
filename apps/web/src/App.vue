@@ -1,17 +1,45 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RouterLink, RouterView, useRoute } from "vue-router";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { demoBannerText, shouldShowDemoBanner } from "./demo-banner";
 import { visibleNavigation } from "./navigation";
 import { useAuthStore } from "./stores/auth";
 
 const route = useRoute(),
+  router = useRouter(),
   auth = useAuthStore();
 const showNavigation = computed(() => route.name !== "login");
 const showDemoBanner = computed(() => showNavigation.value && shouldShowDemoBanner());
 const menuItems = computed(() =>
   visibleNavigation(auth.user?.permissionCodes ?? []),
 );
+
+const roleNameMap: Record<string, string> = {
+  ADMIN: "系统管理员",
+  COMPANY_PRINCIPAL: "公司负责人",
+  MARKET_BUSINESS: "市场商务",
+  PROJECT_MANAGER: "项目经理",
+  PROJECT_MEMBER: "项目成员",
+  BIDDER: "投标人员",
+  FINANCE: "商务财务",
+  EMPLOYEE: "普通员工",
+};
+
+const currentUserText = computed(() => {
+  const roles = auth.user?.roleCodes ?? [];
+  if (!roles.length) return "未分配角色";
+  return roles.map((role) => roleNameMap[role] || role).join("、");
+});
+
+async function signOut() {
+  if (
+    typeof window !== "undefined" &&
+    !window.confirm("确认退出当前系统吗？")
+  )
+    return;
+  await auth.signOut();
+  await router.push({ name: "login" });
+}
 </script>
 
 <template>
@@ -23,6 +51,10 @@ const menuItems = computed(() =>
           {{ item.label }}
         </RouterLink>
       </nav>
+      <div v-if="auth.authenticated" class="sidebar-footer">
+        <span>当前登录：{{ currentUserText }}</span>
+        <button type="button" @click="signOut">退出系统</button>
+      </div>
     </aside>
     <div class="content">
       <div v-if="showDemoBanner" class="demo-banner">{{ demoBannerText }}</div>
