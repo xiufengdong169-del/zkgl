@@ -2282,7 +2282,19 @@ export class MySqlActionExecutor {
               ORDER BY t.node_order,t.id`,
             [input.leadId],
           );
-          return { lead, followUps, pendingApprovals };
+          const [projectApplications] = await selectRows(
+            connection,
+            `SELECT CAST(id AS CHAR) id,
+                    application_code code,
+                    project_name projectName,
+                    status,
+                    created_at createdAt
+               FROM prj_project_application
+              WHERE source_lead_id=? AND is_deleted=0
+              ORDER BY id DESC`,
+            [input.leadId],
+          );
+          return { lead, followUps, pendingApprovals, projectApplications };
         }
         case "lead.close": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
@@ -2470,7 +2482,7 @@ export class MySqlActionExecutor {
             projectScope = buildProjectDataScope(user);
           const [rows] = await selectRows(
             connection,
-            `SELECT DISTINCT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
+            `SELECT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
                     CAST(p.project_manager_id AS CHAR) projectManagerId,pm.name managerName
                FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id
               WHERE p.is_deleted=0 AND ${projectScope.sql}

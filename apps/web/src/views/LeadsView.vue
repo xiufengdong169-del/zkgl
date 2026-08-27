@@ -10,6 +10,7 @@ interface CustomerOption {
   id: string;
   name: string;
 }
+
 interface LeadDetail extends LeadSummary {
   customerName: string;
   sourceCode: string;
@@ -25,6 +26,7 @@ interface LeadDetail extends LeadSummary {
   approvalInstanceId?: string | null;
   version?: number;
 }
+
 interface FollowUp {
   id: string;
   followedUpAt: string;
@@ -35,6 +37,7 @@ interface FollowUp {
   nextAction: string;
   nextFollowUpAt: string | null;
 }
+
 interface PendingApproval {
   taskId: string;
   instanceId: string;
@@ -46,13 +49,23 @@ interface PendingApproval {
   assignedAt: string;
 }
 
+interface LinkedProjectApplication {
+  id: string;
+  code: string;
+  projectName: string;
+  status: string;
+  createdAt: string;
+}
+
 const auth = useAuthStore();
 const route = useRoute();
+
 const items = ref<LeadSummary[]>([]);
 const customers = ref<CustomerOption[]>([]);
 const selected = ref<LeadDetail | null>(null);
 const followUps = ref<FollowUp[]>([]);
 const pendingApprovals = ref<PendingApproval[]>([]);
+const projectApplications = ref<LinkedProjectApplication[]>([]);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const loading = ref(false);
@@ -61,6 +74,7 @@ const showForm = ref(false);
 const showEdit = ref(false);
 const showFollowUp = ref(false);
 const showConvertForm = ref(false);
+
 const form = ref({
   projectName: "",
   customerId: "",
@@ -73,6 +87,7 @@ const form = ref({
   successProbability: 50,
   nextFollowUpAt: null as string | null,
 });
+
 const followUpForm = ref({
   followedUpAt: new Date().toISOString().slice(0, 16),
   method: "PHONE",
@@ -83,6 +98,7 @@ const followUpForm = ref({
   nextAction: "",
   nextFollowUpAt: null as string | null,
 });
+
 const editForm = ref({
   leadId: "",
   projectName: "",
@@ -96,6 +112,7 @@ const editForm = ref({
   successProbability: 50,
   nextFollowUpAt: null as string | null,
 });
+
 const convertForm = ref({
   estimatedRevenue: 0,
   estimatedCost: 0,
@@ -108,12 +125,14 @@ const convertForm = ref({
   biddingMethod: "PUBLIC",
   riskDescription: "",
 });
+
 const statusColumns = [
   { label: "草稿", code: "DRAFT" },
   { label: "待登记", code: "PENDING_REGISTRATION" },
   { label: "跟进中", code: "FOLLOWING" },
   { label: "已转项目", code: "CONVERTED" },
 ];
+
 const grouped = computed(() =>
   Object.fromEntries(
     statusColumns.map((column) => [
@@ -122,9 +141,37 @@ const grouped = computed(() =>
     ]),
   ),
 );
+
 const currentPendingApproval = computed(
   () => pendingApprovals.value[0] || null,
 );
+
+const hasProjectApplication = computed(
+  () => projectApplications.value.length > 0,
+);
+const permissionCodes = computed(() => auth.user?.permissionCodes ?? []);
+const canCreateLead = computed(() =>
+  permissionCodes.value.includes("lead.create"),
+);
+const canCreateFollowUp = computed(() =>
+  permissionCodes.value.includes("lead.followUp.create"),
+);
+const canCreateProjectApplication = computed(() =>
+  permissionCodes.value.includes("project.application.create"),
+);
+const canReadProjectApplication = computed(() =>
+  permissionCodes.value.includes("project.application.read"),
+);
+const canReadProject = computed(() =>
+  permissionCodes.value.includes("project.read"),
+);
+const canSubmitApproval = computed(() =>
+  permissionCodes.value.includes("approval.instance.submit"),
+);
+const canWithdrawApproval = computed(() => {
+  const permissionCodes = auth.user?.permissionCodes ?? [];
+  return permissionCodes.includes("approval.instance.withdraw");
+});
 
 function routeLeadId() {
   const value = route.query.leadId;
@@ -150,10 +197,11 @@ function leadStatusHint(value?: string | null) {
     PENDING_REGISTRATION:
       "待登记表示登记审批已提交，正在等待审批人处理。需要修改时，先撤回审批，回到草稿后再修改。",
     RETURNED: "审批退回后可以修改线索，再重新提交登记审批。",
-    REJECTED: "审批已拒绝，该线索不再继续登记。",
-    FOLLOWING: "审批通过后进入跟进中，可以新增跟进记录。",
-    CONVERTED: "该线索已转为项目。",
-    INVALID: "该线索已关闭或失效。",
+    REJECTED: "审批已拒绝，该线索可删除。",
+    FOLLOWING:
+      "审批通过后进入跟进中。此阶段可以继续新增跟进，也可以生成立项申请。",
+    CONVERTED: "立项申请审批通过后，线索自动转为正式项目。",
+    INVALID: "线索已关闭或失效，可删除。",
   };
   return (value && hints[value]) || "";
 }
@@ -161,11 +209,32 @@ function leadStatusHint(value?: string | null) {
 function followUpMethodText(value?: string | null) {
   const labels: Record<string, string> = {
     PHONE: "电话",
-    ONSITE: "现场",
+    ONSITE: "上门",
     VIDEO: "视频",
     WECHAT: "微信",
     EMAIL: "邮件",
     OTHER: "其他",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function projectTypeText(value?: string | null) {
+  const labels: Record<string, string> = {
+    CONSULTING: "信息化咨询",
+    SUPERVISION: "信息化监理",
+    OTHER: "其他",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function applicationStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    APPROVAL_PENDING: "审批中",
+    RETURNED: "已退回",
+    REJECTED: "已驳回",
+    WITHDRAWN: "已撤回",
+    APPROVED: "已通过",
   };
   return (value && labels[value]) || value || "-";
 }
@@ -240,10 +309,12 @@ async function openDetail(id: string) {
       lead: LeadDetail;
       followUps: FollowUp[];
       pendingApprovals?: PendingApproval[];
+      projectApplications?: LinkedProjectApplication[];
     }>("lead.detail", { leadId: id });
     selected.value = result.lead;
     followUps.value = result.followUps;
     pendingApprovals.value = result.pendingApprovals || [];
+    projectApplications.value = result.projectApplications || [];
     followUpForm.value.successProbability = result.lead.successProbability;
     showEdit.value = false;
     showConvertForm.value = false;
@@ -281,19 +352,27 @@ function startEditLead() {
     nextFollowUpAt: toDateTimeInput(selected.value.nextFollowUpAt) || null,
   };
   showEdit.value = true;
+  showConvertForm.value = false;
+  showFollowUp.value = false;
 }
 
-function startConvertToProjectApplication() {
+async function startConvertToProjectApplication() {
   if (!selected.value) return;
   resetConvertForm(selected.value);
   showConvertForm.value = !showConvertForm.value;
   showFollowUp.value = false;
+  showEdit.value = false;
+  await nextTick();
+  document
+    .querySelector(".lead-convert-form")
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function updateLead() {
   if (!auth.user || !selected.value) return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("lead.update", {
       ...editForm.value,
@@ -306,6 +385,7 @@ async function updateLead() {
         : null,
     });
     showEdit.value = false;
+    notice.value = "线索已保存。";
     await load();
     await openDetail(editForm.value.leadId);
   } catch (e) {
@@ -329,8 +409,10 @@ async function deleteLead(lead: LeadDetail) {
     await callApi("lead.delete", { leadId: lead.id });
     selected.value = null;
     pendingApprovals.value = [];
+    projectApplications.value = [];
     showEdit.value = false;
     showConvertForm.value = false;
+    notice.value = "线索已删除。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "删除线索失败";
@@ -358,6 +440,7 @@ async function createLead() {
         : null,
     });
     showForm.value = false;
+    notice.value = "线索已保存。下一步可提交登记审批。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
@@ -378,6 +461,7 @@ async function submitApproval(lead: LeadDetail) {
       title: `线索登记：${lead.projectName}`,
       amount: nullableNumber(lead.estimatedAmount),
     });
+    notice.value = "登记审批已提交。审批入口：审批与待办 → 待我审批。";
     await load();
     await openDetail(lead.id);
   } catch (e) {
@@ -407,6 +491,7 @@ async function withdrawApproval(lead: LeadDetail) {
       actionKey: crypto.randomUUID(),
       comment: "申请人撤回登记审批",
     });
+    notice.value = "登记审批已撤回。";
     await load();
     await openDetail(lead.id);
   } catch (e) {
@@ -436,6 +521,7 @@ async function addFollowUp() {
     showFollowUp.value = false;
     followUpForm.value.communication = "";
     followUpForm.value.nextAction = "";
+    notice.value = "跟进记录已保存。";
     await load();
     await openDetail(selected.value.id);
   } catch (e) {
@@ -470,7 +556,7 @@ async function createProjectApplicationFromLead() {
     });
     showConvertForm.value = false;
     notice.value =
-      "立项申请已生成。下一步：进入“项目管理”，找到该立项申请，提交立项审批；审批通过后线索自动变为“已转项目”。";
+      "立项申请已生成。下一步：进入“项目管理 → 立项申请”，提交立项审批；审批通过后线索自动变为“已转项目”。";
     await load();
     await openDetail(selected.value.id);
   } catch (e) {
@@ -490,6 +576,7 @@ async function closeLead(lead: LeadDetail) {
     await callApi("lead.close", { leadId: lead.id, reason });
     selected.value = null;
     showConvertForm.value = false;
+    notice.value = "线索已关闭，可在全部线索中查看为“已失效”。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "关闭失败";
@@ -516,18 +603,26 @@ watch(
         <p class="eyebrow">MARKET PIPELINE</p>
         <h1>项目线索</h1>
       </div>
-      <button class="primary-action" @click="showForm = !showForm">
+      <button
+        v-if="canCreateLead"
+        class="primary-action"
+        @click="showForm = !showForm"
+      >
         {{ showForm ? "取消" : "新增线索" }}
       </button>
     </header>
+
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="notice" class="notice">{{ notice }}</p>
+
     <form v-if="showForm" class="entity-form" @submit.prevent="createLead">
-      <label
-        >项目名称<input v-model="form.projectName" required minlength="2"
-      /></label>
-      <label
-        >客户<select v-model="form.customerId" required>
+      <label>
+        项目名称
+        <input v-model="form.projectName" required minlength="2" />
+      </label>
+      <label>
+        客户
+        <select v-model="form.customerId" required>
           <option value="" disabled>请选择</option>
           <option
             v-for="customer in customers"
@@ -536,58 +631,69 @@ watch(
           >
             {{ customer.name }}
           </option>
-        </select></label
-      >
-      <label
-        >来源<select v-model="form.sourceCode">
+        </select>
+      </label>
+      <label>
+        来源
+        <select v-model="form.sourceCode">
           <option value="VISIT">客户拜访</option>
           <option value="REFERRAL">转介绍</option>
           <option value="PUBLIC">公开信息</option>
           <option value="OTHER">其他</option>
-        </select></label
-      >
-      <label
-        >发现日期<input v-model="form.discoveredOn" type="date" required
-      /></label>
-      <label
-        >预计金额（万元）<input
+        </select>
+      </label>
+      <label>
+        发现日期
+        <input v-model="form.discoveredOn" type="date" required />
+      </label>
+      <label>
+        预计金额（万元）
+        <input
           v-model.number="form.estimatedAmount"
           type="number"
           min="0"
           step="0.01"
-      /></label>
-      <label
-        >预计启动<input v-model="form.estimatedStartOn" type="date"
-      /></label>
-      <label
-        >项目类型<select v-model="form.projectType">
+        />
+      </label>
+      <label>
+        预计启动
+        <input v-model="form.estimatedStartOn" type="date" />
+      </label>
+      <label>
+        项目类型
+        <select v-model="form.projectType">
           <option value="CONSULTING">信息化咨询</option>
           <option value="SUPERVISION">信息化监理</option>
           <option value="OTHER">其他</option>
-        </select></label
-      >
-      <label
-        >成功概率（%）<input
+        </select>
+      </label>
+      <label>
+        成功概率（%）
+        <input
           v-model.number="form.successProbability"
           type="number"
           min="0"
           max="100"
           required
-      /></label>
-      <label
-        >下次跟进<input v-model="form.nextFollowUpAt" type="datetime-local"
-      /></label>
-      <label class="wide"
-        >需求概述<textarea
+        />
+      </label>
+      <label>
+        下次跟进
+        <input v-model="form.nextFollowUpAt" type="datetime-local" />
+      </label>
+      <label class="wide">
+        需求概述
+        <textarea
           v-model="form.requirementSummary"
           required
           minlength="2"
         ></textarea>
       </label>
       <button type="submit" :disabled="saving">
-        {{ saving ? "保存中…" : "保存线索" }}
+        {{ saving ? "保存中..." : "保存线索" }}
       </button>
     </form>
+
     <section class="pipeline">
       <article
         v-for="column in statusColumns"
@@ -610,9 +716,10 @@ watch(
         <small>{{ leadStatusText(column.code) }}</small>
       </article>
     </section>
+
     <section class="data-panel">
       <h2>全部线索</h2>
-      <p v-if="loading">正在加载…</p>
+      <p v-if="loading">正在加载...</p>
       <table v-else-if="items.length">
         <thead>
           <tr>
@@ -633,6 +740,7 @@ watch(
       </table>
       <p v-else>暂无线索</p>
     </section>
+
     <section v-if="selected" class="data-panel lead-detail-panel">
       <header class="page-header">
         <div>
@@ -640,20 +748,29 @@ watch(
           <h2>{{ selected.projectName }}</h2>
         </div>
         <button
+          class="secondary-button"
+          type="button"
           @click="
             selected = null;
             showEdit = false;
+            showFollowUp = false;
+            showConvertForm = false;
           "
         >
           关闭详情
         </button>
       </header>
+
       <p>
-        客户：{{ selected.customerName }}　成功概率：{{
-          selected.successProbability
-        }}%　状态：{{ leadStatusText(selected.status) }}
+        客户：{{ selected.customerName }}　项目类型：{{
+          projectTypeText(selected.projectType)
+        }}　成功概率：{{ selected.successProbability }}%　状态：{{
+          leadStatusText(selected.status)
+        }}
       </p>
       <p class="status-hint">{{ leadStatusHint(selected.status) }}</p>
+      <p>{{ selected.requirementSummary }}</p>
+
       <div
         v-if="selected.status === 'PENDING_REGISTRATION'"
         class="approval-guide"
@@ -677,20 +794,57 @@ watch(
           </RouterLink>
         </div>
         <small>
-          配置路径：系统管理 → 组织与权限 → 审批岗位任职；审批路径：审批待办 →
+          配置路径：系统管理 → 组织与权限 → 审批岗位任职；审批路径：审批与待办 →
           待我审批。
         </small>
       </div>
-      <p>{{ selected.requirementSummary }}</p>
+
+      <section v-if="projectApplications.length" class="approval-guide">
+        <h3>关联立项申请</h3>
+        <article
+          v-for="application in projectApplications"
+          :key="application.id"
+          class="data-row compact"
+        >
+          <div>
+            <strong>{{ application.projectName }}</strong>
+            <p>
+              {{ application.code }} ·
+              {{ applicationStatusText(application.status) }}
+            </p>
+          </div>
+          <RouterLink
+            v-if="canReadProjectApplication && canReadProject"
+            class="button-link secondary"
+            to="/projects"
+          >
+            去项目管理
+          </RouterLink>
+        </article>
+        <small>
+          线索转立项后仍可继续跟进；只有立项审批通过后，线索才会自动变成“已转项目”。
+        </small>
+      </section>
+
       <div class="approval-actions">
         <button
-          v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
+          v-if="
+            ['DRAFT', 'RETURNED'].includes(selected.status) && canSubmitApproval
+          "
           class="secondary"
           type="button"
           :disabled="saving"
           @click="startEditLead"
         >
           修改线索
+        </button>
+        <button
+          v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
+          type="button"
+          :disabled="saving"
+          @click="submitApproval(selected)"
+        >
+          提交登记审批
         </button>
         <button
           v-if="
@@ -706,7 +860,9 @@ watch(
           删除线索
         </button>
         <button
-          v-if="selected.status === 'PENDING_REGISTRATION'"
+          v-if="
+            selected.status === 'PENDING_REGISTRATION' && canWithdrawApproval
+          "
           class="secondary"
           type="button"
           :disabled="saving"
@@ -715,7 +871,7 @@ watch(
           撤回登记审批
         </button>
         <button
-          v-if="selected.status === 'FOLLOWING'"
+          v-if="selected.status === 'FOLLOWING' && canCreateFollowUp"
           class="secondary"
           type="button"
           :disabled="saving"
@@ -724,14 +880,30 @@ watch(
           {{ showFollowUp ? "取消跟进" : "新增跟进" }}
         </button>
         <button
-          v-if="selected.status === 'FOLLOWING'"
+          v-if="
+            selected.status === 'FOLLOWING' &&
+            !hasProjectApplication &&
+            canCreateProjectApplication
+          "
           class="secondary"
           type="button"
           :disabled="saving"
           @click="startConvertToProjectApplication"
         >
-          {{ showConvertForm ? "取消转项目" : "转立项申请" }}
+          {{ showConvertForm ? "取消立项申请" : "生成立项申请" }}
         </button>
+        <RouterLink
+          v-if="
+            selected.status === 'FOLLOWING' &&
+            hasProjectApplication &&
+            canReadProjectApplication &&
+            canReadProject
+          "
+          class="button-link secondary"
+          to="/projects"
+        >
+          查看立项申请
+        </RouterLink>
         <button
           v-if="['DRAFT', 'RETURNED', 'FOLLOWING'].includes(selected.status)"
           type="button"
@@ -741,13 +913,16 @@ watch(
           关闭线索
         </button>
       </div>
+
       <form v-if="showEdit" class="entity-form" @submit.prevent="updateLead">
         <h3 class="wide">修改线索</h3>
-        <label
-          >项目名称<input v-model="editForm.projectName" required minlength="2"
-        /></label>
-        <label
-          >客户<select v-model="editForm.customerId" required>
+        <label>
+          项目名称
+          <input v-model="editForm.projectName" required minlength="2" />
+        </label>
+        <label>
+          客户
+          <select v-model="editForm.customerId" required>
             <option value="" disabled>请选择</option>
             <option
               v-for="customer in customers"
@@ -756,51 +931,59 @@ watch(
             >
               {{ customer.name }}
             </option>
-          </select></label
-        >
-        <label
-          >来源<select v-model="editForm.sourceCode">
+          </select>
+        </label>
+        <label>
+          来源
+          <select v-model="editForm.sourceCode">
             <option value="VISIT">客户拜访</option>
             <option value="REFERRAL">转介绍</option>
             <option value="PUBLIC">公开信息</option>
             <option value="OTHER">其他</option>
-          </select></label
-        >
-        <label
-          >发现日期<input v-model="editForm.discoveredOn" type="date" required
-        /></label>
-        <label
-          >预计金额（万元）<input
+          </select>
+        </label>
+        <label>
+          发现日期
+          <input v-model="editForm.discoveredOn" type="date" required />
+        </label>
+        <label>
+          预计金额（万元）
+          <input
             v-model.number="editForm.estimatedAmount"
             type="number"
             min="0"
             step="0.01"
-        /></label>
-        <label
-          >预计启动<input v-model="editForm.estimatedStartOn" type="date"
-        /></label>
-        <label
-          >项目类型<select v-model="editForm.projectType">
+          />
+        </label>
+        <label>
+          预计启动
+          <input v-model="editForm.estimatedStartOn" type="date" />
+        </label>
+        <label>
+          项目类型
+          <select v-model="editForm.projectType">
             <option value="CONSULTING">信息化咨询</option>
             <option value="SUPERVISION">信息化监理</option>
             <option value="OTHER">其他</option>
-          </select></label
-        >
-        <label
-          >成功概率（%）<input
+          </select>
+        </label>
+        <label>
+          成功概率（%）
+          <input
             v-model.number="editForm.successProbability"
             type="number"
             min="0"
             max="100"
             required
-        /></label>
-        <label
-          >下次跟进<input
-            v-model="editForm.nextFollowUpAt"
-            type="datetime-local"
-        /></label>
-        <label class="wide"
-          >需求概述<textarea
+          />
+        </label>
+        <label>
+          下次跟进
+          <input v-model="editForm.nextFollowUpAt" type="datetime-local" />
+        </label>
+        <label class="wide">
+          需求概述
+          <textarea
             v-model="editForm.requirementSummary"
             required
             minlength="2"
@@ -809,143 +992,154 @@ watch(
         <button type="submit" :disabled="saving">保存修改</button>
         <button type="button" @click="showEdit = false">取消</button>
       </form>
-      <button
-        v-if="['DRAFT', 'RETURNED'].includes(selected.status)"
-        :disabled="saving"
-        @click="submitApproval(selected)"
-      >
-        提交登记审批
-      </button>
+
       <form
         v-if="showConvertForm"
-        class="entity-form"
+        class="entity-form lead-convert-form"
         @submit.prevent="createProjectApplicationFromLead"
       >
-        <h3 class="wide">转为立项申请</h3>
+        <h3 class="wide">生成立项申请</h3>
         <p class="wide status-hint">
-          保存后请到“项目管理”提交立项审批；审批通过后，线索自动变为“已转项目”。
+          保存后到“项目管理 →
+          立项申请”提交立项审批；审批通过后，线索自动变为“已转项目”。
         </p>
-        <label
-          >预计收入（万元）<input
+        <label>
+          预计收入（万元）
+          <input
             v-model.number="convertForm.estimatedRevenue"
             type="number"
             min="0"
             step="0.01"
             required
-        /></label>
-        <label
-          >预计成本（万元）<input
+          />
+        </label>
+        <label>
+          预计成本（万元）
+          <input
             v-model.number="convertForm.estimatedCost"
             type="number"
             min="0"
             step="0.01"
             required
-        /></label>
-        <label
-          >预计开始<input
-            v-model="convertForm.estimatedStartOn"
-            type="date"
-            required
-        /></label>
-        <label
-          >预计结束<input
-            v-model="convertForm.estimatedEndOn"
-            type="date"
-            required
-        /></label>
-        <label
-          >投标方式<select v-model="convertForm.biddingMethod">
+          />
+        </label>
+        <label>
+          预计开始
+          <input v-model="convertForm.estimatedStartOn" type="date" required />
+        </label>
+        <label>
+          预计结束
+          <input v-model="convertForm.estimatedEndOn" type="date" required />
+        </label>
+        <label>
+          投标方式
+          <select v-model="convertForm.biddingMethod">
             <option value="PUBLIC">公开投标</option>
             <option value="NEGOTIATION">商务洽谈</option>
             <option value="NONE">无需投标</option>
-          </select></label
-        >
-        <label class="wide"
-          >服务范围<textarea
+          </select>
+        </label>
+        <label class="wide">
+          服务范围
+          <textarea
             v-model="convertForm.serviceScope"
             required
             minlength="2"
           ></textarea>
         </label>
-        <label class="wide"
-          >立项必要性<textarea
+        <label class="wide">
+          立项必要性
+          <textarea
             v-model="convertForm.necessity"
             required
             minlength="2"
           ></textarea>
         </label>
-        <label class="wide"
-          >风险说明<textarea v-model="convertForm.riskDescription"></textarea>
+        <label class="wide">
+          风险说明
+          <textarea v-model="convertForm.riskDescription"></textarea>
         </label>
         <button type="submit" :disabled="saving">
-          {{ saving ? "保存中…" : "生成立项申请" }}
+          {{ saving ? "保存中..." : "生成立项申请" }}
         </button>
         <button type="button" @click="showConvertForm = false">取消</button>
       </form>
+
       <form
         v-if="showFollowUp"
         class="entity-form"
         @submit.prevent="addFollowUp"
       >
-        <label
-          >跟进时间<input
+        <label>
+          跟进时间
+          <input
             v-model="followUpForm.followedUpAt"
             type="datetime-local"
             required
-        /></label>
-        <label
-          >方式<select v-model="followUpForm.method">
+          />
+        </label>
+        <label>
+          方式
+          <select v-model="followUpForm.method">
             <option value="PHONE">电话</option>
-            <option value="ONSITE">现场</option>
+            <option value="ONSITE">上门</option>
             <option value="VIDEO">视频</option>
             <option value="WECHAT">微信</option>
             <option value="EMAIL">邮件</option>
             <option value="OTHER">其他</option>
-          </select></label
-        >
-        <label
-          >成功概率（%）<input
+          </select>
+        </label>
+        <label>
+          成功概率（%）
+          <input
             v-model.number="followUpForm.successProbability"
             type="number"
             min="0"
             max="100"
             required
-        /></label>
-        <label class="wide"
-          >沟通内容<textarea
+          />
+        </label>
+        <label class="wide">
+          沟通内容
+          <textarea
             v-model="followUpForm.communication"
             required
             minlength="2"
           ></textarea>
         </label>
-        <label class="wide"
-          >客户反馈<textarea v-model="followUpForm.customerFeedback"></textarea>
+        <label class="wide">
+          客户反馈
+          <textarea v-model="followUpForm.customerFeedback"></textarea>
         </label>
-        <label class="wide"
-          >下一步行动<textarea
+        <label class="wide">
+          下一步行动
+          <textarea
             v-model="followUpForm.nextAction"
             required
             minlength="2"
           ></textarea>
         </label>
-        <label
-          >下次跟进<input
-            v-model="followUpForm.nextFollowUpAt"
-            type="datetime-local" /></label
-        ><button :disabled="saving">保存跟进</button>
+        <label>
+          下次跟进
+          <input v-model="followUpForm.nextFollowUpAt" type="datetime-local" />
+        </label>
+        <button :disabled="saving">
+          {{ saving ? "保存中..." : "保存跟进" }}
+        </button>
       </form>
+
       <h3>跟进记录</h3>
       <article v-for="followUp in followUps" :key="followUp.id">
-        <strong
-          >{{ new Date(followUp.followedUpAt).toLocaleString() }} ·
-          {{ followUpMethodText(followUp.method) }}</strong
-        >
+        <strong>
+          {{ new Date(followUp.followedUpAt).toLocaleString() }} ·
+          {{ followUpMethodText(followUp.method) }}
+        </strong>
         <p>{{ followUp.communication }}</p>
-        <small
-          >成功概率 {{ followUp.successProbability }}% · 下一步：{{
+        <small>
+          成功概率 {{ followUp.successProbability }}% · 下一步：{{
             followUp.nextAction
-          }}</small
-        >
+          }}
+        </small>
       </article>
       <p v-if="!followUps.length">暂无跟进记录</p>
     </section>

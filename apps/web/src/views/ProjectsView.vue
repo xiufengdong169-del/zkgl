@@ -4,21 +4,26 @@ import { callApi } from "../api";
 import { approvalCodeText, businessTypeText } from "../approval-display";
 import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
+
 interface ProjectRow {
   id: string;
   code: string;
   projectName: string;
   status: string;
 }
+
 interface ApplicationRow {
   id: string;
   code: string;
   projectName: string;
-  estimatedProfit: string;
+  estimatedRevenue: string | number;
+  estimatedCost: string | number;
+  estimatedProfit?: string | number | null;
   status: string;
   version: number;
   createdBy: string;
 }
+
 interface ApplicationDetail {
   id: string;
   code: string;
@@ -38,19 +43,12 @@ interface ApplicationDetail {
   status: string;
   version: number;
 }
+
 interface Customer {
   id: string;
   name: string;
 }
-const auth = useAuthStore(),
-  projects = ref<ProjectRow[]>([]),
-  applications = ref<ApplicationRow[]>([]),
-  customers = ref<Customer[]>([]),
-  error = ref<string | null>(null),
-  showForm = ref(false),
-  saving = ref(false),
-  editingApplicationId = ref<string | null>(null),
-  editingApplicationVersion = ref(0);
+
 interface ProjectDetail {
   project: Record<string, string>;
   members: Array<Record<string, string>>;
@@ -86,30 +84,47 @@ interface ProjectDetail {
   money: Record<string, string>;
   financialVisible: boolean;
 }
+
+const auth = useAuthStore();
+const projects = ref<ProjectRow[]>([]);
+const applications = ref<ApplicationRow[]>([]);
+const customers = ref<Customer[]>([]);
+const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
+const showForm = ref(false);
+const saving = ref(false);
+const editingApplicationId = ref<string | null>(null);
+const editingApplicationVersion = ref(0);
 const detail = ref<ProjectDetail | null>(null);
+
 const pendingApplicationCount = computed(
-    () =>
-      applications.value.filter((x) => x.status === "APPROVAL_PENDING").length,
-  ),
-  activeProjectCount = computed(
-    () =>
-      projects.value.filter((x) =>
-        [
-          "PREPARING",
-          "PENDING_START",
-          "IN_PROGRESS",
-          "PENDING_ACCEPTANCE",
-        ].includes(x.status),
-      ).length,
-  ),
-  attentionProjectCount = computed(
-    () =>
-      projects.value.filter((x) =>
-        ["SUSPENDED", "PENDING_CLOSE", "TERMINATED"].includes(x.status),
-      ).length,
-  );
-const today = new Date().toISOString().slice(0, 10),
-  later = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  () =>
+    applications.value.filter((x) => x.status === "APPROVAL_PENDING").length,
+);
+const draftApplicationCount = computed(
+  () => applications.value.filter((x) => x.status === "DRAFT").length,
+);
+const activeProjectCount = computed(
+  () =>
+    projects.value.filter((x) =>
+      [
+        "PREPARING",
+        "PENDING_START",
+        "IN_PROGRESS",
+        "PENDING_ACCEPTANCE",
+      ].includes(x.status),
+    ).length,
+);
+const attentionProjectCount = computed(
+  () =>
+    projects.value.filter((x) =>
+      ["SUSPENDED", "PENDING_CLOSE", "TERMINATED"].includes(x.status),
+    ).length,
+);
+
+const today = new Date().toISOString().slice(0, 10);
+const later = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+
 const form = ref({
   projectName: "",
   customerId: "",
@@ -124,7 +139,95 @@ const form = ref({
   riskDescription: "",
   necessity: "",
 });
+
+const workflow = [
+  {
+    number: "01",
+    title: "生成立项申请",
+    detail: "可从线索生成，也可在项目管理中手工发起。",
+  },
+  {
+    number: "02",
+    title: "提交立项审批",
+    detail: "草稿状态可修改；提交后进入审批与待办。",
+  },
+  {
+    number: "03",
+    title: "审批通过转正式项目",
+    detail: "审批通过后自动生成正式项目，关联线索变为已转项目。",
+  },
+];
+
+function statusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    APPROVAL_PENDING: "审批中",
+    RETURNED: "已退回",
+    REJECTED: "已驳回",
+    WITHDRAWN: "已撤回",
+    APPROVED: "已通过",
+    PREPARING: "准备中",
+    PENDING_START: "待启动",
+    IN_PROGRESS: "实施中",
+    PENDING_ACCEPTANCE: "待验收",
+    SUSPENDED: "已暂停",
+    PENDING_CLOSE: "待结项",
+    CLOSED: "已结项",
+    TERMINATED: "已终止",
+    CANCELLED: "已取消",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function projectTypeText(value?: string | null) {
+  const labels: Record<string, string> = {
+    CONSULTING: "信息化咨询",
+    SUPERVISION: "信息化监理",
+    OTHER: "其他",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function biddingMethodText(value?: string | null) {
+  const labels: Record<string, string> = {
+    PUBLIC: "公开投标",
+    NEGOTIATION: "商务洽谈",
+    NONE: "无需投标",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function moneyText(value?: string | number | null) {
+  const numberValue = Number(value ?? 0);
+  return `${Number.isFinite(numberValue) ? numberValue.toFixed(2) : "0.00"} 万元`;
+}
+
+function applicationProfit(item: ApplicationRow) {
+  if (item.estimatedProfit != null) return moneyText(item.estimatedProfit);
+  return moneyText(Number(item.estimatedRevenue) - Number(item.estimatedCost));
+}
+
+function resetForm() {
+  form.value = {
+    projectName: "",
+    customerId: "",
+    projectType: "CONSULTING",
+    background: "",
+    serviceScope: "",
+    estimatedRevenue: 0,
+    estimatedCost: 0,
+    estimatedStartOn: today,
+    estimatedEndOn: later,
+    biddingMethod: "PUBLIC",
+    riskDescription: "",
+    necessity: "",
+  };
+  editingApplicationId.value = null;
+  editingApplicationVersion.value = 0;
+}
+
 async function load() {
+  error.value = null;
   try {
     const [p, a, c] = await Promise.all([
       callApi<{ items: ProjectRow[] }>("project.list", {
@@ -147,11 +250,18 @@ async function load() {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
 }
-onMounted(load);
+
+function toggleApplicationForm() {
+  if (showForm.value) resetForm();
+  showForm.value = !showForm.value;
+  notice.value = null;
+}
+
 async function createApplication() {
   if (!auth.user) return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     const data = {
       ...form.value,
@@ -161,14 +271,18 @@ async function createApplication() {
       memberSuggestions: [],
       riskDescription: form.value.riskDescription || null,
     };
-    if (editingApplicationId.value)
+    if (editingApplicationId.value) {
       await callApi("project.application.update", {
         applicationId: editingApplicationId.value,
         version: editingApplicationVersion.value,
         data,
       });
-    else await callApi("project.application.create", data);
-    editingApplicationId.value = null;
+      notice.value = "立项申请已保存。";
+    } else {
+      await callApi("project.application.create", data);
+      notice.value = "立项申请已生成。下一步可在列表中提交立项审批。";
+    }
+    resetForm();
     showForm.value = false;
     await load();
   } catch (e) {
@@ -177,8 +291,10 @@ async function createApplication() {
     saving.value = false;
   }
 }
+
 async function editApplication(item: ApplicationRow) {
   error.value = null;
+  notice.value = null;
   try {
     const result = await callApi<{ application: ApplicationDetail }>(
       "project.application.detail",
@@ -206,11 +322,9 @@ async function editApplication(item: ApplicationRow) {
     error.value = e instanceof Error ? e.message : "加载立项申请失败";
   }
 }
-function toggleApplicationForm() {
-  if (showForm.value) editingApplicationId.value = null;
-  showForm.value = !showForm.value;
-}
+
 async function loadDetail(projectId: string) {
+  error.value = null;
   try {
     detail.value = await callApi<ProjectDetail>("project.detail", {
       projectId,
@@ -219,38 +333,30 @@ async function loadDetail(projectId: string) {
     error.value = e instanceof Error ? e.message : "加载详情失败";
   }
 }
+
 async function submitApplication(item: ApplicationRow) {
   error.value = null;
+  notice.value = null;
+  saving.value = true;
   try {
     await callApi("approval.instance.submit", {
       actionKey: crypto.randomUUID(),
       businessType: "PROJECT_APPLICATION",
       businessId: item.id,
       title: `项目立项：${item.projectName}`,
-      amount: null,
+      amount: Number(item.estimatedRevenue),
     });
+    notice.value =
+      "立项审批已提交。下一步：审批人与待办 → 待我审批；审批通过后自动生成正式项目。";
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "提交审批失败";
+  } finally {
+    saving.value = false;
   }
 }
-const workflow = [
-  {
-    number: "01",
-    title: "立项申请",
-    detail: "申请编号独立生成，驳回重提保持不变",
-  },
-  {
-    number: "02",
-    title: "审批确认",
-    detail: "经营负责人及公司负责人按配置审批",
-  },
-  {
-    number: "03",
-    title: "正式项目",
-    detail: "仅审批通过后生成唯一、不可修改的项目编号",
-  },
-];
+
+onMounted(load);
 </script>
 
 <template>
@@ -260,116 +366,135 @@ const workflow = [
         <p class="eyebrow">PROJECT PORTFOLIO</p>
         <h1>项目管理</h1>
       </div>
-      <button
-        v-if="auth.user?.permissionCodes.includes('project.application.create')"
-        class="primary-action"
-        @click="toggleApplicationForm"
-      >
+      <button class="primary-action" @click="toggleApplicationForm">
         {{ showForm ? "取消" : "发起立项申请" }}
       </button>
     </header>
+
+    <p v-if="notice" class="notice">{{ notice }}</p>
+    <p v-if="error" class="error">{{ error }}</p>
+
     <form
       v-if="showForm"
       class="entity-form"
       @submit.prevent="createApplication"
     >
-      <label
-        >项目名称<input
-          v-model="form.projectName"
-          required
-          minlength="2" /></label
-      ><label
-        >客户<select v-model="form.customerId" required>
+      <h2 class="wide">
+        {{ editingApplicationId ? "修改立项申请" : "新增立项申请" }}
+      </h2>
+      <label>
+        项目名称
+        <input v-model="form.projectName" required minlength="2" />
+      </label>
+      <label>
+        客户
+        <select v-model="form.customerId" required>
           <option value="" disabled>请选择</option>
           <option v-for="c in customers" :key="c.id" :value="c.id">
             {{ c.name }}
           </option>
-        </select></label
-      ><label
-        >项目类型<select v-model="form.projectType">
-          <option value="CONSULTING">咨询</option>
-          <option value="SUPERVISION">监理</option>
+        </select>
+      </label>
+      <label>
+        项目类型
+        <select v-model="form.projectType">
+          <option value="CONSULTING">信息化咨询</option>
+          <option value="SUPERVISION">信息化监理</option>
           <option value="OTHER">其他</option>
-        </select></label
-      >
-      <label
-        >预计收入<input
+        </select>
+      </label>
+      <label>
+        预计收入（万元）
+        <input
           v-model.number="form.estimatedRevenue"
           type="number"
           min="0"
           step="0.01"
-          required /></label
-      ><label
-        >预计成本<input
+          required
+        />
+      </label>
+      <label>
+        预计成本（万元）
+        <input
           v-model.number="form.estimatedCost"
           type="number"
           min="0"
           step="0.01"
-          required /></label
-      ><label
-        >预计利润<input
+          required
+        />
+      </label>
+      <label>
+        预计利润（万元）
+        <input
           :value="(form.estimatedRevenue - form.estimatedCost).toFixed(2)"
           readonly
-      /></label>
-      <label
-        >预计开始<input
-          v-model="form.estimatedStartOn"
-          type="date"
-          required /></label
-      ><label
-        >预计结束<input
-          v-model="form.estimatedEndOn"
-          type="date"
-          required /></label
-      ><label
-        >投标方式<select v-model="form.biddingMethod">
+        />
+      </label>
+      <label>
+        预计开始
+        <input v-model="form.estimatedStartOn" type="date" required />
+      </label>
+      <label>
+        预计结束
+        <input v-model="form.estimatedEndOn" type="date" required />
+      </label>
+      <label>
+        投标方式
+        <select v-model="form.biddingMethod">
           <option value="PUBLIC">公开投标</option>
           <option value="NEGOTIATION">商务洽谈</option>
           <option value="NONE">无需投标</option>
-        </select></label
-      >
-      <label class="wide"
-        >服务范围<textarea
-          v-model="form.serviceScope"
-          required
-          minlength="2"
-        ></textarea></label
-      ><label class="wide"
-        >立项必要性<textarea
-          v-model="form.necessity"
-          required
-          minlength="2"
-        ></textarea></label
-      ><label class="wide"
-        >项目背景<textarea v-model="form.background"></textarea></label
-      ><label class="wide"
-        >风险说明<textarea v-model="form.riskDescription"></textarea></label
-      ><button type="submit" :disabled="saving">
+        </select>
+      </label>
+      <label class="wide">
+        服务范围
+        <textarea v-model="form.serviceScope" required minlength="2"></textarea>
+      </label>
+      <label class="wide">
+        立项必要性
+        <textarea v-model="form.necessity" required minlength="2"></textarea>
+      </label>
+      <label class="wide">
+        项目背景
+        <textarea v-model="form.background"></textarea>
+      </label>
+      <label class="wide">
+        风险说明
+        <textarea v-model="form.riskDescription"></textarea>
+      </label>
+      <button type="submit" :disabled="saving">
         {{
           saving
-            ? "保存中…"
+            ? "保存中..."
             : editingApplicationId
               ? "保存修改（编号不变）"
               : "保存立项申请"
         }}
       </button>
+      <button type="button" @click="toggleApplicationForm">取消</button>
     </form>
+
     <section class="project-summary">
       <div>
-        <strong>{{ pendingApplicationCount }}</strong
-        ><span>审批中的立项</span>
+        <strong>{{ draftApplicationCount }}</strong>
+        <span>草稿立项申请</span>
       </div>
       <div>
-        <strong>{{ activeProjectCount }}</strong
-        ><span>实施中的项目</span>
+        <strong>{{ pendingApplicationCount }}</strong>
+        <span>审批中的立项</span>
       </div>
       <div>
-        <strong>{{ attentionProjectCount }}</strong
-        ><span>待处理项目</span>
+        <strong>{{ activeProjectCount }}</strong>
+        <span>实施中的项目</span>
+      </div>
+      <div>
+        <strong>{{ attentionProjectCount }}</strong>
+        <span>待处理项目</span>
       </div>
     </section>
+
     <section class="workflow-card">
-      <p class="eyebrow">ESTABLISHMENT WORKFLOW</p>
+      <p class="eyebrow">立项流程</p>
       <div class="workflow-steps">
         <article v-for="step in workflow" :key="step.number">
           <span>{{ step.number }}</span>
@@ -378,7 +503,7 @@ const workflow = [
         </article>
       </div>
     </section>
-    <p v-if="error" class="error">{{ error }}</p>
+
     <section class="data-panel">
       <h2>正式项目</h2>
       <table v-if="projects.length">
@@ -398,23 +523,25 @@ const workflow = [
           >
             <td>{{ item.code }}</td>
             <td>{{ item.projectName }}</td>
-            <td>{{ item.status }}</td>
+            <td>{{ statusText(item.status) }}</td>
           </tr>
         </tbody>
       </table>
       <p v-else>暂无正式项目</p>
     </section>
+
     <section v-if="detail" class="data-panel">
       <header class="page-header">
         <div>
-          <p class="eyebrow">PROJECT PANORAMA</p>
+          <p class="eyebrow">项目详情</p>
           <h2>{{ detail.project.projectName }}</h2>
         </div>
         <button class="secondary-button" @click="detail = null">关闭</button>
       </header>
       <p>
         {{ detail.project.code }} · {{ detail.project.customerName }} ·
-        {{ detail.project.managerName }} · {{ detail.project.status }}
+        {{ detail.project.managerName }} ·
+        {{ statusText(detail.project.status) }}
       </p>
       <p>
         <RouterLink
@@ -427,19 +554,19 @@ const workflow = [
       <section v-if="detail.financialVisible" class="contract-panels">
         <article>
           <p>预计收入</p>
-          <strong>¥ {{ detail.project.estimatedRevenue }}</strong>
+          <strong>{{ moneyText(detail.project.estimatedRevenue) }}</strong>
         </article>
         <article>
           <p>已开票</p>
-          <strong>¥ {{ detail.money.invoicedAmount }}</strong>
+          <strong>{{ moneyText(detail.money.invoicedAmount) }}</strong>
         </article>
         <article>
           <p>已收款</p>
-          <strong>¥ {{ detail.money.receivedAmount }}</strong>
+          <strong>{{ moneyText(detail.money.receivedAmount) }}</strong>
         </article>
         <article>
           <p>保证金占用</p>
-          <strong>¥ {{ detail.money.occupiedDeposit }}</strong>
+          <strong>{{ moneyText(detail.money.occupiedDeposit) }}</strong>
         </article>
       </section>
       <div class="module-grid">
@@ -453,7 +580,7 @@ const workflow = [
         <article class="module-card">
           <h3>合同</h3>
           <p v-for="c in detail.contracts" :key="c.code">
-            {{ c.contractName }} · {{ c.status }}
+            {{ c.contractName }} · {{ statusText(c.status) }}
           </p>
           <p v-if="!detail.contracts.length">暂无</p>
         </article>
@@ -467,7 +594,7 @@ const workflow = [
         <article class="module-card">
           <h3>问题风险</h3>
           <p v-for="r in detail.risks" :key="r.title">
-            {{ r.title }} · {{ r.severity }} · {{ r.status }}
+            {{ r.title }} · {{ r.severity }} · {{ statusText(r.status) }}
           </p>
           <p v-if="!detail.risks.length">暂无</p>
         </article>
@@ -481,7 +608,10 @@ const workflow = [
         >
           <div>
             <strong>{{ event.title }}</strong>
-            <p>{{ event.eventType }} · {{ event.status }}</p>
+            <p>
+              {{ businessTypeText(event.eventType) }} ·
+              {{ statusText(event.status) }}
+            </p>
           </div>
           <time>{{ new Date(event.eventAt).toLocaleString() }}</time>
         </article>
@@ -499,7 +629,7 @@ const workflow = [
             <p>
               {{ approvalCodeText(record.instanceCode, record.businessType) }} ·
               {{ businessTypeText(record.businessType) }} ·
-              {{ record.status }}
+              {{ statusText(record.status) }}
             </p>
             <small>申请人：{{ record.applicantName || "未知" }}</small>
           </div>
@@ -511,24 +641,30 @@ const workflow = [
         <h3>操作日志</h3>
         <article v-for="log in detail.auditLogs" :key="log.id" class="data-row">
           <div>
-            <strong>{{ log.action }} · {{ log.outcome }}</strong>
+            <strong>{{ log.action }} · {{ statusText(log.outcome) }}</strong>
             <p>{{ log.resourceType }} {{ log.resourceId || "" }}</p>
-            <small
-              >操作人：{{ log.username || "匿名" }} · {{ log.requestId }}</small
-            >
+            <small>
+              操作人：{{ log.username || "匿名" }} · {{ log.requestId }}
+            </small>
           </div>
           <time>{{ new Date(log.occurredAt).toLocaleString() }}</time>
         </article>
         <p v-if="!detail.auditLogs.length">暂无操作日志</p>
       </section>
     </section>
+
     <section class="data-panel">
       <h2>立项申请</h2>
+      <p class="muted">
+        从线索生成的立项申请会出现在这里。草稿可修改、提交审批；审批通过后自动进入“正式项目”。
+      </p>
       <table v-if="applications.length">
         <thead>
           <tr>
             <th>申请编号</th>
             <th>项目名称</th>
+            <th>预计收入</th>
+            <th>预计成本</th>
             <th>预计利润</th>
             <th>状态</th>
             <th>操作</th>
@@ -538,27 +674,33 @@ const workflow = [
           <tr v-for="item in applications" :key="item.id">
             <td>{{ item.code }}</td>
             <td>{{ item.projectName }}</td>
-            <td>{{ item.estimatedProfit }}</td>
-            <td>{{ item.status }}</td>
+            <td>{{ moneyText(item.estimatedRevenue) }}</td>
+            <td>{{ moneyText(item.estimatedCost) }}</td>
+            <td>{{ applicationProfit(item) }}</td>
+            <td>{{ statusText(item.status) }}</td>
             <td>
-              <button
-                v-if="
-                  canSubmitApprovalStatus(item.status) &&
-                  (item.createdBy === auth.user?.id ||
-                    auth.user?.roleCodes.includes('ADMIN'))
-                "
-                class="secondary-button"
-                @click="editApplication(item)"
-              >
-                修改
-              </button>
-              <button
-                v-if="canSubmitApprovalStatus(item.status)"
-                class="secondary-button"
-                @click="submitApplication(item)"
-              >
-                提交审批
-              </button>
+              <div class="approval-actions">
+                <button
+                  v-if="
+                    canSubmitApprovalStatus(item.status) &&
+                    (item.createdBy === auth.user?.id ||
+                      auth.user?.roleCodes.includes('ADMIN'))
+                  "
+                  class="secondary"
+                  type="button"
+                  @click="editApplication(item)"
+                >
+                  修改
+                </button>
+                <button
+                  v-if="canSubmitApprovalStatus(item.status)"
+                  type="button"
+                  :disabled="saving"
+                  @click="submitApplication(item)"
+                >
+                  提交审批
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
