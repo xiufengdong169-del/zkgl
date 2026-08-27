@@ -135,6 +135,62 @@ const numberRuleBusinessTables: Record<
   VISIT: { table: "crm_visit", column: "visit_code" },
 };
 
+const workflowBusinessPrefixes: Record<string, string> = {
+  LEAD: "XSDJ",
+  BID_APPLICATION: "TBSP",
+  CONTRACT: "HTSP",
+  CONTRACT_CHANGE: "HTBG",
+  DAILY_PURCHASE: "CGSP",
+  DEPOSIT: "BZJ",
+  DEPOSIT_LOSS: "BZJSS",
+  EXPENSE_REIMBURSEMENT: "FYBX",
+  INVOICE_APPLICATION: "KPSQ",
+  PARTNER_SETTLEMENT: "HZJS",
+  PROJECT_ACCEPTANCE: "YS",
+  PROJECT_APPLICATION: "XMLX",
+  PROJECT_CHANGE: "XMBG",
+  PROJECT_CLOSE: "XMJX",
+  PROJECT_PAYMENT: "XMFK",
+  PROJECT_START: "XMQD",
+};
+
+const technicalWorkflowCodePattern =
+  /^WF-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isTechnicalWorkflowCode(value: unknown) {
+  return technicalWorkflowCodePattern.test(String(value ?? ""));
+}
+
+function workflowBusinessDateCode(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const partValue = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${partValue("year")}${partValue("month")}${partValue("day")}`;
+}
+
+async function allocateWorkflowInstanceCode(
+  connection: PoolConnection,
+  businessType: string,
+) {
+  const businessPrefix = workflowBusinessPrefixes[businessType] ?? "SP";
+  const codePrefix = `${businessPrefix}-${workflowBusinessDateCode()}-`;
+  const [rows] = await selectRows(
+    connection,
+    `SELECT instance_code instanceCode FROM wf_instance WHERE instance_code LIKE ? ORDER BY instance_code DESC LIMIT 1 FOR UPDATE`,
+    [`${codePrefix}%`],
+  );
+  const lastCode = String(rows[0]?.instanceCode ?? "");
+  const lastSerial = Number(lastCode.slice(codePrefix.length));
+  const serial =
+    Number.isSafeInteger(lastSerial) && lastSerial > 0 ? lastSerial + 1 : 1;
+  return `${codePrefix}${String(serial).padStart(4, "0")}`;
+}
+
 const quoteIdentifier = (value: string) => `\`${value.replaceAll("`", "``")}\``;
 
 async function loadMaxUsedSerial(
@@ -2921,7 +2977,7 @@ export class MySqlActionExecutor {
           };
           const [existing] = await selectRows(
             connection,
-            `SELECT id,status FROM wf_instance WHERE business_type=? AND business_id=? FOR UPDATE`,
+            `SELECT id,status,instance_code instanceCode FROM wf_instance WHERE business_type=? AND business_id=? FOR UPDATE`,
             [input.businessType, input.businessId],
           );
           let instanceId: string;
@@ -2933,9 +2989,18 @@ export class MySqlActionExecutor {
                 409,
               );
             instanceId = String(existing[0].id);
+            const instanceCode = isTechnicalWorkflowCode(
+              existing[0].instanceCode,
+            )
+              ? await allocateWorkflowInstanceCode(
+                  connection,
+                  String(input.businessType),
+                )
+              : String(existing[0].instanceCode);
             await connection.execute(
-              `UPDATE wf_instance SET title=?,amount=?,applicant_id=?,current_node_order=?,status='PENDING',configuration_snapshot=?,submitted_at=NOW(3),completed_at=NULL,version=version+1 WHERE id=?`,
+              `UPDATE wf_instance SET instance_code=?,title=?,amount=?,applicant_id=?,current_node_order=?,status='PENDING',configuration_snapshot=?,submitted_at=NOW(3),completed_at=NULL,version=version+1 WHERE id=?`,
               [
+                instanceCode,
                 input.title,
                 amount,
                 user.id,
@@ -2949,7 +3014,10 @@ export class MySqlActionExecutor {
               [instanceId],
             );
           } else {
-            const code = `WF-${crypto.randomUUID()}`;
+            const code = await allocateWorkflowInstanceCode(
+              connection,
+              String(input.businessType),
+            );
             const [result] = await connection.execute<ResultSetHeader>(
               `INSERT INTO wf_instance(instance_code,template_id,business_type,business_id,title,amount,applicant_id,current_node_order,configuration_snapshot,submitted_at) VALUES(?,?,?,?,?,?,?,?,?,NOW(3))`,
               [

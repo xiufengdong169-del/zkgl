@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { callApi } from "../api";
+import { approvalCodeText, businessTypeText } from "../approval-display";
 import { canSubmitApprovalStatus } from "../approval-status";
 import { useAuthStore } from "../stores/auth";
 interface ProjectRow {
@@ -496,7 +497,8 @@ const workflow = [
           <div>
             <strong>{{ record.title }}</strong>
             <p>
-              {{ record.instanceCode }} · {{ record.businessType }} ·
+              {{ approvalCodeText(record.instanceCode, record.businessType) }} ·
+              {{ businessTypeText(record.businessType) }} ·
               {{ record.status }}
             </p>
             <small>申请人：{{ record.applicantName || "未知" }}</small>
@@ -511,7 +513,9 @@ const workflow = [
           <div>
             <strong>{{ log.action }} · {{ log.outcome }}</strong>
             <p>{{ log.resourceType }} {{ log.resourceId || "" }}</p>
-            <small>操作人：{{ log.username || "匿名" }} · {{ log.requestId }}</small>
+            <small
+              >操作人：{{ log.username || "匿名" }} · {{ log.requestId }}</small
+            >
           </div>
           <time>{{ new Date(log.occurredAt).toLocaleString() }}</time>
         </article>

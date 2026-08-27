@@ -78,8 +78,7 @@ const approvalBusinessCases: Array<{
     businessType: "DEPOSIT_LOSS",
     businessId: "deposit-event-1",
     table: "fin_deposit_event",
-    projectResolutionSqlFragment:
-      "FROM fin_deposit_event e JOIN fin_deposit d",
+    projectResolutionSqlFragment: "FROM fin_deposit_event e JOIN fin_deposit d",
   },
   {
     businessType: "DAILY_PURCHASE",
@@ -155,7 +154,10 @@ function approvalSubmitConnection(options: {
           `FROM ${businessCase.table} WHERE id=\\?(?: AND is_deleted=0)? FOR UPDATE`,
         ).test(sql)
       )
-        return [[{ id: businessId, createdBy: "u1", businessStatus: "DRAFT" }], []];
+        return [
+          [{ id: businessId, createdBy: "u1", businessStatus: "DRAFT" }],
+          [],
+        ];
       if (
         options.operation === "WITHDRAW" &&
         sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")
@@ -262,6 +264,8 @@ function approvalSubmitConnection(options: {
         return [[{ id: "template-1", code: "TPL", version: 1 }], []];
       if (sql.includes("FROM org_position_assignment"))
         return [[{ employeeId: "approver-1" }], []];
+      if (sql.includes("FROM wf_instance WHERE instance_code LIKE"))
+        return [[], []];
       if (sql.includes("FROM wf_instance WHERE business_type=?"))
         return [[], []];
       if (sql.startsWith("INSERT INTO wf_instance"))
@@ -273,9 +277,15 @@ function approvalSubmitConnection(options: {
         (businessCase && sql.startsWith(`UPDATE ${businessCase.table} SET`))
       )
         return [{ affectedRows: 1 }, []];
-      if (businessCase && sql.includes(businessCase.projectResolutionSqlFragment))
+      if (
+        businessCase &&
+        sql.includes(businessCase.projectResolutionSqlFragment)
+      )
         return [[{ projectId: options.projectId }], []];
-      if (sql.includes("FROM prj_project p") && sql.includes("iam_project_grant"))
+      if (
+        sql.includes("FROM prj_project p") &&
+        sql.includes("iam_project_grant")
+      )
         return [options.canWriteProject ? [{ id: options.projectId }] : [], []];
       throw new Error(`unexpected SQL: ${sql}`);
     },
@@ -321,9 +331,7 @@ function paymentApprovalRejectConnection() {
       )
         return [{ affectedRows: 1 }, []];
       if (
-        sql.includes(
-          "FROM fin_payment_application WHERE id=?",
-        ) &&
+        sql.includes("FROM fin_payment_application WHERE id=?") &&
         sql.includes("source_type sourceType")
       )
         return [
@@ -418,15 +426,20 @@ describe("approval submission project scope", () => {
     });
 
     expect(
-      connection.calls.some((call) =>
-        call.sql.includes("FROM prj_project p") &&
-        call.sql.includes("iam_project_grant"),
+      connection.calls.some(
+        (call) =>
+          call.sql.includes("FROM prj_project p") &&
+          call.sql.includes("iam_project_grant"),
       ),
     ).toBe(false);
     const writeback = connection.calls.find((call) =>
       call.sql.startsWith("UPDATE fin_daily_purchase SET"),
     );
     expect(writeback?.sql).toContain("AND is_deleted=0");
+    const instanceInsert = connection.calls.find((call) =>
+      call.sql.startsWith("INSERT INTO wf_instance"),
+    );
+    expect(instanceInsert?.params[0]).toMatch(/^CGSP-\d{8}-0001$/);
   });
 
   it("does not add soft-delete predicate to deposit event approval writeback", async () => {

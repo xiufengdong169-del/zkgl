@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { callApi, openTrustedDownloadUrl } from "../api";
+import { approvalCodeText, businessTypeText } from "../approval-display";
 
 interface Message {
   id: string;
@@ -51,7 +52,8 @@ const summary = ref({
   contractOperatingProfit: "0.00",
   cashContribution: "0.00",
   projectCount: 0,
-  disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
+  disclaimer:
+    "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
 });
 const messages = ref<Message[]>([]);
 const exportTasks = ref<ExportTask[]>([]);
@@ -68,25 +70,29 @@ const exportFailureMessages: Record<string, string> = {
 
 function exportFailureText(reason: string | null) {
   if (!reason) return "";
-  return exportFailureMessages[reason] ?? "导出处理失败，请稍后重试或联系管理员";
+  return (
+    exportFailureMessages[reason] ?? "导出处理失败，请稍后重试或联系管理员"
+  );
 }
 
 async function loadDashboardAndMessages() {
-  const [report, messageResult, approvalResult, projectResult] = await Promise.allSettled([
-    callApi<typeof summary.value>("report.dashboard", {}),
-    callApi<{ items: Message[] }>("message.list", { page: 1, pageSize: 20 }),
-    callApi<{ items: ApprovalItem[] }>("approval.inbox.list", {
-      mode: "PENDING",
-      page: 1,
-      pageSize: 20,
-    }),
-    callApi<{ items: ProjectItem[] }>("project.list", {
-      page: 1,
-      pageSize: 20,
-    }),
-  ]);
+  const [report, messageResult, approvalResult, projectResult] =
+    await Promise.allSettled([
+      callApi<typeof summary.value>("report.dashboard", {}),
+      callApi<{ items: Message[] }>("message.list", { page: 1, pageSize: 20 }),
+      callApi<{ items: ApprovalItem[] }>("approval.inbox.list", {
+        mode: "PENDING",
+        page: 1,
+        pageSize: 20,
+      }),
+      callApi<{ items: ProjectItem[] }>("project.list", {
+        page: 1,
+        pageSize: 20,
+      }),
+    ]);
   if (report.status === "fulfilled") summary.value = report.value;
-  if (messageResult.status === "fulfilled") messages.value = messageResult.value.items;
+  if (messageResult.status === "fulfilled")
+    messages.value = messageResult.value.items;
   if (approvalResult.status === "fulfilled")
     pendingApprovals.value = approvalResult.value.items.slice(0, 6);
   if (projectResult.status === "fulfilled")
@@ -105,7 +111,10 @@ async function loadExportTasks() {
       })
     ).items;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u4efb\u52a1\u52a0\u8f7d\u5931\u8d25";
+    error.value =
+      e instanceof Error
+        ? e.message
+        : "\u5bfc\u51fa\u4efb\u52a1\u52a0\u8f7d\u5931\u8d25";
   }
 }
 
@@ -118,14 +127,12 @@ async function exportProjects() {
   error.value = null;
   notice.value = null;
   try {
-    const data = await callApi<
-      {
-        mode: "BACKGROUND";
-        taskCode: string;
-        estimatedRows: number;
-        message: string;
-      }
-    >("report.project.export", {});
+    const data = await callApi<{
+      mode: "BACKGROUND";
+      taskCode: string;
+      estimatedRows: number;
+      message: string;
+    }>("report.project.export", {});
     notice.value = data.message;
     await loadExportTasks();
   } catch (e) {
@@ -139,10 +146,15 @@ async function downloadExportTask(task: ExportTask) {
   if (!task.fileId || task.isExpired) return;
   error.value = null;
   try {
-    const result = await callApi<{ url: string }>("file.download", { fileId: task.fileId });
+    const result = await callApi<{ url: string }>("file.download", {
+      fileId: task.fileId,
+    });
     openTrustedDownloadUrl(result.url);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "\u5bfc\u51fa\u6587\u4ef6\u4e0b\u8f7d\u5931\u8d25";
+    error.value =
+      e instanceof Error
+        ? e.message
+        : "\u5bfc\u51fa\u6587\u4ef6\u4e0b\u8f7d\u5931\u8d25";
   }
 }
 
@@ -151,7 +163,8 @@ async function markRead(message: Message) {
     await callApi("message.read", { messageId: message.id });
     message.readAt = new Date().toISOString();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "\u6d88\u606f\u64cd\u4f5c\u5931\u8d25";
+    error.value =
+      e instanceof Error ? e.message : "\u6d88\u606f\u64cd\u4f5c\u5931\u8d25";
   }
 }
 </script>
@@ -163,8 +176,16 @@ async function markRead(message: Message) {
         <p class="eyebrow">WORKSPACE</p>
         <h1>&#39033;&#30446;&#20840;&#36807;&#31243;&#31649;&#29702;</h1>
       </div>
-      <button class="primary-action" :disabled="exporting" @click="exportProjects">
-        {{ exporting ? "\u5bfc\u51fa\u4e2d\u2026" : "\u5bfc\u51fa\u9879\u76ee\u6570\u636e" }}
+      <button
+        class="primary-action"
+        :disabled="exporting"
+        @click="exportProjects"
+      >
+        {{
+          exporting
+            ? "\u5bfc\u51fa\u4e2d\u2026"
+            : "\u5bfc\u51fa\u9879\u76ee\u6570\u636e"
+        }}
       </button>
     </header>
 
@@ -173,18 +194,24 @@ async function markRead(message: Message) {
 
     <section class="hero">
       <h2>&#32463;&#33829;&#24037;&#20316;&#21488;</h2>
-      <p>&#24403;&#21069;&#25968;&#25454;&#33539;&#22260;&#20869;&#20849; {{ summary.projectCount }} &#20010;&#39033;&#30446;&#12290;</p>
+      <p>
+        &#24403;&#21069;&#25968;&#25454;&#33539;&#22260;&#20869;&#20849;
+        {{ summary.projectCount }} &#20010;&#39033;&#30446;&#12290;
+      </p>
     </section>
 
     <section class="metric-strip">
       <article>
-        <span>&#39044;&#35745;&#21033;&#28070;</span><strong>&yen; {{ summary.expectedProfit }}</strong>
+        <span>&#39044;&#35745;&#21033;&#28070;</span
+        ><strong>&yen; {{ summary.expectedProfit }}</strong>
       </article>
       <article>
-        <span>&#21512;&#21516;&#32463;&#33829;&#21033;&#28070;</span><strong>&yen; {{ summary.contractOperatingProfit }}</strong>
+        <span>&#21512;&#21516;&#32463;&#33829;&#21033;&#28070;</span
+        ><strong>&yen; {{ summary.contractOperatingProfit }}</strong>
       </article>
       <article>
-        <span>&#29616;&#37329;&#36129;&#29486;</span><strong>&yen; {{ summary.cashContribution }}</strong>
+        <span>&#29616;&#37329;&#36129;&#29486;</span
+        ><strong>&yen; {{ summary.cashContribution }}</strong>
       </article>
     </section>
 
@@ -199,10 +226,18 @@ async function markRead(message: Message) {
           </RouterLink>
         </div>
         <div v-if="pendingApprovals.length">
-          <div v-for="item in pendingApprovals" :key="item.id" class="data-row compact">
+          <div
+            v-for="item in pendingApprovals"
+            :key="item.id"
+            class="data-row compact"
+          >
             <div>
               <strong>{{ item.title }}</strong>
-              <p>{{ item.instanceCode }} · {{ item.businessType }} · {{ item.occurredAt }}</p>
+              <p>
+                {{ approvalCodeText(item.instanceCode, item.businessType) }} ·
+                {{ businessTypeText(item.businessType) }} ·
+                {{ item.occurredAt }}
+              </p>
             </div>
           </div>
         </div>
@@ -217,10 +252,17 @@ async function markRead(message: Message) {
           </RouterLink>
         </div>
         <div v-if="myProjects.length">
-          <div v-for="project in myProjects" :key="project.id" class="data-row compact">
+          <div
+            v-for="project in myProjects"
+            :key="project.id"
+            class="data-row compact"
+          >
             <div>
               <strong>{{ project.code }} · {{ project.projectName }}</strong>
-              <p>{{ project.status }} · 负责人 {{ project.managerName || project.projectManagerId }}</p>
+              <p>
+                {{ project.status }} · 负责人
+                {{ project.managerName || project.projectManagerId }}
+              </p>
             </div>
           </div>
         </div>
@@ -234,15 +276,27 @@ async function markRead(message: Message) {
         <div>
           <strong>{{ task.taskCode }} &middot; {{ task.status }}</strong>
           <p>
-            {{ task.estimatedRows }} &#34892; &middot; {{ task.completedAt || task.createdAt }}
-            <span v-if="task.expiresAt"> &middot; &#36807;&#26399;&#26102;&#38388; {{ task.expiresAt }}</span>
+            {{ task.estimatedRows }} &#34892; &middot;
+            {{ task.completedAt || task.createdAt }}
+            <span v-if="task.expiresAt">
+              &middot; &#36807;&#26399;&#26102;&#38388;
+              {{ task.expiresAt }}</span
+            >
           </p>
-          <p v-if="task.isExpired" class="error">&#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;</p>
-          <p v-if="task.failureReason" class="error">{{ exportFailureText(task.failureReason) }}</p>
+          <p v-if="task.isExpired" class="error">
+            &#23548;&#20986;&#25991;&#20214;&#24050;&#36807;&#26399;
+          </p>
+          <p v-if="task.failureReason" class="error">
+            {{ exportFailureText(task.failureReason) }}
+          </p>
         </div>
         <button
           class="secondary-button"
-          :disabled="task.status !== 'COMPLETED' || !task.fileId || Boolean(task.isExpired)"
+          :disabled="
+            task.status !== 'COMPLETED' ||
+            !task.fileId ||
+            Boolean(task.isExpired)
+          "
           @click="downloadExportTask(task)"
         >
           &#19979;&#36733;&#25991;&#20214;
@@ -254,11 +308,18 @@ async function markRead(message: Message) {
       <h2>&#28040;&#24687;&#19982;&#20020;&#26399;&#24322;&#24120;</h2>
       <article v-for="m in messages" :key="m.id" class="data-row">
         <div>
-          <strong>{{ m.readAt ? "\u5df2\u8bfb" : "\u672a\u8bfb" }} &middot; {{ m.title }}</strong>
+          <strong
+            >{{ m.readAt ? "\u5df2\u8bfb" : "\u672a\u8bfb" }} &middot;
+            {{ m.title }}</strong
+          >
           <p>{{ m.content }}</p>
-          <p v-if="m.businessType">来源 {{ m.businessType }} #{{ m.businessId }}</p>
+          <p v-if="m.businessType">
+            来源 {{ m.businessType }} #{{ m.businessId }}
+          </p>
         </div>
-        <button v-if="!m.readAt" @click="markRead(m)">&#26631;&#35760;&#24050;&#35835;</button>
+        <button v-if="!m.readAt" @click="markRead(m)">
+          &#26631;&#35760;&#24050;&#35835;
+        </button>
       </article>
       <p v-if="!messages.length">&#26242;&#26080;&#25552;&#37266;</p>
     </section>

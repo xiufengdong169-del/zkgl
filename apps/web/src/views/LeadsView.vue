@@ -3,6 +3,7 @@ import type { LeadSummary } from "@zkgl/shared";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { callApi } from "../api";
+import { approvalCodeText } from "../approval-display";
 import { useAuthStore } from "../stores/auth";
 
 interface CustomerOption {
@@ -572,9 +573,10 @@ watch(
       >
         <h3>当前登记审批</h3>
         <p v-if="currentPendingApproval">
-          审批编号：{{ currentPendingApproval.instanceCode }}　当前环节：{{
-            currentPendingApproval.nodeOrder
-          }}. {{ currentPendingApproval.positionName }}　审批人：{{
+          审批单：{{
+            approvalCodeText(currentPendingApproval.instanceCode, "LEAD")
+          }}　当前环节：{{ currentPendingApproval.nodeOrder }}.
+          {{ currentPendingApproval.positionName }}　审批人：{{
             currentPendingApproval.approverName
           }}
         </p>

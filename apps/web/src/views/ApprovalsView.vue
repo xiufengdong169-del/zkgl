@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import type { RouteLocationRaw } from "vue-router";
 import { RouterLink } from "vue-router";
 import { callApi } from "../api";
+import { approvalCodeText, businessTypeText } from "../approval-display";
 
 type Mode = "PENDING" | "INITIATED" | "CC" | "PROCESSED";
 interface ApprovalItem {
@@ -29,20 +30,6 @@ const items = ref<ApprovalItem[]>([]);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const processing = ref<string | null>(null);
-
-function businessTypeText(value: string) {
-  const labels: Record<string, string> = {
-    LEAD: "项目线索",
-    CONTRACT: "合同",
-    CONTRACT_CHANGE: "合同变更",
-    DAILY_PURCHASE: "日常采购",
-    DEPOSIT: "保证金",
-    PROJECT_APPLICATION: "项目立项",
-    PROJECT_START: "项目启动",
-    PROJECT_CLOSE: "项目结项",
-  };
-  return labels[value] || value;
-}
 
 function approvalStatusText(value?: string | null) {
   const labels: Record<string, string> = {
@@ -171,7 +158,7 @@ onMounted(() => load());
       <article v-for="item in items" :key="item.id">
         <div>
           <small
-            >{{ item.instanceCode }} ·
+            >{{ approvalCodeText(item.instanceCode, item.businessType) }} ·
             {{ positionText(item.positionCode) }}</small
           >
           <h2>{{ item.title }}</h2>
