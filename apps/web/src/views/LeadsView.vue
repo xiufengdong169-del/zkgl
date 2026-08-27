@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { LeadSummary } from "@zkgl/shared";
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { callApi } from "../api";
 import { useAuthStore } from "../stores/auth";
 
@@ -45,6 +46,7 @@ interface PendingApproval {
 }
 
 const auth = useAuthStore();
+const route = useRoute();
 const items = ref<LeadSummary[]>([]);
 const customers = ref<CustomerOption[]>([]);
 const selected = ref<LeadDetail | null>(null);
@@ -105,7 +107,14 @@ const grouped = computed(() =>
     ]),
   ),
 );
-const currentPendingApproval = computed(() => pendingApprovals.value[0] || null);
+const currentPendingApproval = computed(
+  () => pendingApprovals.value[0] || null,
+);
+
+function routeLeadId() {
+  const value = route.query.leadId;
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
 
 function leadStatusText(value?: string | null) {
   const labels: Record<string, string> = {
@@ -201,9 +210,19 @@ async function openDetail(id: string) {
     pendingApprovals.value = result.pendingApprovals || [];
     followUpForm.value.successProbability = result.lead.successProbability;
     showEdit.value = false;
+    await nextTick();
+    document
+      .querySelector(".lead-detail-panel")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     error.value = e instanceof Error ? e.message : "详情加载失败";
   }
+}
+
+async function loadPage() {
+  await load();
+  const leadId = routeLeadId();
+  if (leadId) await openDetail(leadId);
 }
 
 function startEditLead() {
@@ -253,7 +272,12 @@ async function updateLead() {
 }
 
 async function deleteLead(lead: LeadDetail) {
-  if (!window.confirm(`确认删除这条${leadStatusText(lead.status)}线索？删除后列表中不再显示。`)) return;
+  if (
+    !window.confirm(
+      `确认删除这条${leadStatusText(lead.status)}线索？删除后列表中不再显示。`,
+    )
+  )
+    return;
   saving.value = true;
   error.value = null;
   try {
@@ -320,7 +344,12 @@ async function withdrawApproval(lead: LeadDetail) {
     error.value = "未找到登记审批记录，请刷新后重试";
     return;
   }
-  if (!window.confirm("确认撤回登记审批？撤回后线索会回到草稿，可修改后重新提交。")) return;
+  if (
+    !window.confirm(
+      "确认撤回登记审批？撤回后线索会回到草稿，可修改后重新提交。",
+    )
+  )
+    return;
   saving.value = true;
   error.value = null;
   try {
@@ -382,7 +411,15 @@ async function closeLead(lead: LeadDetail) {
   }
 }
 
-onMounted(load);
+onMounted(loadPage);
+
+watch(
+  () => route.query.leadId,
+  async () => {
+    const leadId = routeLeadId();
+    if (leadId) await openDetail(leadId);
+  },
+);
 </script>
 
 <template>
@@ -508,7 +545,7 @@ onMounted(load);
       </table>
       <p v-else>暂无线索</p>
     </section>
-    <section v-if="selected" class="data-panel">
+    <section v-if="selected" class="data-panel lead-detail-panel">
       <header class="page-header">
         <div>
           <p class="eyebrow">{{ selected.code }}</p>
@@ -551,7 +588,8 @@ onMounted(load);
           </RouterLink>
         </div>
         <small>
-          配置路径：系统管理 → 组织与权限 → 审批岗位任职；审批路径：审批待办 → 待我审批。
+          配置路径：系统管理 → 组织与权限 → 审批岗位任职；审批路径：审批待办 →
+          待我审批。
         </small>
       </div>
       <p>{{ selected.requirementSummary }}</p>
@@ -601,11 +639,7 @@ onMounted(load);
           关闭线索
         </button>
       </div>
-      <form
-        v-if="showEdit"
-        class="entity-form"
-        @submit.prevent="updateLead"
-      >
+      <form v-if="showEdit" class="entity-form" @submit.prevent="updateLead">
         <h3 class="wide">修改线索</h3>
         <label
           >项目名称<input v-model="editForm.projectName" required minlength="2"
@@ -631,10 +665,7 @@ onMounted(load);
           </select></label
         >
         <label
-          >发现日期<input
-            v-model="editForm.discoveredOn"
-            type="date"
-            required
+          >发现日期<input v-model="editForm.discoveredOn" type="date" required
         /></label>
         <label
           >预计金额（万元）<input

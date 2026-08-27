@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import type { RouteLocationRaw } from "vue-router";
+import { RouterLink } from "vue-router";
 import { callApi } from "../api";
 
 type Mode = "PENDING" | "INITIATED" | "CC" | "PROCESSED";
@@ -27,6 +29,52 @@ const items = ref<ApprovalItem[]>([]);
 const error = ref<string | null>(null);
 const loading = ref(false);
 const processing = ref<string | null>(null);
+
+function businessTypeText(value: string) {
+  const labels: Record<string, string> = {
+    LEAD: "项目线索",
+    CONTRACT: "合同",
+    CONTRACT_CHANGE: "合同变更",
+    DAILY_PURCHASE: "日常采购",
+    DEPOSIT: "保证金",
+    PROJECT_APPLICATION: "项目立项",
+    PROJECT_START: "项目启动",
+    PROJECT_CLOSE: "项目结项",
+  };
+  return labels[value] || value;
+}
+
+function approvalStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    PENDING: "待审批",
+    APPROVED: "已同意",
+    RETURNED: "已退回",
+    REJECTED: "已驳回",
+    WITHDRAWN: "已撤回",
+    COMPLETED: "已完成",
+    SKIPPED: "已跳过",
+    CANCELED: "已取消",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function positionText(value?: string | null) {
+  const labels: Record<string, string> = {
+    OPERATIONS_MANAGER: "经营负责人",
+    COMPANY_PRINCIPAL: "公司负责人",
+    PROJECT_MANAGER: "项目经理",
+    FINANCE_REVIEWER: "财务复核人",
+    BID_MANAGER: "投标负责人",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function detailRoute(item: ApprovalItem): RouteLocationRaw | null {
+  if (item.businessType === "LEAD") {
+    return { path: "/leads", query: { leadId: item.businessId } };
+  }
+  return null;
+}
 
 async function load(mode = activeMode.value) {
   activeMode.value = mode;
@@ -124,40 +172,46 @@ onMounted(() => load());
         <div>
           <small
             >{{ item.instanceCode }} ·
-            {{ item.positionCode || item.status }}</small
+            {{ positionText(item.positionCode) }}</small
           >
           <h2>{{ item.title }}</h2>
           <p>
-            {{ item.businessType }} ·
+            {{ businessTypeText(item.businessType) }} ·
             {{ new Date(item.occurredAt).toLocaleString() }} ·
-            {{ item.taskStatus || item.status }}
+            {{ approvalStatusText(item.taskStatus || item.status) }}
           </p>
         </div>
-        <div v-if="activeMode === 'PENDING'" class="approval-actions">
+        <div class="approval-actions">
+          <RouterLink
+            v-if="detailRoute(item)"
+            class="button-link secondary"
+            :to="detailRoute(item)!"
+          >
+            查看详情
+          </RouterLink>
           <button
+            v-if="activeMode === 'PENDING'"
             :disabled="processing === item.id"
             @click="act(item, 'APPROVE')"
           >
             同意</button
           ><button
+            v-if="activeMode === 'PENDING'"
             class="secondary"
             :disabled="processing === item.id"
             @click="act(item, 'RETURN')"
           >
             退回</button
           ><button
+            v-if="activeMode === 'PENDING'"
             class="danger"
             :disabled="processing === item.id"
             @click="act(item, 'REJECT')"
           >
             驳回
           </button>
-        </div>
-        <div
-          v-else-if="activeMode === 'INITIATED' && item.status === 'PENDING'"
-          class="approval-actions"
-        >
           <button
+            v-if="activeMode === 'INITIATED' && item.status === 'PENDING'"
             class="secondary"
             :disabled="processing === item.id"
             @click="withdraw(item)"
