@@ -247,4 +247,103 @@ describe("approval persistence idempotency", () => {
     });
     expect(calls).toContain("ROLLBACK");
   });
+
+  it("allows applicant to delete a finished approval record", async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      calls,
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")) {
+          return [
+            [
+              {
+                id: "instance-lead-1",
+                applicantId: "u-1",
+                status: "WITHDRAWN",
+                businessType: "LEAD",
+                businessId: "lead-1",
+              },
+            ],
+            [],
+          ];
+        }
+        return [{ affectedRows: 1 }, []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.delete",
+        { instanceId: "instance-lead-1" },
+        user,
+      ),
+    ).resolves.toEqual({ status: "DELETED" });
+
+    expect(
+      calls.some((call) =>
+        call.sql.startsWith("UPDATE mkt_lead SET approval_instance_id=NULL"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) =>
+        call.sql.startsWith("DELETE FROM wf_action_history"),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.sql.startsWith("DELETE FROM wf_instance")),
+    ).toBe(true);
+    expect(calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
+  it("rejects deleting a pending approval record before withdrawal", async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      calls,
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM wf_instance WHERE id=? FOR UPDATE")) {
+          return [
+            [
+              {
+                id: "instance-lead-1",
+                applicantId: "u-1",
+                status: "PENDING",
+                businessType: "LEAD",
+                businessId: "lead-1",
+              },
+            ],
+            [],
+          ];
+        }
+        return [{ affectedRows: 1 }, []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute(
+        "approval.instance.delete",
+        { instanceId: "instance-lead-1" },
+        user,
+      ),
+    ).rejects.toMatchObject({ code: "APPROVAL_DELETE_PENDING" });
+    expect(
+      calls.some((call) => call.sql.startsWith("DELETE FROM wf_instance")),
+    ).toBe(false);
+    expect(calls.map((call) => call.sql)).toContain("ROLLBACK");
+  });
 });

@@ -3308,6 +3308,57 @@ export class MySqlActionExecutor {
           );
           return { idempotent: false, status: "WITHDRAWN" };
         }
+        case "approval.instance.delete": {
+          const [instances] = await selectRows(
+            connection,
+            `SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status,business_type businessType,CAST(business_id AS CHAR) businessId FROM wf_instance WHERE id=? FOR UPDATE`,
+            [input.instanceId],
+          );
+          const instance = instances[0];
+          if (!instance || instance.applicantId !== user.id)
+            throw new AppError(
+              "APPROVAL_DELETE_NOT_ALLOWED",
+              "仅申请人可删除自己发起的审批记录",
+              403,
+            );
+          if (instance.status === "PENDING")
+            throw new AppError(
+              "APPROVAL_DELETE_PENDING",
+              "审批中的记录不能直接删除，请先撤回",
+              409,
+            );
+          await requireProjectWriteAccess(
+            connection,
+            await resolveApprovalBusinessProjectId(
+              connection,
+              instance.businessType,
+              instance.businessId,
+            ),
+            user,
+          );
+          await clearApprovalBusinessReference(
+            connection,
+            instance.businessType,
+            instance.businessId,
+            String(input.instanceId),
+            user.id,
+          );
+          await connection.execute(
+            `DELETE FROM wf_cc_recipient WHERE instance_id=?`,
+            [input.instanceId],
+          );
+          await connection.execute(
+            `DELETE FROM wf_action_history WHERE instance_id=?`,
+            [input.instanceId],
+          );
+          await connection.execute(`DELETE FROM wf_task WHERE instance_id=?`, [
+            input.instanceId,
+          ]);
+          await connection.execute(`DELETE FROM wf_instance WHERE id=?`, [
+            input.instanceId,
+          ]);
+          return { status: "DELETED" };
+        }
         case "finance.summary": {
           const projectId = (input.projectId as string | undefined) ?? null;
           const access = buildProjectReferenceScope(user, "x.project_id");
@@ -6280,4 +6331,37 @@ export class MySqlActionExecutor {
     }
     return withTransaction(this.pool, work);
   }
+}
+
+async function clearApprovalBusinessReference(
+  connection: PoolConnection,
+  businessType: string,
+  businessId: string,
+  instanceId: string,
+  actorUserId: string,
+) {
+  const map: Record<string, { table: string }> = {
+    PROJECT_APPLICATION: { table: "prj_project_application" },
+    LEAD: { table: "mkt_lead" },
+    BID_APPLICATION: { table: "bid_application" },
+    CONTRACT: { table: "con_contract" },
+    CONTRACT_CHANGE: { table: "con_contract_change" },
+    INVOICE_APPLICATION: { table: "fin_invoice_application" },
+    EXPENSE_REIMBURSEMENT: { table: "fin_reimbursement" },
+    PROJECT_PAYMENT: { table: "fin_payment_application" },
+    PARTNER_SETTLEMENT: { table: "partner_settlement" },
+    DEPOSIT: { table: "fin_deposit" },
+    DEPOSIT_LOSS: { table: "fin_deposit_event" },
+    DAILY_PURCHASE: { table: "fin_daily_purchase" },
+    PROJECT_START: { table: "prj_start" },
+    PROJECT_CHANGE: { table: "prj_change" },
+    PROJECT_ACCEPTANCE: { table: "prj_acceptance" },
+    PROJECT_CLOSE: { table: "prj_close_application" },
+  };
+  const config = map[businessType];
+  if (!config) return;
+  await connection.execute(
+    `UPDATE ${config.table} SET approval_instance_id=NULL,updated_by=?,version=version+1 WHERE id=? AND approval_instance_id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"}`,
+    [actorUserId, businessId, instanceId],
+  );
 }

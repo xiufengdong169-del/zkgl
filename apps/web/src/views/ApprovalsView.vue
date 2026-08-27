@@ -28,6 +28,7 @@ const filters: Array<{ label: string; mode: Mode }> = [
 const activeMode = ref<Mode>("PENDING");
 const items = ref<ApprovalItem[]>([]);
 const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
 const loading = ref(false);
 const processing = ref<string | null>(null);
 
@@ -82,6 +83,10 @@ async function load(mode = activeMode.value) {
   }
 }
 
+function canDeleteApprovalRecord(item: ApprovalItem) {
+  return activeMode.value === "INITIATED" && item.status !== "PENDING";
+}
+
 async function act(
   item: ApprovalItem,
   action: "APPROVE" | "RETURN" | "REJECT",
@@ -130,6 +135,26 @@ async function withdraw(item: ApprovalItem) {
   }
 }
 
+async function deleteApprovalRecord(item: ApprovalItem) {
+  const title =
+    item.title || approvalCodeText(item.instanceCode, item.businessType);
+  if (!window.confirm(`确认删除这条记录？\n${title}`)) return;
+  processing.value = item.id;
+  error.value = null;
+  notice.value = null;
+  try {
+    await callApi("approval.instance.delete", {
+      instanceId: item.instanceId,
+    });
+    notice.value = "删除成功";
+    await load();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "删除失败";
+  } finally {
+    processing.value = null;
+  }
+}
+
 onMounted(() => load());
 </script>
 
@@ -153,6 +178,7 @@ onMounted(() => load());
       </button>
     </nav>
     <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="notice" class="notice">{{ notice }}</p>
     <p v-if="loading">正在加载…</p>
     <section v-else-if="items.length" class="approval-list">
       <article v-for="item in items" :key="item.id">
@@ -204,6 +230,14 @@ onMounted(() => load());
             @click="withdraw(item)"
           >
             撤回
+          </button>
+          <button
+            v-if="canDeleteApprovalRecord(item)"
+            class="danger"
+            :disabled="processing === item.id"
+            @click="deleteApprovalRecord(item)"
+          >
+            删除记录
           </button>
         </div>
       </article>

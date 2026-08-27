@@ -228,6 +228,12 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       comment: z.string().trim().max(1000).nullable().optional(),
     }),
   },
+  "approval.instance.delete": {
+    permission: "approval.instance.withdraw",
+    input: z.object({
+      instanceId: z.string().min(1),
+    }),
+  },
   "finance.summary": {
     permission: "finance.read",
     input: z.object({ projectId: z.string().optional() }).default({}),
