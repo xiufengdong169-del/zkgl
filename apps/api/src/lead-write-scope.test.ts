@@ -27,7 +27,10 @@ const approvalReader: SessionUser = {
   dataScopes: [],
 };
 
-function leadWriteConnection(options: { accessible: boolean }) {
+function leadWriteConnection(options: {
+  accessible: boolean;
+  status?: string;
+}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
     calls,
@@ -38,7 +41,10 @@ function leadWriteConnection(options: { accessible: boolean }) {
     execute: async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes("FROM mkt_lead WHERE id=?")) {
-        return [options.accessible ? [{ status: "FOLLOWING" }] : [], []];
+        return [
+          options.accessible ? [{ status: options.status ?? "FOLLOWING" }] : [],
+          [],
+        ];
       }
       return [{ affectedRows: 1, insertId: 11 }, []];
     },
@@ -330,5 +336,32 @@ describe("lead write data scopes", () => {
         call.sql.startsWith("UPDATE mkt_lead SET success_probability="),
       ),
     ).toBe(false);
+  });
+
+  it("allows deleting rejected leads", async () => {
+    const connection = leadWriteConnection({
+      accessible: true,
+      status: "REJECTED",
+    });
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    await expect(
+      executor.execute("lead.delete", { leadId: "lead-1" }, scopedUser),
+    ).resolves.toEqual({ id: "lead-1" });
+
+    expect(
+      connection.calls.some((call) =>
+        call.sql.startsWith("UPDATE mkt_lead SET is_deleted=1"),
+      ),
+    ).toBe(true);
+    expect(
+      connection.calls.some(
+        (call) =>
+          call.sql.includes("INSERT INTO sys_status_history") &&
+          call.params.includes("已拒绝线索删除"),
+      ),
+    ).toBe(true);
   });
 });

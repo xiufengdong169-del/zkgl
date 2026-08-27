@@ -54,11 +54,13 @@ const selected = ref<LeadDetail | null>(null);
 const followUps = ref<FollowUp[]>([]);
 const pendingApprovals = ref<PendingApproval[]>([]);
 const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 const showForm = ref(false);
 const showEdit = ref(false);
 const showFollowUp = ref(false);
+const showConvertForm = ref(false);
 const form = ref({
   projectName: "",
   customerId: "",
@@ -93,6 +95,18 @@ const editForm = ref({
   requirementSummary: "",
   successProbability: 50,
   nextFollowUpAt: null as string | null,
+});
+const convertForm = ref({
+  estimatedRevenue: 0,
+  estimatedCost: 0,
+  estimatedStartOn: new Date().toISOString().slice(0, 10),
+  estimatedEndOn: new Date(Date.now() + 90 * 86400000)
+    .toISOString()
+    .slice(0, 10),
+  serviceScope: "",
+  necessity: "",
+  biddingMethod: "PUBLIC",
+  riskDescription: "",
 });
 const statusColumns = [
   { label: "草稿", code: "DRAFT" },
@@ -175,6 +189,27 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+function resetConvertForm(lead: LeadDetail) {
+  const estimatedRevenue = Number(lead.estimatedAmount ?? 0);
+  const estimatedStartOn =
+    toDateInput(lead.estimatedStartOn) || new Date().toISOString().slice(0, 10);
+  const estimatedEndOn = new Date(
+    new Date(estimatedStartOn).getTime() + 90 * 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  convertForm.value = {
+    estimatedRevenue,
+    estimatedCost: 0,
+    estimatedStartOn,
+    estimatedEndOn,
+    serviceScope: lead.requirementSummary || lead.projectName,
+    necessity: `来源于线索 ${lead.code}，客户已进入跟进阶段，建议发起立项。`,
+    biddingMethod: "PUBLIC",
+    riskDescription: "",
+  };
+}
+
 async function load() {
   loading.value = true;
   error.value = null;
@@ -211,6 +246,7 @@ async function openDetail(id: string) {
     pendingApprovals.value = result.pendingApprovals || [];
     followUpForm.value.successProbability = result.lead.successProbability;
     showEdit.value = false;
+    showConvertForm.value = false;
     await nextTick();
     document
       .querySelector(".lead-detail-panel")
@@ -247,6 +283,13 @@ function startEditLead() {
   showEdit.value = true;
 }
 
+function startConvertToProjectApplication() {
+  if (!selected.value) return;
+  resetConvertForm(selected.value);
+  showConvertForm.value = !showConvertForm.value;
+  showFollowUp.value = false;
+}
+
 async function updateLead() {
   if (!auth.user || !selected.value) return;
   saving.value = true;
@@ -281,11 +324,13 @@ async function deleteLead(lead: LeadDetail) {
     return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("lead.delete", { leadId: lead.id });
     selected.value = null;
     pendingApprovals.value = [];
     showEdit.value = false;
+    showConvertForm.value = false;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "删除线索失败";
@@ -298,6 +343,7 @@ async function createLead() {
   if (!auth.user) return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("lead.create", {
       ...form.value,
@@ -323,6 +369,7 @@ async function createLead() {
 async function submitApproval(lead: LeadDetail) {
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("approval.instance.submit", {
       actionKey: crypto.randomUUID(),
@@ -353,6 +400,7 @@ async function withdrawApproval(lead: LeadDetail) {
     return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("approval.instance.withdraw", {
       instanceId: lead.approvalInstanceId,
@@ -372,6 +420,7 @@ async function addFollowUp() {
   if (!selected.value) return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("lead.followUp.create", {
       ...followUpForm.value,
@@ -396,14 +445,51 @@ async function addFollowUp() {
   }
 }
 
+async function createProjectApplicationFromLead() {
+  if (!selected.value || !auth.user) return;
+  saving.value = true;
+  error.value = null;
+  notice.value = null;
+  try {
+    await callApi("project.application.create", {
+      projectName: selected.value.projectName,
+      customerId: selected.value.customerId,
+      sourceLeadId: selected.value.id,
+      projectType: selected.value.projectType,
+      background: selected.value.requirementSummary || null,
+      serviceScope: convertForm.value.serviceScope,
+      estimatedRevenue: Number(convertForm.value.estimatedRevenue),
+      estimatedCost: Number(convertForm.value.estimatedCost),
+      estimatedStartOn: convertForm.value.estimatedStartOn,
+      estimatedEndOn: convertForm.value.estimatedEndOn,
+      proposedManagerId: auth.user.employeeId,
+      memberSuggestions: [],
+      biddingMethod: convertForm.value.biddingMethod,
+      riskDescription: convertForm.value.riskDescription || null,
+      necessity: convertForm.value.necessity,
+    });
+    showConvertForm.value = false;
+    notice.value =
+      "立项申请已生成。下一步：进入“项目管理”，找到该立项申请，提交立项审批；审批通过后线索自动变为“已转项目”。";
+    await load();
+    await openDetail(selected.value.id);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "生成立项申请失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function closeLead(lead: LeadDetail) {
   const reason = window.prompt("请输入关闭原因")?.trim();
   if (!reason) return;
   saving.value = true;
   error.value = null;
+  notice.value = null;
   try {
     await callApi("lead.close", { leadId: lead.id, reason });
     selected.value = null;
+    showConvertForm.value = false;
     await load();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "关闭失败";
@@ -435,6 +521,7 @@ watch(
       </button>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="notice" class="notice">{{ notice }}</p>
     <form v-if="showForm" class="entity-form" @submit.prevent="createLead">
       <label
         >项目名称<input v-model="form.projectName" required minlength="2"
@@ -606,7 +693,11 @@ watch(
           修改线索
         </button>
         <button
-          v-if="['DRAFT', 'RETURNED', 'INVALID'].includes(selected.status)"
+          v-if="
+            ['DRAFT', 'RETURNED', 'REJECTED', 'INVALID'].includes(
+              selected.status,
+            )
+          "
           class="danger"
           type="button"
           :disabled="saving"
@@ -631,6 +722,15 @@ watch(
           @click="showFollowUp = !showFollowUp"
         >
           {{ showFollowUp ? "取消跟进" : "新增跟进" }}
+        </button>
+        <button
+          v-if="selected.status === 'FOLLOWING'"
+          class="secondary"
+          type="button"
+          :disabled="saving"
+          @click="startConvertToProjectApplication"
+        >
+          {{ showConvertForm ? "取消转项目" : "转立项申请" }}
         </button>
         <button
           v-if="['DRAFT', 'RETURNED', 'FOLLOWING'].includes(selected.status)"
@@ -716,6 +816,72 @@ watch(
       >
         提交登记审批
       </button>
+      <form
+        v-if="showConvertForm"
+        class="entity-form"
+        @submit.prevent="createProjectApplicationFromLead"
+      >
+        <h3 class="wide">转为立项申请</h3>
+        <p class="wide status-hint">
+          保存后请到“项目管理”提交立项审批；审批通过后，线索自动变为“已转项目”。
+        </p>
+        <label
+          >预计收入（万元）<input
+            v-model.number="convertForm.estimatedRevenue"
+            type="number"
+            min="0"
+            step="0.01"
+            required
+        /></label>
+        <label
+          >预计成本（万元）<input
+            v-model.number="convertForm.estimatedCost"
+            type="number"
+            min="0"
+            step="0.01"
+            required
+        /></label>
+        <label
+          >预计开始<input
+            v-model="convertForm.estimatedStartOn"
+            type="date"
+            required
+        /></label>
+        <label
+          >预计结束<input
+            v-model="convertForm.estimatedEndOn"
+            type="date"
+            required
+        /></label>
+        <label
+          >投标方式<select v-model="convertForm.biddingMethod">
+            <option value="PUBLIC">公开投标</option>
+            <option value="NEGOTIATION">商务洽谈</option>
+            <option value="NONE">无需投标</option>
+          </select></label
+        >
+        <label class="wide"
+          >服务范围<textarea
+            v-model="convertForm.serviceScope"
+            required
+            minlength="2"
+          ></textarea>
+        </label>
+        <label class="wide"
+          >立项必要性<textarea
+            v-model="convertForm.necessity"
+            required
+            minlength="2"
+          ></textarea>
+        </label>
+        <label class="wide"
+          >风险说明<textarea v-model="convertForm.riskDescription"></textarea>
+        </label>
+        <button type="submit" :disabled="saving">
+          {{ saving ? "保存中…" : "生成立项申请" }}
+        </button>
+        <button type="button" @click="showConvertForm = false">取消</button>
+      </form>
       <form
         v-if="showFollowUp"
         class="entity-form"

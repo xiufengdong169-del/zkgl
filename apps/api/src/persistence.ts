@@ -2380,7 +2380,11 @@ export class MySqlActionExecutor {
           const existing = leads[0];
           if (!existing)
             throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
-          if (!["DRAFT", "RETURNED", "INVALID"].includes(existing.status))
+          if (
+            !["DRAFT", "RETURNED", "REJECTED", "INVALID"].includes(
+              existing.status,
+            )
+          )
             throw new AppError(
               "LEAD_NOT_DELETABLE",
               "当前状态不允许删除线索",
@@ -2396,7 +2400,11 @@ export class MySqlActionExecutor {
               input.leadId,
               existing.status,
               "INVALID",
-              existing.status === "INVALID" ? "失效线索删除" : "草稿删除",
+              existing.status === "REJECTED"
+                ? "已拒绝线索删除"
+                : existing.status === "INVALID"
+                  ? "失效线索删除"
+                  : "草稿删除",
               user.id,
             ],
           );
