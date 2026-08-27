@@ -62,12 +62,14 @@ async function selectRows(
   sql: string,
   params: Parameters<PoolConnection["execute"]>[1] = [],
 ): Promise<[RowDataPacket[], unknown]> {
-  const maybeQuery = (connection as unknown as {
-    query?: (
-      sql: string,
-      params: Parameters<PoolConnection["execute"]>[1],
-    ) => Promise<[RowDataPacket[], unknown]>;
-  }).query;
+  const maybeQuery = (
+    connection as unknown as {
+      query?: (
+        sql: string,
+        params: Parameters<PoolConnection["execute"]>[1],
+      ) => Promise<[RowDataPacket[], unknown]>;
+    }
+  ).query;
   if (typeof maybeQuery === "function") {
     return await maybeQuery.call(connection, sql, params);
   }
@@ -81,7 +83,8 @@ async function loadNumberParameter(
   minimum = 0,
   maximum = 3650,
 ) {
-  const [rows] = await selectRows(connection,
+  const [rows] = await selectRows(
+    connection,
     `SELECT param_value paramValue FROM sys_parameter WHERE param_key=? AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
     [paramKey],
   );
@@ -117,7 +120,10 @@ const numberRuleBusinessTables: Record<
   },
   LEAD: { table: "mkt_lead", column: "lead_code" },
   PARTNER_PLAN: { table: "partner_plan", column: "plan_code" },
-  PARTNER_SETTLEMENT: { table: "partner_settlement", column: "settlement_code" },
+  PARTNER_SETTLEMENT: {
+    table: "partner_settlement",
+    column: "settlement_code",
+  },
   PAYMENT: { table: "fin_payment_application", column: "payment_code" },
   PROJECT: { table: "prj_project", column: "project_code" },
   PROJECT_APPLICATION: {
@@ -213,7 +219,8 @@ export async function requireProjectWriteAccess(
   const departmentScope = scopedDepartmentIds.length
     ? `pm.department_id IN (${scopedDepartmentIds.map(() => "?").join(",")})`
     : "0=1";
-  const [rows] = await selectRows(connection,
+  const [rows] = await selectRows(
+    connection,
     `SELECT p.id
        FROM prj_project p
        JOIN org_employee pm ON pm.id=p.project_manager_id
@@ -259,28 +266,32 @@ async function resolveApprovalBusinessProjectId(
   };
   const directTable = directProjectTables[businessType];
   if (directTable) {
-    const [rows] = await selectRows(connection,
+    const [rows] = await selectRows(
+      connection,
       `SELECT CAST(project_id AS CHAR) projectId FROM ${directTable} WHERE id=? AND is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
   }
   if (businessType === "CONTRACT_CHANGE") {
-    const [rows] = await selectRows(connection,
+    const [rows] = await selectRows(
+      connection,
       `SELECT CAST(c.project_id AS CHAR) projectId FROM con_contract_change x JOIN con_contract c ON c.id=x.contract_id WHERE x.id=? AND x.is_deleted=0 AND c.is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
   }
   if (businessType === "DEPOSIT_LOSS") {
-    const [rows] = await selectRows(connection,
+    const [rows] = await selectRows(
+      connection,
       `SELECT CAST(d.project_id AS CHAR) projectId FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND d.is_deleted=0`,
       [businessId],
     );
     return rows[0]?.projectId == null ? null : String(rows[0].projectId);
   }
   if (businessType === "DAILY_PURCHASE") {
-    const [rows] = await selectRows(connection,
+    const [rows] = await selectRows(
+      connection,
       `SELECT CAST(c.project_id AS CHAR) projectId FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 WHERE p.id=? AND p.is_deleted=0`,
       [businessId],
     );
@@ -298,7 +309,8 @@ async function readOutstandingInvoiceApplicationAmount(
   const params = excludedApplicationId
     ? [contractId, excludedApplicationId]
     : [contractId];
-  const [rows] = await selectRows(connection,
+  const [rows] = await selectRows(
+    connection,
     `SELECT COALESCE(SUM(GREATEST(a.requested_amount-COALESCE((SELECT SUM(s.tax_inclusive_amount) FROM fin_sales_invoice s WHERE s.application_id=a.id AND s.is_reversed=0 AND s.is_deleted=0),0),0)),0) amount FROM fin_invoice_application a WHERE a.contract_id=? AND a.is_deleted=0 AND a.status IN('DRAFT','APPROVAL_PENDING','RETURNED','PENDING_INVOICE','PARTIALLY_INVOICED')${exclusionSql}`,
     params,
   );
@@ -309,18 +321,16 @@ async function assertInvoiceApplicationCapacityForSubmit(
   connection: PoolConnection,
   applicationId: string,
 ) {
-  const [applications] = await selectRows(connection,
+  const [applications] = await selectRows(
+    connection,
     `SELECT contract_id contractId,requested_amount requestedAmount FROM fin_invoice_application WHERE id=? AND is_deleted=0`,
     [applicationId],
   );
   const application = applications[0];
   if (!application)
-    throw new AppError(
-      "INVOICE_APPLICATION_NOT_FOUND",
-      "开票申请不存在",
-      404,
-    );
-  const [contracts] = await selectRows(connection,
+    throw new AppError("INVOICE_APPLICATION_NOT_FOUND", "开票申请不存在", 404);
+  const [contracts] = await selectRows(
+    connection,
     `SELECT tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,
     [application.contractId],
   );
@@ -330,7 +340,8 @@ async function assertInvoiceApplicationCapacityForSubmit(
     !["PENDING_SIGNATURE", "PERFORMING", "COMPLETED"].includes(contract.status)
   )
     throw new AppError("INCOME_CONTRACT_INVALID", "收入合同无效", 409);
-  const [usedRows] = await selectRows(connection,
+  const [usedRows] = await selectRows(
+    connection,
     `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0`,
     [application.contractId],
   );
@@ -353,17 +364,14 @@ async function assertPaymentApplicationSourceForSubmit(
   connection: PoolConnection,
   paymentApplicationId: string,
 ) {
-  const [applications] = await selectRows(connection,
+  const [applications] = await selectRows(
+    connection,
     `SELECT project_id projectId,source_type sourceType,source_id sourceId,recipient_name recipientName,receiving_account receivingAccount,requested_amount requestedAmount FROM fin_payment_application WHERE id=? AND is_deleted=0`,
     [paymentApplicationId],
   );
   const application = applications[0];
   if (!application)
-    throw new AppError(
-      "PAYMENT_APPLICATION_NOT_FOUND",
-      "付款申请不存在",
-      404,
-    );
+    throw new AppError("PAYMENT_APPLICATION_NOT_FOUND", "付款申请不存在", 404);
   const sourceType = String(application.sourceType) as
     | "EXPENSE_CONTRACT"
     | "REIMBURSEMENT"
@@ -380,22 +388,15 @@ async function assertPaymentApplicationSourceForSubmit(
   const sourceSql =
     paymentSourceQueries[sourceType as keyof typeof paymentSourceQueries];
   if (!sourceSql)
-    throw new AppError(
-      "PAYMENT_SOURCE_NOT_FOUND",
-      "付款来源不存在",
-      404,
-    );
-  const [sources] = await selectRows(connection,sourceSql, [
+    throw new AppError("PAYMENT_SOURCE_NOT_FOUND", "付款来源不存在", 404);
+  const [sources] = await selectRows(connection, sourceSql, [
     application.sourceId,
   ]);
   const source = sources[0];
   if (!source)
-    throw new AppError(
-      "PAYMENT_SOURCE_NOT_FOUND",
-      "付款来源不存在",
-      404,
-    );
-  const [existingPayments] = await selectRows(connection,
+    throw new AppError("PAYMENT_SOURCE_NOT_FOUND", "付款来源不存在", 404);
+  const [existingPayments] = await selectRows(
+    connection,
     `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND is_deleted=0 AND id<>?`,
     [sourceType, application.sourceId, paymentApplicationId],
   );
@@ -446,7 +447,10 @@ function buildProjectDataScope(user: SessionUser) {
   };
 }
 
-function buildProjectReferenceScope(user: SessionUser, projectIdExpression: string) {
+function buildProjectReferenceScope(
+  user: SessionUser,
+  projectIdExpression: string,
+) {
   const projectScope = buildProjectDataScope(user);
   return {
     sql: `EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=${projectIdExpression} AND p.is_deleted=0 AND ${projectScope.sql})`,
@@ -458,11 +462,7 @@ function buildFileAccessScope(user: SessionUser) {
   const projectScope = buildProjectDataScope(user);
   return {
     sql: `(f.business_type='EXPORT_TASK' AND f.created_by=?) OR (f.business_type<>'EXPORT_TASK' AND (f.created_by=? OR (f.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=f.project_id AND p.is_deleted=0 AND ${projectScope.sql}))))`,
-    params: [
-      user.id,
-      user.id,
-      ...projectScope.params,
-    ],
+    params: [user.id, user.id, ...projectScope.params],
   };
 }
 
@@ -573,7 +573,8 @@ async function applyBusinessApprovalResult(
       404,
     );
   if (businessType === "PROJECT_PAYMENT" && status === "REJECTED") {
-    const [payments] = await selectRows(connection,
+    const [payments] = await selectRows(
+      connection,
       `SELECT source_type sourceType,source_id sourceId FROM fin_payment_application WHERE id=? AND is_deleted=0`,
       [businessId],
     );
@@ -586,14 +587,16 @@ async function applyBusinessApprovalResult(
   }
   if (status !== "APPROVED") return;
   if (businessType === "CONTRACT_CHANGE") {
-    const [changes] = await selectRows(connection,
+    const [changes] = await selectRows(
+      connection,
       `SELECT contract_id contractId,change_type changeType,new_tax_inclusive_amount taxInclusiveAmount,new_tax_exclusive_amount taxExclusiveAmount,new_tax_rate taxRate,new_tax_amount taxAmount,new_end_on newEndOn FROM con_contract_change WHERE id=? AND is_deleted=0`,
       [businessId],
     );
     const change = changes[0];
     if (!change)
       throw new AppError("CONTRACT_CHANGE_NOT_FOUND", "合同变更不存在", 404);
-    const [contracts] = await selectRows(connection,
+    const [contracts] = await selectRows(
+      connection,
       `SELECT amount_status amountStatus FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
       [change.contractId],
     );
@@ -634,12 +637,14 @@ async function applyBusinessApprovalResult(
     );
   }
   if (businessType === "PROJECT_APPLICATION") {
-    const [existing] = await selectRows(connection,
+    const [existing] = await selectRows(
+      connection,
       `SELECT id FROM prj_project WHERE application_id=?`,
       [businessId],
     );
     if (!existing[0]) {
-      const [apps] = await selectRows(connection,
+      const [apps] = await selectRows(
+        connection,
         `SELECT project_name,customer_id,project_type,service_scope,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=? AND is_deleted=0`,
         [businessId],
       );
@@ -679,7 +684,8 @@ async function applyBusinessApprovalResult(
       [businessId],
     );
   else if (businessType === "DEPOSIT_LOSS" && status === "APPROVED") {
-    const [events] = await selectRows(connection,
+    const [events] = await selectRows(
+      connection,
       `SELECT e.deposit_id depositId,e.amount,d.occupied_amount occupied FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE e.id=? AND e.event_type='FORFEIT' AND d.is_deleted=0 FOR UPDATE`,
       [businessId],
     );
@@ -733,7 +739,8 @@ export class MySqlActionExecutor {
         case "message.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT id,message_type messageType,title,content,business_type businessType,business_id businessId,read_at readAt,created_at createdAt FROM sys_message WHERE recipient_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
               [user.employeeId, pageSize, (page - 1) * pageSize],
             );
@@ -757,34 +764,44 @@ export class MySqlActionExecutor {
         }
         case "report.dashboard": {
           const projectScope = buildProjectDataScope(user);
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(p.estimated_revenue-p.estimated_cost),0) expectedProfit,COALESCE(SUM((SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID') AND s.is_deleted=0)-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id AND g.is_deleted=0)),0) contractOperatingProfit,COALESCE(SUM((SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE' AND r.is_deleted=0)-(SELECT COALESCE(SUM(x.amount),0) FROM fin_payment_detail x JOIN fin_payment_application pa ON pa.id=x.payment_id WHERE x.project_id=p.id AND x.status='ACTIVE' AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT')),0) cashContribution,COUNT(*) projectCount FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
             projectScope.params,
           );
-          return { ...rows[0], disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6" };
+          return {
+            ...rows[0],
+            disclaimer:
+              "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
+          };
         }
         case "report.analytics": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             employee = user.employeeId,
             projectScope = buildProjectDataScope(user),
             bidProjectScope = buildProjectReferenceScope(user, "b.project_id");
-          const [leadStatus] = await selectRows(connection,
+          const [leadStatus] = await selectRows(
+              connection,
               `SELECT status,COUNT(*) count,COALESCE(SUM(estimated_amount),0) amount FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=?) GROUP BY status ORDER BY status`,
               [all ? 1 : 0, employee],
             ),
-            [bidStatus] = await selectRows(connection,
+            [bidStatus] = await selectRows(
+              connection,
               `SELECT b.status,COUNT(*) count FROM bid_application b WHERE b.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=b.project_id AND p.is_deleted=0) AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${bidProjectScope.sql}) GROUP BY b.status ORDER BY b.status`,
               [employee, employee, employee, ...bidProjectScope.params],
             ),
-            [projectStatus] = await selectRows(connection,
+            [projectStatus] = await selectRows(
+              connection,
               `SELECT p.status,COUNT(DISTINCT p.id) count,COALESCE(AVG((SELECT MAX(x.overall_progress) FROM prj_progress x WHERE x.project_id=p.id)),0) averageProgress FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} GROUP BY p.status ORDER BY p.status`,
               projectScope.params,
             ),
-            [collection] = await selectRows(connection,
+            [collection] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(c.tax_inclusive_amount),0) contractAmount,COALESCE(SUM((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0)),0) receivedAmount FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND p.is_deleted=0 AND ${projectScope.sql}`,
               projectScope.params,
             ),
-            [profits] = await selectRows(connection,
+            [profits] = await selectRows(
+              connection,
               `SELECT CAST(p.id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,p.estimated_revenue-p.estimated_cost expectedProfit,(SELECT COALESCE(SUM(c.tax_exclusive_amount),0) FROM con_contract c WHERE c.project_id=p.id AND c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=p.id AND h.approval_status='APPROVED' AND d.status='ACTIVE')-(SELECT COALESCE(SUM(s.confirmed_cost_amount),0) FROM partner_settlement s WHERE s.project_id=p.id AND s.status IN('APPROVED','PAID') AND s.is_deleted=0)-(SELECT COALESCE(SUM(g.loss_confirmed_amount),0) FROM fin_deposit g WHERE g.project_id=p.id AND g.is_deleted=0) operatingProfit,(SELECT COALESCE(SUM(r.amount),0) FROM fin_receipt r WHERE r.project_id=p.id AND r.status='ACTIVE' AND r.is_deleted=0)-(SELECT COALESCE(SUM(d.amount),0) FROM fin_payment_detail d JOIN fin_payment_application pa ON pa.id=d.payment_id WHERE d.project_id=p.id AND d.status='ACTIVE' AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT') cashContribution FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql} ORDER BY p.id DESC LIMIT 100`,
               projectScope.params,
             );
@@ -794,14 +811,16 @@ export class MySqlActionExecutor {
             projectStatus,
             collection: collection[0] ?? {},
             profits,
-            disclaimer: "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
+            disclaimer:
+              "\u5185\u90e8\u9879\u76ee\u7ecf\u8425\u53e3\u5f84\uff0c\u4e0d\u5c5e\u4e8e\u4f1a\u8ba1\u5229\u6da6",
           };
         }
         case "report.receivables": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
             projectScope = buildProjectDataScope(user);
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(c.id AS CHAR) id,c.contract_code contractCode,c.contract_name contractName,p.project_name projectName,c.expires_on dueOn,c.tax_inclusive_amount contractAmount,COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) receivedAmount,c.tax_inclusive_amount-COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) outstandingAmount,CASE WHEN c.expires_on<CURDATE() THEN 1 ELSE 0 END overdue FROM con_contract c JOIN prj_project p ON p.id=c.project_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE c.contract_type='INCOME' AND c.amount_status='CONFIRMED' AND c.status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND c.is_deleted=0 AND p.is_deleted=0 AND c.tax_inclusive_amount>COALESCE((SELECT SUM(r.amount) FROM fin_receipt r WHERE r.contract_id=c.id AND r.status='ACTIVE' AND r.is_deleted=0),0) AND ${projectScope.sql} ORDER BY overdue DESC,c.expires_on LIMIT ? OFFSET ?`,
             [...projectScope.params, pageSize, (page - 1) * pageSize],
           );
@@ -810,13 +829,15 @@ export class MySqlActionExecutor {
         case "report.project.export": {
           requirePermission(user, "report.financial.read");
           const projectScope = buildProjectDataScope(user);
-          const [countRows] = await selectRows(connection,
+          const [countRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.is_deleted=0 AND ${projectScope.sql}`,
             projectScope.params,
           );
           const estimatedRows = Number(countRows[0]?.count ?? 0);
           chooseExportMode(estimatedRows);
-          const [temporaryGrants] = await selectRows(connection,
+          const [temporaryGrants] = await selectRows(
+            connection,
             `SELECT CAST(project_id AS CHAR) projectId FROM iam_project_grant WHERE employee_id=? AND status='ENABLED' AND starts_on<=CURDATE() AND (ends_on IS NULL OR ends_on>=CURDATE())`,
             [user.employeeId],
           );
@@ -857,7 +878,8 @@ export class MySqlActionExecutor {
         case "report.exportTasks": {
           const page = input.page as number,
             pageSize = input.pageSize as number;
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(t.id AS CHAR) id,t.task_code taskCode,t.export_type exportType,t.estimated_rows estimatedRows,t.status,t.failure_reason failureReason,CAST(t.file_id AS CHAR) fileId,t.created_at createdAt,t.started_at startedAt,t.completed_at completedAt,t.expires_at expiresAt,CASE WHEN t.expires_at IS NOT NULL AND t.expires_at<NOW(3) THEN 1 ELSE 0 END isExpired,f.logical_name logicalName,v.size_bytes sizeBytes
                FROM sys_export_task t
                LEFT JOIN file_object f ON f.id=t.file_id AND f.status='ACTIVE' AND f.is_deleted=0
@@ -870,58 +892,76 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "admin.overview": {
-          const [departments] = await selectRows(connection,
+          const [departments] = await selectRows(
+              connection,
               `SELECT CAST(d.id AS CHAR) id,d.code,d.name,CAST(d.parent_id AS CHAR) parentId,CAST(d.manager_employee_id AS CHAR) managerEmployeeId,m.name managerName,d.status,d.version FROM org_department d LEFT JOIN org_employee m ON m.id=d.manager_employee_id AND m.is_deleted=0 WHERE d.is_deleted=0 ORDER BY COALESCE(d.parent_id,0),d.id`,
             ),
-            [employees] = await selectRows(connection,
+            [employees] = await selectRows(
+              connection,
               `SELECT CAST(e.id AS CHAR) id,e.employee_code employeeCode,e.name,e.employee_type employeeType,CAST(e.department_id AS CHAR) departmentId,d.name departmentName,e.position_name positionName,e.mobile,e.email,e.joined_on joinedOn,e.left_on leftOn,CAST(e.supervisor_id AS CHAR) supervisorId,s.name supervisorName,e.account_status accountStatus,e.version FROM org_employee e JOIN org_department d ON d.id=e.department_id LEFT JOIN org_employee s ON s.id=e.supervisor_id WHERE e.is_deleted=0 ORDER BY e.id DESC LIMIT 500`,
             ),
-            [roles] = await selectRows(connection,
+            [roles] = await selectRows(
+              connection,
               `SELECT CAST(r.id AS CHAR) id,r.code,r.name,r.status,r.version,COUNT(DISTINCT ur.user_id) userCount,COUNT(DISTINCT rp.permission_id) permissionCount FROM iam_role r LEFT JOIN iam_user_role ur ON ur.role_id=r.id LEFT JOIN iam_role_permission rp ON rp.role_id=r.id WHERE r.is_deleted=0 GROUP BY r.id ORDER BY r.id`,
             ),
-            [permissions] = await selectRows(connection,
+            [permissions] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,code,name,permission_type permissionType FROM iam_permission ORDER BY permission_type,code`,
             ),
-            [rolePermissions] = await selectRows(connection,
+            [rolePermissions] = await selectRows(
+              connection,
               `SELECT CAST(role_id AS CHAR) roleId,CAST(permission_id AS CHAR) permissionId FROM iam_role_permission ORDER BY role_id,permission_id`,
             ),
-            [roleDataScopes] = await selectRows(connection,
+            [roleDataScopes] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,CAST(role_id AS CHAR) roleId,scope_type scopeType,scope_value scopeValue,status FROM iam_role_data_scope ORDER BY role_id,scope_type,scope_value`,
             ),
-            [sensitiveGrants] = await selectRows(connection,
+            [sensitiveGrants] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,CAST(role_id AS CHAR) roleId,field_code fieldCode,access_level accessLevel,explicit_deny explicitDeny,status FROM iam_sensitive_field_grant ORDER BY role_id,field_code`,
             ),
-            [users] = await selectRows(connection,
+            [users] = await selectRows(
+              connection,
               `SELECT CAST(u.id AS CHAR) id,u.username,u.cloudbase_uid cloudbaseUid,u.status,u.last_synced_at lastSyncedAt,CAST(u.employee_id AS CHAR) employeeId,e.name employeeName,d.name departmentName,e.mobile,e.email,GROUP_CONCAT(r.name ORDER BY r.id SEPARATOR '、') roleNames,GROUP_CONCAT(CAST(r.id AS CHAR) ORDER BY r.id) roleIds FROM iam_user u JOIN org_employee e ON e.id=u.employee_id JOIN org_department d ON d.id=u.department_id LEFT JOIN iam_user_role ur ON ur.user_id=u.id LEFT JOIN iam_role r ON r.id=ur.role_id WHERE u.is_deleted=0 GROUP BY u.id ORDER BY u.id DESC LIMIT 500`,
             );
-          const [numberRules] = await selectRows(connection,
+          const [numberRules] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,rule_code ruleCode,prefix,year_pattern yearPattern,serial_length serialLength,next_serial nextSerial,current_year currentYear,status,version FROM sys_number_rule ORDER BY rule_code`,
             ),
-            [approvalTemplates] = await selectRows(connection,
+            [approvalTemplates] = await selectRows(
+              connection,
               `SELECT CAST(t.id AS CHAR) id,t.template_code templateCode,t.name,t.business_type businessType,t.version,t.status,COUNT(n.id) nodeCount FROM wf_template t LEFT JOIN wf_template_node n ON n.template_id=t.id AND n.status='ENABLED' WHERE t.is_deleted=0 GROUP BY t.id ORDER BY CASE WHEN t.business_type='LEAD' THEN 0 ELSE 1 END,t.business_type`,
             ),
-            [approvalNodes] = await selectRows(connection,
+            [approvalNodes] = await selectRows(
+              connection,
               `SELECT CAST(n.id AS CHAR) id,CAST(n.template_id AS CHAR) templateId,n.node_order nodeOrder,n.node_name nodeName,n.position_code positionCode,n.minimum_amount minimumAmount,n.maximum_amount maximumAmount,n.is_cc isCc,n.status,n.version FROM wf_template_node n ORDER BY n.template_id,n.node_order,n.is_cc`,
             ),
-            [positions] = await selectRows(connection,
+            [positions] = await selectRows(
+              connection,
               `SELECT position_code code,name FROM org_position WHERE status='ENABLED' ORDER BY position_code`,
             ),
-            [positionAssignments] = await selectRows(connection,
+            [positionAssignments] = await selectRows(
+              connection,
               `SELECT CAST(a.id AS CHAR) id,p.position_code positionCode,p.name positionName,CAST(a.employee_id AS CHAR) employeeId,e.name employeeName,a.starts_on startsOn,a.ends_on endsOn,a.is_delegate isDelegate,a.status FROM org_position_assignment a JOIN org_position p ON p.id=a.position_id JOIN org_employee e ON e.id=a.employee_id ORDER BY p.position_code,a.status,a.starts_on DESC`,
             ),
-            [projectOptions] = await selectRows(connection,
+            [projectOptions] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,project_code projectCode,project_name projectName,status FROM prj_project WHERE is_deleted=0 ORDER BY id DESC LIMIT 500`,
             ),
-            [projectGrants] = await selectRows(connection,
+            [projectGrants] = await selectRows(
+              connection,
               `SELECT CAST(g.id AS CHAR) id,CAST(g.project_id AS CHAR) projectId,p.project_code projectCode,p.project_name projectName,CAST(g.employee_id AS CHAR) employeeId,e.name employeeName,g.starts_on startsOn,g.ends_on endsOn,g.reason,g.status,iu.username grantedBy,g.created_at createdAt FROM iam_project_grant g JOIN prj_project p ON p.id=g.project_id AND p.is_deleted=0 JOIN org_employee e ON e.id=g.employee_id JOIN iam_user iu ON iu.id=g.granted_by ORDER BY g.status,g.starts_on DESC,g.id DESC LIMIT 200`,
             ),
-            [dictionaryTypes] = await selectRows(connection,
+            [dictionaryTypes] = await selectRows(
+              connection,
               `SELECT CAST(t.id AS CHAR) id,t.type_code typeCode,t.name,t.description,t.status,t.version FROM sys_dictionary_type t ORDER BY t.type_code`,
             ),
-            [dictionaryItems] = await selectRows(connection,
+            [dictionaryItems] = await selectRows(
+              connection,
               `SELECT CAST(i.id AS CHAR) id,CAST(i.type_id AS CHAR) typeId,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder,i.status,i.version FROM sys_dictionary_item i ORDER BY i.type_id,i.sort_order,i.id`,
             ),
-            [parameters] = await selectRows(connection,
+            [parameters] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,param_key parameterKey,name,param_value parameterValue,value_type valueType,description,status,version FROM sys_parameter WHERE is_deleted=0 ORDER BY param_key`,
             );
           return {
@@ -965,7 +1005,8 @@ export class MySqlActionExecutor {
               409,
             );
           if (input.parentId) {
-            const [descendants] = await selectRows(connection,
+            const [descendants] = await selectRows(
+              connection,
               `WITH RECURSIVE descendants AS (
                  SELECT id FROM org_department WHERE parent_id=? AND is_deleted=0
                  UNION ALL
@@ -981,7 +1022,8 @@ export class MySqlActionExecutor {
                 409,
               );
           }
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT id FROM org_department WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.departmentId],
           );
@@ -1002,16 +1044,25 @@ export class MySqlActionExecutor {
           return { id: input.departmentId };
         }
         case "admin.department.delete": {
-          const [usage] = await selectRows(connection,
+          const [usage] = await selectRows(
+            connection,
             `SELECT
               (SELECT COUNT(*) FROM org_employee WHERE department_id=? AND is_deleted=0) employeeCount,
               (SELECT COUNT(*) FROM org_department WHERE parent_id=? AND is_deleted=0) childCount`,
             [input.departmentId, input.departmentId],
           );
           if (Number(usage[0]?.employeeCount ?? 0) > 0)
-            throw new AppError("DEPARTMENT_IN_USE", "部门下仍有成员，不能删除", 409);
+            throw new AppError(
+              "DEPARTMENT_IN_USE",
+              "部门下仍有成员，不能删除",
+              409,
+            );
           if (Number(usage[0]?.childCount ?? 0) > 0)
-            throw new AppError("DEPARTMENT_HAS_CHILDREN", "部门下仍有子部门，不能删除", 409);
+            throw new AppError(
+              "DEPARTMENT_HAS_CHILDREN",
+              "部门下仍有子部门，不能删除",
+              409,
+            );
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE org_department SET is_deleted=1,status='DISABLED',version=version+1 WHERE id=? AND is_deleted=0`,
             [input.departmentId],
@@ -1071,12 +1122,14 @@ export class MySqlActionExecutor {
           return { id: input.employeeId };
         }
         case "admin.employee.delete": {
-          const [targetUsers] = await selectRows(connection,
+          const [targetUsers] = await selectRows(
+            connection,
             `SELECT CAST(u.id AS CHAR) id,EXISTS(SELECT 1 FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN') isAdmin FROM iam_user u WHERE u.employee_id=? AND u.is_deleted=0 FOR UPDATE`,
             [input.employeeId],
           );
           if (targetUsers.some((target) => Number(target.isAdmin) === 1)) {
-            const [adminCounts] = await selectRows(connection,
+            const [adminCounts] = await selectRows(
+              connection,
               `SELECT COUNT(DISTINCT u.id) count FROM iam_user u JOIN iam_user_role ur ON ur.user_id=u.id JOIN iam_role r ON r.id=ur.role_id WHERE u.status='ENABLED' AND u.is_deleted=0 AND r.code='ADMIN'`,
             );
             if (Number(adminCounts[0]?.count ?? 0) <= 1)
@@ -1099,7 +1152,8 @@ export class MySqlActionExecutor {
           return { id: input.employeeId, deleted: true };
         }
         case "admin.positionAssignment.create": {
-          const [positions] = await selectRows(connection,
+          const [positions] = await selectRows(
+            connection,
             `SELECT id FROM org_position WHERE position_code=? AND status='ENABLED'`,
             [input.positionCode],
           );
@@ -1136,13 +1190,15 @@ export class MySqlActionExecutor {
           return { id: input.assignmentId, status: input.status };
         }
         case "admin.projectGrant.create": {
-          const [projects] = await selectRows(connection,
+          const [projects] = await selectRows(
+            connection,
             `SELECT id FROM prj_project WHERE id=? AND is_deleted=0`,
             [input.projectId],
           );
           if (!projects[0])
             throw new AppError("PROJECT_NOT_FOUND", "项目不存在", 404);
-          const [employees] = await selectRows(connection,
+          const [employees] = await selectRows(
+            connection,
             `SELECT id FROM org_employee WHERE id=? AND is_deleted=0 AND account_status='ENABLED'`,
             [input.employeeId],
           );
@@ -1167,22 +1223,29 @@ export class MySqlActionExecutor {
             [input.status, input.grantId],
           );
           if (!result.affectedRows)
-            throw new AppError("PROJECT_GRANT_NOT_FOUND", "临时项目授权不存在", 404);
+            throw new AppError(
+              "PROJECT_GRANT_NOT_FOUND",
+              "临时项目授权不存在",
+              404,
+            );
           return { id: input.grantId, status: input.status };
         }
         case "admin.user.role.set": {
-          const [current] = await selectRows(connection,
+          const [current] = await selectRows(
+              connection,
               `SELECT 1 FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id WHERE ur.user_id=? AND r.code='ADMIN'`,
               [input.userId],
             ),
-            [adminRole] = await selectRows(connection,
+            [adminRole] = await selectRows(
+              connection,
               `SELECT id FROM iam_role WHERE code='ADMIN'`,
             );
           const requestedAdmin = (input.roleIds as string[]).includes(
             String(adminRole[0]?.id ?? ""),
           );
           if (current[0] && !requestedAdmin) {
-            const [count] = await selectRows(connection,
+            const [count] = await selectRows(
+              connection,
               `SELECT COUNT(DISTINCT ur.user_id) count FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id JOIN iam_user u ON u.id=ur.user_id WHERE r.code='ADMIN' AND u.status='ENABLED' AND u.is_deleted=0`,
             );
             if (Number(count[0]?.count ?? 0) <= 1)
@@ -1209,7 +1272,8 @@ export class MySqlActionExecutor {
           ];
           if (permissionIds.length) {
             const placeholders = permissionIds.map(() => "?").join(",");
-            const [valid] = await selectRows(connection,
+            const [valid] = await selectRows(
+              connection,
               `SELECT id FROM iam_permission WHERE id IN (${placeholders})`,
               permissionIds,
             );
@@ -1228,13 +1292,13 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "admin.role.update": {
-          const [roles] = await selectRows(connection,
+          const [roles] = await selectRows(
+            connection,
             `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.roleId],
           );
           const role = roles[0];
-          if (!role)
-            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (!role) throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
           if (role.code === "ADMIN" && input.status !== "ENABLED")
             throw new AppError(
               "ADMIN_ROLE_REQUIRED",
@@ -1250,31 +1314,38 @@ export class MySqlActionExecutor {
           return { id: input.roleId };
         }
         case "admin.role.delete": {
-          const [roles] = await selectRows(connection,
+          const [roles] = await selectRows(
+            connection,
             `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.roleId],
           );
           const role = roles[0];
-          if (!role)
-            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (!role) throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
           if (role.code === "ADMIN")
             throw new AppError(
               "ADMIN_ROLE_REQUIRED",
               "管理员角色不能删除",
               409,
             );
-          const [usage] = await selectRows(connection,
+          const [usage] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM iam_user_role ur JOIN iam_user u ON u.id=ur.user_id AND u.is_deleted=0 WHERE ur.role_id=?`,
             [input.roleId],
           );
           if (Number(usage[0]?.count ?? 0) > 0)
-            throw new AppError("ROLE_IN_USE", "仍有账号使用该角色，不能删除", 409);
-          await connection.execute(`DELETE FROM iam_role_permission WHERE role_id=?`, [
-            input.roleId,
-          ]);
-          await connection.execute(`DELETE FROM iam_role_data_scope WHERE role_id=?`, [
-            input.roleId,
-          ]);
+            throw new AppError(
+              "ROLE_IN_USE",
+              "仍有账号使用该角色，不能删除",
+              409,
+            );
+          await connection.execute(
+            `DELETE FROM iam_role_permission WHERE role_id=?`,
+            [input.roleId],
+          );
+          await connection.execute(
+            `DELETE FROM iam_role_data_scope WHERE role_id=?`,
+            [input.roleId],
+          );
           await connection.execute(
             `DELETE FROM iam_sensitive_field_grant WHERE role_id=?`,
             [input.roleId],
@@ -1288,16 +1359,17 @@ export class MySqlActionExecutor {
         case "admin.role.permission.set": {
           const roleId = input.roleId as string,
             permissionIds = [...new Set(input.permissionIds as string[])];
-          const [roles] = await selectRows(connection,
+          const [roles] = await selectRows(
+            connection,
             `SELECT id,code FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [roleId],
           );
           const role = roles[0];
-          if (!role)
-            throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
+          if (!role) throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
           if (permissionIds.length) {
             const placeholders = permissionIds.map(() => "?").join(",");
-            const [valid] = await selectRows(connection,
+            const [valid] = await selectRows(
+              connection,
               `SELECT id,code FROM iam_permission WHERE id IN (${placeholders})`,
               permissionIds,
             );
@@ -1318,9 +1390,10 @@ export class MySqlActionExecutor {
               "管理员角色必须保留系统管理权限",
               409,
             );
-          await connection.execute(`DELETE FROM iam_role_permission WHERE role_id=?`, [
-            roleId,
-          ]);
+          await connection.execute(
+            `DELETE FROM iam_role_permission WHERE role_id=?`,
+            [roleId],
+          );
           for (const permissionId of permissionIds)
             await connection.execute(
               `INSERT INTO iam_role_permission(role_id,permission_id) VALUES(?,?)`,
@@ -1330,23 +1403,28 @@ export class MySqlActionExecutor {
         }
         case "admin.role.dataScope.set": {
           const roleId = input.roleId as string,
-            scopes = (input.scopes as Array<{ scopeType: string; scopeValue: string }>).map(
-              (scope) => ({
-                scopeType: scope.scopeType,
-                scopeValue: scope.scopeValue ?? "",
-              }),
-            );
-          const [roles] = await selectRows(connection,
+            scopes = (
+              input.scopes as Array<{ scopeType: string; scopeValue: string }>
+            ).map((scope) => ({
+              scopeType: scope.scopeType,
+              scopeValue: scope.scopeValue ?? "",
+            }));
+          const [roles] = await selectRows(
+            connection,
             `SELECT id FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [roleId],
           );
           if (!roles[0])
             throw new AppError("ROLE_NOT_FOUND", "角色不存在", 404);
-          await connection.execute(`DELETE FROM iam_role_data_scope WHERE role_id=?`, [
-            roleId,
-          ]);
+          await connection.execute(
+            `DELETE FROM iam_role_data_scope WHERE role_id=?`,
+            [roleId],
+          );
           const uniqueScopes = new Map(
-            scopes.map((scope) => [`${scope.scopeType}:${scope.scopeValue}`, scope]),
+            scopes.map((scope) => [
+              `${scope.scopeType}:${scope.scopeValue}`,
+              scope,
+            ]),
           );
           for (const scope of uniqueScopes.values())
             await connection.execute(
@@ -1368,7 +1446,8 @@ export class MySqlActionExecutor {
                 ).map((grant) => [grant.fieldCode, grant]),
               ).values(),
             ];
-          const [roles] = await selectRows(connection,
+          const [roles] = await selectRows(
+            connection,
             `SELECT id FROM iam_role WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [roleId],
           );
@@ -1381,12 +1460,18 @@ export class MySqlActionExecutor {
           for (const grant of grants)
             await connection.execute(
               `INSERT INTO iam_sensitive_field_grant(role_id,field_code,access_level,explicit_deny,status) VALUES(?,?,?,?, 'ENABLED')`,
-              [roleId, grant.fieldCode, grant.accessLevel, grant.explicitDeny ? 1 : 0],
+              [
+                roleId,
+                grant.fieldCode,
+                grant.accessLevel,
+                grant.explicitDeny ? 1 : 0,
+              ],
             );
           return { roleId, grantCount: grants.length };
         }
         case "admin.user.create": {
-          const [employees] = await selectRows(connection,
+          const [employees] = await selectRows(
+            connection,
             `SELECT e.id,e.department_id FROM org_employee e LEFT JOIN iam_user u ON u.employee_id=e.id AND u.is_deleted=0 WHERE e.id=? AND e.is_deleted=0 AND e.account_status='ENABLED' AND u.id IS NULL FOR UPDATE`,
             [input.employeeId],
           );
@@ -1398,13 +1483,15 @@ export class MySqlActionExecutor {
             );
           const roleIds = [...new Set(input.roleIds as string[])];
           const placeholders = roleIds.map(() => "?").join(",");
-          const [validRoles] = await selectRows(connection,
+          const [validRoles] = await selectRows(
+            connection,
             `SELECT id FROM iam_role WHERE id IN (${placeholders}) AND status='ENABLED' AND is_deleted=0`,
             roleIds,
           );
           if (validRoles.length !== roleIds.length)
             throw new AppError("ROLE_INVALID", "所选角色不存在或已停用", 409);
-          const [duplicates] = await selectRows(connection,
+          const [duplicates] = await selectRows(
+            connection,
             `SELECT id FROM iam_user WHERE (username=? OR cloudbase_uid=?) AND is_deleted=0 FOR UPDATE`,
             [input.username, input.cloudbaseUid],
           );
@@ -1434,14 +1521,46 @@ export class MySqlActionExecutor {
             cloudbaseUid: input.cloudbaseUid,
           };
         }
+        case "admin.user.update": {
+          const [targets] = await selectRows(
+            connection,
+            `SELECT id FROM iam_user WHERE id=? AND is_deleted=0 FOR UPDATE`,
+            [input.userId],
+          );
+          if (!targets[0])
+            throw new AppError("USER_NOT_FOUND", "账号不存在", 404);
+          const [duplicates] = await selectRows(
+            connection,
+            `SELECT id FROM iam_user WHERE id<>? AND (username=? OR cloudbase_uid=?) AND is_deleted=0 FOR UPDATE`,
+            [input.userId, input.username, input.cloudbaseUid],
+          );
+          if (duplicates[0])
+            throw new AppError(
+              "ACCOUNT_MAPPING_EXISTS",
+              "登录账号或身份 UID 已被其他人员使用",
+              409,
+            );
+          await connection.execute(
+            `UPDATE iam_user SET username=?,cloudbase_uid=?,last_synced_at=NOW(3),version=version+1 WHERE id=? AND is_deleted=0`,
+            [input.username, input.cloudbaseUid, input.userId],
+          );
+          return {
+            userId: input.userId,
+            username: input.username,
+            cloudbaseUid: input.cloudbaseUid,
+            cloudbaseSyncRequired: true,
+          };
+        }
         case "admin.user.status": {
-          const [targets] = await selectRows(connection,
+          const [targets] = await selectRows(
+            connection,
             `SELECT u.id,u.status,EXISTS(SELECT 1 FROM iam_user_role ur JOIN iam_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN') isAdmin FROM iam_user u WHERE u.id=? AND u.is_deleted=0 FOR UPDATE`,
             [input.userId],
           );
           if (!targets[0])
             throw new AppError("USER_NOT_FOUND", "账号不存在", 404);
-          const [adminCounts] = await selectRows(connection,
+          const [adminCounts] = await selectRows(
+            connection,
             `SELECT COUNT(DISTINCT u.id) count FROM iam_user u JOIN iam_user_role ur ON ur.user_id=u.id JOIN iam_role r ON r.id=ur.role_id WHERE u.status='ENABLED' AND u.is_deleted=0 AND r.code='ADMIN'`,
           );
           assertAccountStatusChangeAllowed({
@@ -1482,7 +1601,8 @@ export class MySqlActionExecutor {
           return { id: input.ruleId, version: input.version + 1 };
         }
         case "admin.parameter.update": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT value_type valueType FROM sys_parameter WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.parameterId],
           );
@@ -1494,17 +1614,29 @@ export class MySqlActionExecutor {
             parameter.valueType === "NUMBER" &&
             (!value || !Number.isFinite(Number(value)))
           )
-            throw new AppError("PARAMETER_VALUE_INVALID", "数字参数值非法", 409);
+            throw new AppError(
+              "PARAMETER_VALUE_INVALID",
+              "数字参数值非法",
+              409,
+            );
           if (
             parameter.valueType === "BOOLEAN" &&
             !["true", "false", "1", "0"].includes(value.toLowerCase())
           )
-            throw new AppError("PARAMETER_VALUE_INVALID", "布尔参数值非法", 409);
+            throw new AppError(
+              "PARAMETER_VALUE_INVALID",
+              "布尔参数值非法",
+              409,
+            );
           if (parameter.valueType === "JSON") {
             try {
               JSON.parse(value);
             } catch {
-              throw new AppError("PARAMETER_VALUE_INVALID", "JSON 参数值非法", 409);
+              throw new AppError(
+                "PARAMETER_VALUE_INVALID",
+                "JSON 参数值非法",
+                409,
+              );
             }
           }
           const [result] = await connection.execute<ResultSetHeader>(
@@ -1534,7 +1666,8 @@ export class MySqlActionExecutor {
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             action = (input.action as string | undefined) ?? "",
             outcome = (input.outcome as string | undefined) ?? "";
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(a.id AS CHAR) id,a.request_id requestId,a.action,a.resource_type resourceType,a.resource_id resourceId,a.outcome,a.ip_address ipAddress,a.occurred_at occurredAt,u.username FROM sys_audit_log a LEFT JOIN iam_user u ON u.id=a.actor_user_id WHERE (?='' OR a.action=?) AND (?='' OR a.outcome=?) AND (?='' OR a.action LIKE ? ESCAPE '\\\\' OR a.resource_id LIKE ? ESCAPE '\\\\' OR a.request_id LIKE ? ESCAPE '\\\\') ORDER BY a.occurred_at DESC LIMIT ? OFFSET ?`,
             [
               action,
@@ -1624,7 +1757,8 @@ export class MySqlActionExecutor {
         }
         case "file.list": {
           const fileAccess = buildFileAccessScope(user),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT f.id,f.business_type businessType,f.business_id businessId,f.project_id projectId,f.logical_name logicalName,f.classification,f.current_version currentVersion,f.status,v.original_name originalName,v.mime_type mimeType,v.size_bytes sizeBytes,v.uploaded_at uploadedAt FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.business_type=? AND f.business_id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (f.classification<>'SENSITIVE' OR ?=1) AND (${fileAccess.sql}) ORDER BY f.id DESC`,
               [
                 input.businessType,
@@ -1637,10 +1771,15 @@ export class MySqlActionExecutor {
         }
         case "file.upload.prepare": {
           const file = validateUpload(input);
-          await requireProjectWriteAccess(connection, file.projectId ?? null, user);
+          await requireProjectWriteAccess(
+            connection,
+            file.projectId ?? null,
+            user,
+          );
           if (file.projectId) {
             const projectScope = buildProjectDataScope(user),
-              [access] = await selectRows(connection,
+              [access] = await selectRows(
+                connection,
                 `SELECT p.id FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql} LIMIT 1`,
                 [file.projectId, ...projectScope.params],
               );
@@ -1687,7 +1826,8 @@ export class MySqlActionExecutor {
           return { id, storageKey };
         }
         case "file.upload.complete": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT f.id,v.id versionId,v.storage_key expectedStorageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND v.version_number=f.current_version WHERE f.id=? AND f.created_by=? AND f.status='UPLOADING' AND f.is_deleted=0 AND v.status='UPLOADING' FOR UPDATE`,
             [input.fileId, user.id],
           );
@@ -1725,8 +1865,12 @@ export class MySqlActionExecutor {
           return { id: input.fileId, status: "ACTIVE" };
         }
         case "file.version.prepare": {
-          const extension = validateFileType(input.originalName, input.mimeType),
-            [files] = await selectRows(connection,
+          const extension = validateFileType(
+              input.originalName,
+              input.mimeType,
+            ),
+            [files] = await selectRows(
+              connection,
               `SELECT f.id,f.current_version currentVersion,CAST(f.project_id AS CHAR) projectId,CAST(f.created_by AS CHAR) createdBy FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 FOR UPDATE`,
               [input.fileId],
             );
@@ -1749,7 +1893,8 @@ export class MySqlActionExecutor {
             await requireProjectWriteAccess(connection, file.projectId, user);
           }
           const nextVersion = Number(file.currentVersion) + 1;
-          const [pending] = await selectRows(connection,
+          const [pending] = await selectRows(
+            connection,
             `SELECT id FROM file_version WHERE file_id=? AND status='UPLOADING' LIMIT 1 FOR UPDATE`,
             [input.fileId],
           );
@@ -1787,7 +1932,8 @@ export class MySqlActionExecutor {
           };
         }
         case "file.version.complete": {
-          const [versions] = await selectRows(connection,
+          const [versions] = await selectRows(
+            connection,
             `SELECT v.id,v.version_number versionNumber,v.storage_key expectedStorageKey FROM file_version v JOIN file_object f ON f.id=v.file_id WHERE v.id=? AND v.file_id=? AND v.uploaded_by=? AND v.status='UPLOADING' AND f.status='ACTIVE' AND f.is_deleted=0 FOR UPDATE`,
             [input.versionId, input.fileId, user.id],
           );
@@ -1830,12 +1976,10 @@ export class MySqlActionExecutor {
         }
         case "file.version.history": {
           const fileAccess = buildFileAccessScope(user),
-            [access] = await selectRows(connection,
+            [access] = await selectRows(
+              connection,
               `SELECT f.id,f.classification FROM file_object f WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND (${fileAccess.sql})`,
-              [
-                input.fileId,
-                ...fileAccess.params,
-              ],
+              [input.fileId, ...fileAccess.params],
             );
           if (!access[0])
             throw new AppError("BUSINESS_ACCESS_DENIED", "无权查看该文件", 403);
@@ -1843,8 +1987,13 @@ export class MySqlActionExecutor {
             access[0].classification === "SENSITIVE" &&
             !user.permissionCodes.includes("file.sensitive.read")
           )
-            throw new AppError("SENSITIVE_FILE_DENIED", "无权查看敏感附件", 403);
-          const [versions] = await selectRows(connection,
+            throw new AppError(
+              "SENSITIVE_FILE_DENIED",
+              "无权查看敏感附件",
+              403,
+            );
+          const [versions] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,version_number versionNumber,original_name originalName,mime_type mimeType,size_bytes sizeBytes,sha256,uploaded_at uploadedAt,status FROM file_version WHERE file_id=? AND status='ACTIVE' ORDER BY version_number DESC`,
             [input.fileId],
           );
@@ -1858,7 +2007,8 @@ export class MySqlActionExecutor {
               503,
             );
           const fileAccess = buildFileAccessScope(user),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT f.id,f.business_type businessType,f.classification,t.expires_at exportExpiresAt,v.id versionId,v.storage_key storageKey FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) LEFT JOIN sys_export_task t ON t.file_id=f.id WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE' AND (${fileAccess.sql})`,
               [
                 input.versionId ?? null,
@@ -1869,13 +2019,10 @@ export class MySqlActionExecutor {
             );
           const file = rows[0];
           if (!file) {
-            const [deniedFiles] = await selectRows(connection,
+            const [deniedFiles] = await selectRows(
+              connection,
               `SELECT f.id,v.id versionId FROM file_object f JOIN file_version v ON v.file_id=f.id AND ((? IS NULL AND v.version_number=f.current_version) OR v.id=?) WHERE f.id=? AND f.status='ACTIVE' AND f.is_deleted=0 AND v.status='ACTIVE'`,
-              [
-                input.versionId ?? null,
-                input.versionId ?? null,
-                input.fileId,
-              ],
+              [input.versionId ?? null, input.versionId ?? null, input.fileId],
             );
             if (deniedFiles[0])
               await connection.execute(
@@ -1954,16 +2101,13 @@ export class MySqlActionExecutor {
               AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')`,
             scopeParams,
           );
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus
              FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
               AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
              ORDER BY id DESC LIMIT ? OFFSET ?`,
-            [
-              ...scopeParams,
-              pageSize,
-              (page - 1) * pageSize,
-            ],
+            [...scopeParams, pageSize, (page - 1) * pageSize],
           );
           return {
             items: rows,
@@ -1974,7 +2118,8 @@ export class MySqlActionExecutor {
         }
         case "crm.counterparty.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,industry,region,address,phone,website,cooperation_status cooperationStatus,remark,version FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
               [input.counterpartyId, all ? 1 : 0, user.employeeId],
             );
@@ -1985,18 +2130,21 @@ export class MySqlActionExecutor {
               "往来单位不存在或无权访问",
               404,
             );
-          const [contacts] = await selectRows(connection,
+          const [contacts] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,name,department_name departmentName,position_name positionName,mobile,phone,email,wechat,is_key_contact isKeyContact,relationship_level relationshipLevel,decision_role decisionRole FROM crm_contact WHERE counterparty_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY is_key_contact DESC,id DESC`,
               [input.counterpartyId],
             ),
-            [visits] = await selectRows(connection,
+            [visits] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,visit_code code,CAST(contact_id AS CHAR) contactId,visited_at visitedAt,visit_method method,location,purpose,communication,customer_needs customerNeeds,opportunity_assessment opportunityAssessment,next_action nextAction,next_follow_up_at nextFollowUpAt,generate_lead generateLead,version FROM crm_visit WHERE customer_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY visited_at DESC LIMIT 100`,
               [input.counterpartyId],
-          );
+            );
           return { counterparty, contacts, visits };
         }
         case "dictionary.crmOptions": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT t.type_code typeCode,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder
                FROM sys_dictionary_type t
                JOIN sys_dictionary_item i ON i.type_id=t.id
@@ -2013,7 +2161,8 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`;
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,lead_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,
                     CAST(owner_id AS CHAR) ownerId,success_probability successProbability,status,next_follow_up_at nextFollowUpAt
                FROM mkt_lead WHERE is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?)
@@ -2034,18 +2183,21 @@ export class MySqlActionExecutor {
         }
         case "lead.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
               [input.leadId, all ? 1 : 0, user.employeeId, user.id],
             );
           const lead = rows[0];
           if (!lead)
             throw new AppError("LEAD_NOT_FOUND", "线索不存在或无权访问", 404);
-          const [followUps] = await selectRows(connection,
+          const [followUps] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,followed_up_at followedUpAt,follow_up_method method,communication,customer_feedback customerFeedback,opportunity_change opportunityChange,success_probability successProbability,next_action nextAction,next_follow_up_at nextFollowUpAt FROM mkt_lead_follow_up WHERE lead_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY followed_up_at DESC`,
             [input.leadId],
           );
-          const [pendingApprovals] = await selectRows(connection,
+          const [pendingApprovals] = await selectRows(
+            connection,
             `SELECT CAST(t.id AS CHAR) taskId,
                     CAST(i.id AS CHAR) instanceId,
                     i.instance_code instanceCode,
@@ -2069,7 +2221,8 @@ export class MySqlActionExecutor {
         }
         case "lead.close": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
             [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
@@ -2088,7 +2241,8 @@ export class MySqlActionExecutor {
         }
         case "lead.update": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [leads] = await selectRows(connection,
+          const [leads] = await selectRows(
+            connection,
             `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
             [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
@@ -2101,7 +2255,8 @@ export class MySqlActionExecutor {
               "当前状态不允许修改线索",
               409,
             );
-          const [customers] = await selectRows(connection,
+          const [customers] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -2111,7 +2266,8 @@ export class MySqlActionExecutor {
               "客户不存在或无权访问",
               404,
             );
-          const [duplicates] = await selectRows(connection,
+          const [duplicates] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,lead_code code FROM mkt_lead
               WHERE id<>? AND customer_id=? AND project_name=? AND status NOT IN('INVALID','CONVERTED') AND is_deleted=0
               LIMIT 1 FOR UPDATE`,
@@ -2151,7 +2307,8 @@ export class MySqlActionExecutor {
         }
         case "lead.delete": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [leads] = await selectRows(connection,
+          const [leads] = await selectRows(
+            connection,
             `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
             [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
@@ -2186,7 +2343,8 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,estimated_revenue estimatedRevenue,
                     estimated_cost estimatedCost,estimated_profit estimatedProfit,status,version,CAST(created_by AS CHAR) createdBy
                FROM prj_project_application WHERE is_deleted=0 AND (?=1 OR applicant_id=? OR proposed_manager_id=?)
@@ -2207,7 +2365,8 @@ export class MySqlActionExecutor {
         }
         case "project.application.detail": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,application_code code,project_name projectName,CAST(customer_id AS CHAR) customerId,CAST(source_lead_id AS CHAR) sourceLeadId,project_type projectType,background,service_scope serviceScope,estimated_revenue estimatedRevenue,estimated_cost estimatedCost,estimated_start_on estimatedStartOn,estimated_end_on estimatedEndOn,CAST(proposed_manager_id AS CHAR) proposedManagerId,bidding_method biddingMethod,risk_description riskDescription,necessity,status,version FROM prj_project_application WHERE id=? AND is_deleted=0 AND (?=1 OR created_by=? OR applicant_id=? OR proposed_manager_id=?)`,
               [
                 input.applicationId,
@@ -2223,7 +2382,8 @@ export class MySqlActionExecutor {
               "立项申请不存在或无权访问",
               404,
             );
-          const [members] = await selectRows(connection,
+          const [members] = await selectRows(
+            connection,
             `SELECT CAST(employee_id AS CHAR) employeeId,proposed_role proposedRole FROM prj_application_member_suggestion WHERE application_id=? ORDER BY employee_id`,
             [input.applicationId],
           );
@@ -2235,7 +2395,8 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             projectScope = buildProjectDataScope(user);
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT DISTINCT CAST(p.id AS CHAR) id,p.project_code code,p.project_name projectName,p.status,
                     CAST(p.project_manager_id AS CHAR) projectManagerId,pm.name managerName
                FROM prj_project p JOIN org_employee pm ON pm.id=p.project_manager_id
@@ -2255,7 +2416,8 @@ export class MySqlActionExecutor {
         }
         case "project.detail": {
           const projectScope = buildProjectDataScope(user),
-            [projects] = await selectRows(connection,
+            [projects] = await selectRows(
+              connection,
               `SELECT CAST(p.id AS CHAR) id,CAST(p.application_id AS CHAR) applicationId,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
               [input.projectId, ...projectScope.params],
             );
@@ -2266,27 +2428,33 @@ export class MySqlActionExecutor {
               "项目不存在或无权访问",
               404,
             );
-          const [members] = await selectRows(connection,
+          const [members] = await selectRows(
+              connection,
               `SELECT e.name,m.project_role projectRole,m.joined_on joinedOn,m.status FROM prj_project_member m JOIN org_employee e ON e.id=m.employee_id WHERE m.project_id=? ORDER BY m.joined_on`,
               [input.projectId],
             ),
-            [contracts] = await selectRows(connection,
+            [contracts] = await selectRows(
+              connection,
               `SELECT contract_code code,contract_name contractName,contract_type contractType,tax_exclusive_amount taxExclusiveAmount,status,expires_on expiresOn FROM con_contract WHERE project_id=? AND is_deleted=0 ORDER BY id DESC`,
               [input.projectId],
             ),
-            [stages] = await selectRows(connection,
+            [stages] = await selectRows(
+              connection,
               `SELECT stage_name stageName,completion_percentage completionPercentage,status,planned_end_on plannedEndOn FROM prj_stage WHERE project_id=? AND is_deleted=0 ORDER BY stage_order`,
               [input.projectId],
             ),
-            [risks] = await selectRows(connection,
+            [risks] = await selectRows(
+              connection,
               `SELECT title,severity,status,planned_resolution_on plannedResolutionOn FROM prj_risk_issue WHERE project_id=? AND is_deleted=0 ORDER BY id DESC LIMIT 20`,
               [input.projectId],
             ),
-            [money] = await selectRows(connection,
+            [money] = await selectRows(
+              connection,
               `SELECT (SELECT COALESCE(SUM(amount),0) FROM fin_receipt WHERE project_id=? AND status='ACTIVE' AND is_deleted=0) receivedAmount,(SELECT COALESCE(SUM(tax_inclusive_amount),0) FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0 AND is_deleted=0) invoicedAmount,(SELECT COALESCE(SUM(occupied_amount),0) FROM fin_deposit WHERE project_id=? AND is_deleted=0) occupiedDeposit`,
               [input.projectId, input.projectId, input.projectId],
             ),
-            [timeline] = await selectRows(connection,
+            [timeline] = await selectRows(
+              connection,
               `SELECT eventType,title,eventAt,status FROM (
                 SELECT 'PROJECT' eventType,CONCAT('项目立项：',p.project_name) title,p.created_at eventAt,p.status FROM prj_project p WHERE p.id=? AND p.is_deleted=0
                 UNION ALL SELECT 'START',CONCAT('项目启动：',start_type),created_at,status FROM prj_start WHERE project_id=? AND is_deleted=0
@@ -2310,7 +2478,8 @@ export class MySqlActionExecutor {
                 input.projectId,
               ],
             ),
-            [approvalRecords] = await selectRows(connection,
+            [approvalRecords] = await selectRows(
+              connection,
               `SELECT CAST(i.id AS CHAR) id,i.instance_code instanceCode,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.title,i.status,i.submitted_at submittedAt,i.completed_at completedAt,u.username applicantName
                  FROM wf_instance i LEFT JOIN iam_user u ON u.id=i.applicant_id
                 WHERE (i.business_type='PROJECT_APPLICATION' AND i.business_id=?)
@@ -2327,7 +2496,8 @@ export class MySqlActionExecutor {
                 input.projectId,
               ],
             ),
-            [auditLogs] = await selectRows(connection,
+            [auditLogs] = await selectRows(
+              connection,
               `SELECT CAST(a.id AS CHAR) id,a.request_id requestId,a.action,a.resource_type resourceType,a.resource_id resourceId,a.outcome,a.occurred_at occurredAt,u.username
                  FROM sys_audit_log a LEFT JOIN iam_user u ON u.id=a.actor_user_id
                 WHERE a.resource_id=? AND (a.action LIKE 'project.%' OR a.action LIKE 'file.%' OR a.action LIKE 'approval.%')
@@ -2362,7 +2532,8 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             projectAccess = buildProjectReferenceScope(user, "b.project_id");
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(b.id AS CHAR) id,CAST(b.project_id AS CHAR) projectId,b.bid_code code,p.project_name projectName,b.deadline_at deadlineAt,b.status
                FROM bid_application b JOIN prj_project p ON p.id=b.project_id AND p.is_deleted=0
               WHERE b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})
@@ -2383,14 +2554,19 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "organization.employee.options": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name,position_name positionName FROM org_employee WHERE account_status='ENABLED' AND is_deleted=0 ORDER BY name LIMIT 500`,
           );
           return { items: rows };
         }
         case "bid.detail": {
-          const projectAccess = buildProjectReferenceScope(user, "b.project_id"),
-            [bids] = await selectRows(connection,
+          const projectAccess = buildProjectReferenceScope(
+              user,
+              "b.project_id",
+            ),
+            [bids] = await selectRows(
+              connection,
               `SELECT CAST(b.id AS CHAR) id,b.bid_code code,CAST(b.project_id AS CHAR) projectId,p.project_name projectName,b.deadline_at deadlineAt,b.status FROM bid_application b JOIN prj_project p ON p.id=b.project_id AND p.is_deleted=0 WHERE b.id=? AND b.is_deleted=0 AND (b.business_owner_id=? OR b.technical_owner_id=? OR b.pricing_owner_id=? OR ${projectAccess.sql})`,
               [
                 input.bidId,
@@ -2406,19 +2582,23 @@ export class MySqlActionExecutor {
               "投标申请不存在或无权访问",
               404,
             );
-          const [tasks] = await selectRows(connection,
+          const [tasks] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,task_type taskType,task_name taskName,CAST(assignee_id AS CHAR) assigneeId,collaborator_ids collaboratorIds,starts_at startsAt,due_at dueAt,delivery_requirement deliveryRequirement,completion_description completionDescription,CAST(checker_id AS CHAR) checkerId,status FROM bid_task WHERE bid_id=? AND is_deleted=0 ORDER BY due_at,id`,
               [input.bidId],
             ),
-            [checks] = await selectRows(connection,
+            [checks] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,check_item checkItem,check_standard checkStandard,CAST(responsible_id AS CHAR) responsibleId,result,issue_description issueDescription,CAST(rectifier_id AS CHAR) rectifierId,rectification_due_at rectificationDueAt,recheck_result recheckResult,version FROM bid_check WHERE bid_id=? AND is_deleted=0 ORDER BY id`,
               [input.bidId],
             ),
-            [results] = await selectRows(connection,
+            [results] = await selectRows(
+              connection,
               `SELECT opened_on openedOn,quoted_amount quotedAmount,ranking,result,winning_amount winningAmount,loss_reason lossReason,retrospective FROM bid_result WHERE bid_id=?`,
               [input.bidId],
             ),
-            [partners] = await selectRows(connection,
+            [partners] = await selectRows(
+              connection,
               `SELECT CAST(x.id AS CHAR) id,c.name partnerName,f.name finalCustomerName,x.cooperation_type cooperationType,x.our_quotation ourQuotation,x.result,x.description FROM bid_partner_cooperation x JOIN crm_counterparty c ON c.id=x.partner_id JOIN crm_counterparty f ON f.id=x.final_customer_id WHERE x.project_id=? AND x.is_deleted=0 ORDER BY x.id DESC`,
               [bids[0].projectId],
             );
@@ -2436,7 +2616,8 @@ export class MySqlActionExecutor {
             keyword = (input.keyword as string | undefined) ?? "",
             pattern = `%${keyword.replace(/[\\%_]/g, "\\$&")}%`,
             projectAccess = buildProjectReferenceScope(user, "c.project_id");
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,v.name partyBName,
                     CAST(c.project_id AS CHAR) projectId,CAST(c.party_a_id AS CHAR) partyAId,CAST(c.party_b_id AS CHAR) partyBId,
                     c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.amount_status amountStatus,c.status,COALESCE((SELECT SUM(pa.requested_amount) FROM fin_payment_application pa WHERE pa.source_type='EXPENSE_CONTRACT' AND pa.source_id=c.id AND pa.status<>'REJECTED' AND pa.is_deleted=0),0) paymentAppliedAmount
@@ -2456,8 +2637,12 @@ export class MySqlActionExecutor {
           return { items: rows, page, pageSize };
         }
         case "contract.detail": {
-          const projectAccess = buildProjectReferenceScope(user, "c.project_id"),
-            [contracts] = await selectRows(connection,
+          const projectAccess = buildProjectReferenceScope(
+              user,
+              "c.project_id",
+            ),
+            [contracts] = await selectRows(
+              connection,
               `SELECT CAST(c.id AS CHAR) id,c.contract_code code,c.contract_name contractName,c.contract_type contractType,c.tax_inclusive_amount taxInclusiveAmount,c.tax_exclusive_amount taxExclusiveAmount,c.tax_rate taxRate,c.tax_amount taxAmount,c.expires_on expiresOn,c.contract_version contractVersion,c.status FROM con_contract c WHERE c.id=? AND c.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0) AND (c.owner_id=? OR ${projectAccess.sql})`,
               [input.contractId, user.employeeId, ...projectAccess.params],
             );
@@ -2467,24 +2652,30 @@ export class MySqlActionExecutor {
               "合同不存在或无权访问",
               404,
             );
-          const [changes] = await selectRows(connection,
+          const [changes] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,change_code changeCode,change_type changeType,original_tax_inclusive_amount originalTaxInclusiveAmount,new_tax_inclusive_amount newTaxInclusiveAmount,net_change_amount netChangeAmount,original_end_on originalEndOn,new_end_on newEndOn,change_content changeContent,reason,effective_on effectiveOn,status FROM con_contract_change WHERE contract_id=? AND is_deleted=0 ORDER BY id DESC`,
               [input.contractId],
             ),
-            [milestones] = await selectRows(connection,
+            [milestones] = await selectRows(
+              connection,
               `SELECT CAST(id AS CHAR) id,milestone_type milestoneType,milestone_name milestoneName,planned_on plannedOn,planned_amount plannedAmount,condition_description conditionDescription,completed_on completedOn,status FROM con_contract_milestone WHERE contract_id=? AND is_deleted=0 ORDER BY planned_on,id`,
               [input.contractId],
             );
           return { contract: contracts[0], changes, milestones };
         }
         case "contract.summary": {
-          const projectAccess = buildProjectReferenceScope(user, "c.project_id"),
+          const projectAccess = buildProjectReferenceScope(
+              user,
+              "c.project_id",
+            ),
             expiryDays = await loadNumberParameter(
               connection,
               "reminder.contract_expiry_days",
               30,
             );
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(CASE WHEN contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) incomeAmount,COALESCE(SUM(CASE WHEN contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') THEN tax_exclusive_amount ELSE 0 END),0) expenseAmount,SUM(CASE WHEN expires_on BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL ${expiryDays} DAY) AND status IN('PENDING_SIGNATURE','PERFORMING') THEN 1 ELSE 0 END) expiringCount FROM con_contract c WHERE c.is_deleted=0 AND EXISTS(SELECT 1 FROM prj_project p WHERE p.id=c.project_id AND p.is_deleted=0) AND (c.owner_id=? OR ${projectAccess.sql})`,
             [user.employeeId, ...projectAccess.params],
           );
@@ -2497,7 +2688,8 @@ export class MySqlActionExecutor {
           );
         }
         case "contract.activate": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.contractId],
           );
@@ -2587,7 +2779,8 @@ export class MySqlActionExecutor {
               "不支持的审批业务类型",
               400,
             );
-          const [records] = await selectRows(connection,
+          const [records] = await selectRows(
+            connection,
             `SELECT id,created_by createdBy,${config.statusColumn} businessStatus FROM ${config.table} WHERE id=?${config.table === "fin_deposit_event" ? "" : " AND is_deleted=0"} FOR UPDATE`,
             [input.businessId],
           );
@@ -2616,7 +2809,8 @@ export class MySqlActionExecutor {
             ),
             user,
           );
-          const [submitted] = await selectRows(connection,
+          const [submitted] = await selectRows(
+            connection,
             `SELECT CAST(h.instance_id AS CHAR) instanceId,CAST(h.operator_id AS CHAR) operatorId,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status FROM wf_action_history h JOIN wf_instance i ON i.id=h.instance_id WHERE h.action_key=? FOR UPDATE`,
             [input.actionKey],
           );
@@ -2657,7 +2851,8 @@ export class MySqlActionExecutor {
               connection,
               input.businessId,
             );
-          const [templates] = await selectRows(connection,
+          const [templates] = await selectRows(
+            connection,
             `SELECT id,template_code code,version FROM wf_template WHERE business_type=? AND status='ENABLED' AND is_deleted=0 LIMIT 1`,
             [input.businessType],
           );
@@ -2668,7 +2863,8 @@ export class MySqlActionExecutor {
               "审批模板不存在",
               409,
             );
-          const [nodeRows] = await selectRows(connection,
+          const [nodeRows] = await selectRows(
+            connection,
             `SELECT node_order nodeOrder,node_name nodeName,position_code positionCode,minimum_amount minimumAmount,maximum_amount maximumAmount,is_cc isCc FROM wf_template_node WHERE template_id=? AND status='ENABLED' ORDER BY node_order`,
             [template.id],
           );
@@ -2691,7 +2887,8 @@ export class MySqlActionExecutor {
           const assignments = new Map<string, string[]>();
           for (const node of nodes) {
             if (assignments.has(node.positionCode)) continue;
-            const [people] = await selectRows(connection,
+            const [people] = await selectRows(
+              connection,
               `SELECT CAST(employee_id AS CHAR) employeeId FROM org_position_assignment a JOIN org_position p ON p.id=a.position_id WHERE p.position_code=? AND a.status='ENABLED' AND a.starts_on<=CURDATE() AND (a.ends_on IS NULL OR a.ends_on>=CURDATE())`,
               [node.positionCode],
             );
@@ -2713,7 +2910,8 @@ export class MySqlActionExecutor {
             approvalNodes,
             ccNodes: nodes.filter((n) => n.isCc),
           };
-          const [existing] = await selectRows(connection,
+          const [existing] = await selectRows(
+            connection,
             `SELECT id,status FROM wf_instance WHERE business_type=? AND business_id=? FOR UPDATE`,
             [input.businessType, input.businessId],
           );
@@ -2797,7 +2995,8 @@ export class MySqlActionExecutor {
         case "approval.task.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number;
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,
                     i.business_type businessType,CAST(i.business_id AS CHAR) businessId,t.node_order nodeOrder,
                     t.position_code positionCode,t.assigned_at assignedAt
@@ -2826,11 +3025,12 @@ export class MySqlActionExecutor {
             sql = `SELECT CAST(t.id AS CHAR) id,CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.title,i.business_type businessType,CAST(i.business_id AS CHAR) businessId,i.status,t.status taskStatus,t.position_code positionCode,t.completed_at occurredAt,0 canAct FROM wf_task t JOIN wf_instance i ON i.id=t.instance_id WHERE t.completed_by=? AND t.status IN ('APPROVED','RETURNED','REJECTED') ORDER BY t.completed_at DESC LIMIT ? OFFSET ?`;
             params = [user.employeeId, pageSize, offset];
           }
-          const [rows] = await selectRows(connection,sql, params);
+          const [rows] = await selectRows(connection, sql, params);
           return { items: rows, page, pageSize };
         }
         case "approval.task.action": {
-          const [existing] = await selectRows(connection,
+          const [existing] = await selectRows(
+            connection,
             "SELECT CAST(task_id AS CHAR) taskId,action,CAST(operator_id AS CHAR) operatorId FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
@@ -2889,14 +3089,16 @@ export class MySqlActionExecutor {
                 task.node_order,
               ],
             );
-            const [nextRows] = await selectRows(connection,
+            const [nextRows] = await selectRows(
+              connection,
               `SELECT MIN(node_order) next_order FROM wf_task WHERE instance_id=? AND node_order>? AND status='WAITING'`,
               [task.instance_id, task.node_order],
             );
             const next = nextRows[0]?.next_order as number | null;
             if (next == null) {
               if (task.business_type === "PROJECT_CLOSE") {
-                const [closeRows] = await selectRows(connection,
+                const [closeRows] = await selectRows(
+                  connection,
                   `SELECT close_type closeType FROM prj_close_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
                   [task.business_id],
                 );
@@ -2959,7 +3161,8 @@ export class MySqlActionExecutor {
           return { idempotent: false, status: input.action };
         }
         case "approval.instance.withdraw": {
-          const [existing] = await selectRows(connection,
+          const [existing] = await selectRows(
+            connection,
             "SELECT CAST(instance_id AS CHAR) instanceId,action,CAST(operator_id AS CHAR) operatorId FROM wf_action_history WHERE action_key=? LIMIT 1",
             [input.actionKey],
           );
@@ -2976,7 +3179,8 @@ export class MySqlActionExecutor {
               );
             return { idempotent: true, status: "WITHDRAWN" };
           }
-          const [instances] = await selectRows(connection,
+          const [instances] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,CAST(applicant_id AS CHAR) applicantId,status,business_type businessType,CAST(business_id AS CHAR) businessId FROM wf_instance WHERE id=? FOR UPDATE`,
             [input.instanceId],
           );
@@ -3030,15 +3234,18 @@ export class MySqlActionExecutor {
         case "finance.summary": {
           const projectId = (input.projectId as string | undefined) ?? null;
           const access = buildProjectReferenceScope(user, "x.project_id");
-          const [invoiceRows] = await selectRows(connection,
+          const [invoiceRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(x.tax_inclusive_amount),0) amount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
-          const [receiptRows] = await selectRows(connection,
+          const [receiptRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_receipt x WHERE x.status='ACTIVE' AND x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
-          const [paymentRows] = await selectRows(connection,
+          const [paymentRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(x.amount),0) amount FROM fin_payment_detail x JOIN fin_payment_application pa ON pa.id=x.payment_id WHERE x.status='ACTIVE' AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
@@ -3051,22 +3258,26 @@ export class MySqlActionExecutor {
         case "finance.documents": {
           const projectId = (input.projectId as string | undefined) ?? null,
             access = buildProjectReferenceScope(user, "x.project_id");
-          const [applications] = await selectRows(connection,
+          const [applications] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.application_code code,x.project_id projectId,x.contract_id contractId,x.requested_amount requestedAmount,x.status FROM fin_invoice_application x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             [projectId, projectId, ...access.params],
           );
-          const [receipts] = await selectRows(connection,
+          const [receipts] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.receipt_code code,x.project_id projectId,x.contract_id contractId,x.amount,x.receipt_type receiptType,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.receipt_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_receipt x WHERE x.status='ACTIVE' AND x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             [projectId, projectId, ...access.params],
           );
-          const [invoices] = await selectRows(connection,
+          const [invoices] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.invoice_number invoiceNumber,x.project_id projectId,x.contract_id contractId,x.tax_inclusive_amount amount,x.status,COALESCE((SELECT SUM(a.allocated_amount) FROM fin_receipt_invoice_allocation a WHERE a.invoice_id=x.id AND a.status='ACTIVE'),0) allocatedAmount FROM fin_sales_invoice x WHERE x.is_reversed=0 AND x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             [projectId, projectId, ...access.params],
           );
           return { applications, receipts, invoices };
         }
         case "sales.invoice.create": {
-          const [applications] = await selectRows(connection,
+          const [applications] = await selectRows(
+            connection,
             `SELECT id,project_id projectId,contract_id contractId,requested_amount requestedAmount,status FROM fin_invoice_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.applicationId],
           );
@@ -3082,8 +3293,13 @@ export class MySqlActionExecutor {
               "只有审批通过的开票申请才能完成开票",
               409,
             );
-          await requireProjectWriteAccess(connection, application.projectId, user);
-          const [applicationUsed] = await selectRows(connection,
+          await requireProjectWriteAccess(
+            connection,
+            application.projectId,
+            user,
+          );
+          const [applicationUsed] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE application_id=? AND is_reversed=0 AND is_deleted=0`,
             [input.applicationId],
           );
@@ -3097,11 +3313,13 @@ export class MySqlActionExecutor {
               "开票金额超过申请额度",
               409,
             );
-          const [contracts] = await selectRows(connection,
+          const [contracts] = await selectRows(
+              connection,
               `SELECT tax_inclusive_amount amount FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
               [application.contractId],
             ),
-            [contractUsed] = await selectRows(connection,
+            [contractUsed] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0`,
               [application.contractId],
             );
@@ -3136,15 +3354,14 @@ export class MySqlActionExecutor {
             Number(applicationUsed[0]?.amount ?? 0) +
               Number(input.taxInclusiveAmount) >=
             Number(application.requestedAmount);
-          const [applicationResult] =
-            await connection.execute<ResultSetHeader>(
-              `UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
-              [
-                completed ? "COMPLETED" : "PARTIALLY_INVOICED",
-                user.id,
-                input.applicationId,
-              ],
-            );
+          const [applicationResult] = await connection.execute<ResultSetHeader>(
+            `UPDATE fin_invoice_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            [
+              completed ? "COMPLETED" : "PARTIALLY_INVOICED",
+              user.id,
+              input.applicationId,
+            ],
+          );
           if (!applicationResult.affectedRows)
             throw new AppError(
               "INVOICE_APPLICATION_STATUS_INVALID",
@@ -3157,11 +3374,13 @@ export class MySqlActionExecutor {
           };
         }
         case "receipt.invoice.allocate": {
-          const [receipts] = await selectRows(connection,
+          const [receipts] = await selectRows(
+              connection,
               `SELECT id,project_id projectId,contract_id contractId,amount,receipt_type receiptType FROM fin_receipt WHERE id=? AND status='ACTIVE' AND is_deleted=0 FOR UPDATE`,
               [input.receiptId],
             ),
-            [invoices] = await selectRows(connection,
+            [invoices] = await selectRows(
+              connection,
               `SELECT id,project_id projectId,contract_id contractId,tax_inclusive_amount amount FROM fin_sales_invoice WHERE id=? AND is_reversed=0 AND is_deleted=0 FOR UPDATE`,
               [input.invoiceId],
             );
@@ -3190,11 +3409,13 @@ export class MySqlActionExecutor {
               "收款与发票必须属于同一项目和合同",
               409,
             );
-          const [receiptUsed] = await selectRows(connection,
+          const [receiptUsed] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE receipt_id=? AND status='ACTIVE'`,
               [input.receiptId],
             ),
-            [invoiceUsed] = await selectRows(connection,
+            [invoiceUsed] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(allocated_amount),0) amount FROM fin_receipt_invoice_allocation WHERE invoice_id=? AND status='ACTIVE'`,
               [input.invoiceId],
             );
@@ -3254,7 +3475,8 @@ export class MySqlActionExecutor {
           };
         }
         case "invoice.application.create": {
-          const [contracts] = await selectRows(connection,
+          const [contracts] = await selectRows(
+            connection,
             `SELECT project_id projectId,tax_inclusive_amount amount,status FROM con_contract WHERE id=? AND contract_type='INCOME' AND is_deleted=0 FOR UPDATE`,
             [input.contractId],
           );
@@ -3273,7 +3495,8 @@ export class MySqlActionExecutor {
               409,
             );
           await requireProjectWriteAccess(connection, contract.projectId, user);
-          const [usedRows] = await selectRows(connection,
+          const [usedRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) used FROM fin_sales_invoice WHERE contract_id=? AND is_reversed=0 AND is_deleted=0`,
             [input.contractId],
           );
@@ -3318,7 +3541,8 @@ export class MySqlActionExecutor {
         }
         case "receipt.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
-          const [contracts] = await selectRows(connection,
+          const [contracts] = await selectRows(
+            connection,
             `SELECT id,CAST(party_a_id AS CHAR) partyAId,CAST(party_b_id AS CHAR) partyBId FROM con_contract WHERE id=? AND project_id=? AND contract_type='INCOME' AND is_deleted=0 LIMIT 1`,
             [input.contractId, input.projectId],
           );
@@ -3340,7 +3564,8 @@ export class MySqlActionExecutor {
               409,
             );
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [customers] = await selectRows(connection,
+          const [customers] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -3373,7 +3598,11 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "reimbursement.create": {
-          await requireProjectWriteAccess(connection, input.projectId ?? null, user);
+          await requireProjectWriteAccess(
+            connection,
+            input.projectId ?? null,
+            user,
+          );
           const code = await allocateNumber(connection, "REIMBURSEMENT");
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO fin_reimbursement(reimbursement_code,claimant_id,department_id,project_id,reason,payment_recipient,receiving_account,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?)`,
@@ -3416,11 +3645,13 @@ export class MySqlActionExecutor {
               "h.project_id",
             ),
             purchaseAccess = buildProjectReferenceScope(user, "c.project_id"),
-            [reimbursements] = await selectRows(connection,
+            [reimbursements] = await selectRows(
+              connection,
               `SELECT CAST(h.id AS CHAR) id,CAST(h.project_id AS CHAR) projectId,h.reimbursement_code code,h.reason,h.payment_recipient paymentRecipient,h.receiving_account receivingAccount,h.approval_status approvalStatus,h.payment_status paymentStatus,h.created_at createdAt,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='REIMBURSEMENT' AND pa.source_id=h.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,COALESCE(SUM(d.amount),0) totalAmount FROM fin_reimbursement h LEFT JOIN fin_reimbursement_detail d ON d.reimbursement_id=h.id AND d.status='ACTIVE' WHERE h.is_deleted=0 AND (h.project_id IS NULL OR EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=h.project_id AND pr.is_deleted=0)) AND (h.claimant_id=? OR ${reimbursementAccess.sql}) GROUP BY h.id ORDER BY h.id DESC LIMIT 100`,
               [user.employeeId, ...reimbursementAccess.params],
             ),
-            [purchases] = await selectRows(connection,
+            [purchases] = await selectRows(
+              connection,
               `SELECT CAST(p.id AS CHAR) id,p.purchase_code code,p.purchase_type purchaseType,p.item_description itemDescription,p.quantity,p.budget_amount budgetAmount,p.expected_on expectedOn,p.status,p.contract_related contractRelated,CAST(c.project_id AS CHAR) projectId,s.name supplierName,s.bank_account receivingAccount,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PURCHASE' AND pa.source_id=p.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication,p.created_at createdAt FROM fin_daily_purchase p LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0 LEFT JOIN crm_counterparty s ON s.id=p.supplier_id WHERE p.is_deleted=0 AND (p.contract_related=0 OR (c.id IS NOT NULL AND EXISTS(SELECT 1 FROM prj_project pr WHERE pr.id=c.project_id AND pr.is_deleted=0))) AND (p.applicant_id=? OR ${purchaseAccess.sql}) ORDER BY p.id DESC LIMIT 100`,
               [user.employeeId, ...purchaseAccess.params],
             );
@@ -3428,31 +3659,40 @@ export class MySqlActionExecutor {
         }
         case "finance.operations": {
           const access = buildProjectReferenceScope(user, "x.project_id"),
-            depositEventAccess = buildProjectReferenceScope(user, "d.project_id");
-          const [payments] = await selectRows(connection,
+            depositEventAccess = buildProjectReferenceScope(
+              user,
+              "d.project_id",
+            );
+          const [payments] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.payment_code code,x.project_id projectId,x.recipient_name recipientName,x.requested_amount requestedAmount,x.receiving_account receivingAccount,x.status,COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=x.id AND d.status='ACTIVE'),0) paidAmount FROM fin_payment_application x WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
-          const [plans] = await selectRows(connection,
+          const [plans] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.plan_code code,x.project_id projectId,c.name partnerName,x.current_version currentVersion,x.status,CAST(v.id AS CHAR) versionId,v.settlement_method settlementMethod,v.ratio,v.fixed_amount fixedAmount,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,v.status versionStatus FROM partner_plan x JOIN crm_counterparty c ON c.id=x.partner_id LEFT JOIN partner_plan_version v ON v.plan_id=x.id AND v.version_number=x.current_version WHERE x.is_deleted=0 AND x.status IN('DRAFT','ENABLED') AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
-          const [settlements] = await selectRows(connection,
+          const [settlements] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.settlement_code code,x.project_id projectId,c.name partnerName,x.net_settlement_amount netAmount,x.invoice_requirement invoiceRequirement,x.payment_status paymentStatus,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='PARTNER_SETTLEMENT' AND pa.source_id=x.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication FROM partner_settlement x JOIN crm_counterparty c ON c.id=x.partner_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
-          const [deposits] = await selectRows(connection,
+          const [deposits] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.deposit_code code,x.project_id projectId,x.direction,c.name counterpartyName,x.amount,x.account,x.occupied_amount occupiedAmount,x.loss_confirmed_amount lossAmount,x.status,EXISTS(SELECT 1 FROM fin_payment_application pa WHERE pa.source_type='DEPOSIT' AND pa.source_id=x.id AND pa.status<>'REJECTED' AND pa.is_deleted=0) hasPaymentApplication FROM fin_deposit x JOIN crm_counterparty c ON c.id=x.counterparty_id WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 200`,
             access.params,
           );
-          const [depositEvents] = await selectRows(connection,
+          const [depositEvents] = await selectRows(
+            connection,
             `SELECT CAST(e.id AS CHAR) id,CAST(e.deposit_id AS CHAR) depositId,d.deposit_code depositCode,e.event_type eventType,e.amount,e.occurred_on occurredOn,e.status FROM fin_deposit_event e JOIN fin_deposit d ON d.id=e.deposit_id WHERE d.is_deleted=0 AND ${depositEventAccess.sql} ORDER BY e.id DESC LIMIT 200`,
             depositEventAccess.params,
           );
           return { payments, plans, settlements, deposits, depositEvents };
         }
         case "payment.detail.create": {
-          const [seen] = await selectRows(connection,
+          const [seen] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,CAST(payment_id AS CHAR) paymentId,CAST(project_id AS CHAR) projectId,amount,receiving_account receivingAccount,bank_reference bankReference,CAST(recorder_id AS CHAR) recorderId FROM fin_payment_detail WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
@@ -3469,10 +3709,15 @@ export class MySqlActionExecutor {
                 "幂等键已用于其他付款明细",
                 409,
               );
-            await requireProjectWriteAccess(connection, seen[0].projectId, user);
+            await requireProjectWriteAccess(
+              connection,
+              seen[0].projectId,
+              user,
+            );
             return { idempotent: true, id: String(seen[0].id) };
           }
-          const [payments] = await selectRows(connection,
+          const [payments] = await selectRows(
+            connection,
             `SELECT id,project_id projectId,source_type sourceType,source_id sourceId,requested_amount requestedAmount,receiving_account receivingAccount,status FROM fin_payment_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.paymentId],
           );
@@ -3493,7 +3738,8 @@ export class MySqlActionExecutor {
               "实际付款收款账户与付款申请不一致",
               409,
             );
-          const [paidRows] = await selectRows(connection,
+          const [paidRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(amount),0) amount FROM fin_payment_detail WHERE payment_id=? AND status='ACTIVE'`,
             [input.paymentId],
           );
@@ -3566,7 +3812,8 @@ export class MySqlActionExecutor {
               );
           }
           if (payment.sourceType === "DEPOSIT") {
-            const [depositRows] = await selectRows(connection,
+            const [depositRows] = await selectRows(
+              connection,
               `SELECT amount,occupied_amount occupied FROM fin_deposit WHERE id=? AND direction='PAY' AND status IN('PENDING_PAYMENT','PAID') AND is_deleted=0 FOR UPDATE`,
               [payment.sourceId],
             );
@@ -3631,10 +3878,9 @@ export class MySqlActionExecutor {
               | "DEPOSIT"
               | "PURCHASE"
           ];
-          const [sources] = await selectRows(connection,
-            sourceSql,
-            [input.sourceId],
-          );
+          const [sources] = await selectRows(connection, sourceSql, [
+            input.sourceId,
+          ]);
           const source = sources[0];
           if (!source)
             throw new AppError(
@@ -3653,7 +3899,8 @@ export class MySqlActionExecutor {
             source.receivingAccount
           )
             receivingAccount = String(source.receivingAccount);
-          const [existingPayments] = await selectRows(connection,
+          const [existingPayments] = await selectRows(
+            connection,
             `SELECT COUNT(*) count,COALESCE(SUM(requested_amount),0) appliedAmount FROM fin_payment_application WHERE source_type=? AND source_id=? AND status<>'REJECTED' AND is_deleted=0`,
             [input.sourceType, input.sourceId],
           );
@@ -3716,7 +3963,8 @@ export class MySqlActionExecutor {
         case "daily.purchase.create": {
           if (input.supplierId) {
             const all = user.dataScopes.some((scope) => scope.type === "ALL");
-            const [suppliers] = await selectRows(connection,
+            const [suppliers] = await selectRows(
+              connection,
               `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
               [input.supplierId, all ? 1 : 0, user.employeeId],
             );
@@ -3732,7 +3980,8 @@ export class MySqlActionExecutor {
             ? input.contractId
             : null;
           if (purchaseContractId) {
-            const [contractRows] = await selectRows(connection,
+            const [contractRows] = await selectRows(
+              connection,
               `SELECT project_id projectId,CAST(party_b_id AS CHAR) supplierId FROM con_contract WHERE id=? AND contract_type='EXPENSE' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
               [purchaseContractId],
             );
@@ -3783,7 +4032,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "daily.purchase.complete": {
-          const [purchases] = await selectRows(connection,
+          const [purchases] = await selectRows(
+            connection,
             `SELECT CAST(p.applicant_id AS CHAR) applicantId,p.status,p.contract_related contractRelated,CAST(pr.id AS CHAR) projectId
                FROM fin_daily_purchase p
                LEFT JOIN con_contract c ON c.id=p.contract_id AND c.is_deleted=0
@@ -3799,7 +4049,10 @@ export class MySqlActionExecutor {
               "只有已审批通过的日常采购可以完成",
               409,
             );
-          if (Number(purchase.contractRelated) === 1 && purchase.projectId == null)
+          if (
+            Number(purchase.contractRelated) === 1 &&
+            purchase.projectId == null
+          )
             throw new AppError(
               "PURCHASE_CONTRACT_PROJECT_INVALID",
               "合同关联采购的合同或项目已失效",
@@ -3812,7 +4065,11 @@ export class MySqlActionExecutor {
                 "Daily purchase is outside the current user scope",
                 403,
               );
-            await requireProjectWriteAccess(connection, purchase.projectId, user);
+            await requireProjectWriteAccess(
+              connection,
+              purchase.projectId,
+              user,
+            );
           }
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE fin_daily_purchase SET status='COMPLETED',updated_by=?,version=version+1 WHERE id=? AND status='APPROVED' AND is_deleted=0`,
@@ -3918,7 +4175,8 @@ export class MySqlActionExecutor {
         }
         case "crm.contact.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [counterparties] = await selectRows(connection,
+          const [counterparties] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.counterpartyId, all ? 1 : 0, user.employeeId],
           );
@@ -3954,7 +4212,8 @@ export class MySqlActionExecutor {
         }
         case "crm.visit.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [counterparties] = await selectRows(connection,
+          const [counterparties] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -3965,7 +4224,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.contactId) {
-            const [contacts] = await selectRows(connection,
+            const [contacts] = await selectRows(
+              connection,
               `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0`,
               [input.contactId, input.customerId],
             );
@@ -4030,7 +4290,8 @@ export class MySqlActionExecutor {
         }
         case "crm.visit.update": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [visits] = await selectRows(connection,
+          const [visits] = await selectRows(
+            connection,
             `SELECT id,customer_id customerId FROM crm_visit WHERE id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
             [input.visitId, all ? 1 : 0, user.employeeId, user.id],
           );
@@ -4042,7 +4303,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.contactId) {
-            const [contacts] = await selectRows(connection,
+            const [contacts] = await selectRows(
+              connection,
               `SELECT id FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0`,
               [input.contactId, existing.customerId],
             );
@@ -4094,7 +4356,8 @@ export class MySqlActionExecutor {
         }
         case "lead.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [customers] = await selectRows(connection,
+          const [customers] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -4105,7 +4368,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.sourceVisitId) {
-            const [visits] = await selectRows(connection,
+            const [visits] = await selectRows(
+              connection,
               `SELECT id FROM crm_visit WHERE id=? AND customer_id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
               [
                 input.sourceVisitId,
@@ -4122,7 +4386,8 @@ export class MySqlActionExecutor {
                 404,
               );
           }
-          const [duplicates] = await selectRows(connection,
+          const [duplicates] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,lead_code code FROM mkt_lead
               WHERE customer_id=? AND project_name=? AND status NOT IN('INVALID','CONVERTED') AND is_deleted=0
               LIMIT 1 FOR UPDATE`,
@@ -4163,7 +4428,8 @@ export class MySqlActionExecutor {
         }
         case "lead.followUp.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [leads] = await selectRows(connection,
+          const [leads] = await selectRows(
+            connection,
             `SELECT status FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) FOR UPDATE`,
             [input.leadId, all ? 1 : 0, user.employeeId, user.id],
           );
@@ -4210,7 +4476,8 @@ export class MySqlActionExecutor {
         }
         case "project.application.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [customers] = await selectRows(connection,
+          const [customers] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -4221,7 +4488,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.sourceLeadId) {
-            const [sourceLeads] = await selectRows(connection,
+            const [sourceLeads] = await selectRows(
+              connection,
               `SELECT id FROM mkt_lead WHERE id=? AND customer_id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
               [
                 input.sourceLeadId,
@@ -4275,7 +4543,8 @@ export class MySqlActionExecutor {
         }
         case "project.application.update": {
           const data = input.data as Record<string, any>,
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT status,version,CAST(created_by AS CHAR) createdBy FROM prj_project_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
               [input.applicationId],
             );
@@ -4303,7 +4572,8 @@ export class MySqlActionExecutor {
               409,
             );
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [customers] = await selectRows(connection,
+          const [customers] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [data.customerId, all ? 1 : 0, user.employeeId],
           );
@@ -4314,7 +4584,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (data.sourceLeadId) {
-            const [sourceLeads] = await selectRows(connection,
+            const [sourceLeads] = await selectRows(
+              connection,
               `SELECT id FROM mkt_lead WHERE id=? AND customer_id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
               [
                 data.sourceLeadId,
@@ -4383,7 +4654,8 @@ export class MySqlActionExecutor {
           const counterpartyIds = Array.from(
             new Set([input.tendererId, input.agencyId].filter(Boolean)),
           );
-          const [counterparties] = await selectRows(connection,
+          const [counterparties] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${counterpartyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
             [...counterpartyIds, all ? 1 : 0, user.employeeId],
           );
@@ -4425,7 +4697,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "bid.status.transition": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.bidId],
           );
@@ -4440,7 +4713,8 @@ export class MySqlActionExecutor {
           return { id: input.bidId, status };
         }
         case "bid.result.create": {
-          const [bids] = await selectRows(connection,
+          const [bids] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.bidId],
           );
@@ -4475,7 +4749,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), status: input.result };
         }
         case "bid.task.create": {
-          const [bids] = await selectRows(connection,
+          const [bids] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM bid_application WHERE id=? AND is_deleted=0`,
             [input.bidId],
           );
@@ -4507,7 +4782,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "bid.task.transition": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT t.status,t.assignee_id assigneeId,t.checker_id checkerId,b.project_id projectId
                FROM bid_task t
                JOIN bid_application b ON b.id=t.bid_id
@@ -4545,7 +4821,8 @@ export class MySqlActionExecutor {
           return { id: input.taskId, status };
         }
         case "bid.check.create": {
-          const [bids] = await selectRows(connection,
+          const [bids] = await selectRows(
+            connection,
             `SELECT project_id projectId FROM bid_application WHERE id=? AND is_deleted=0`,
             [input.bidId],
           );
@@ -4566,7 +4843,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "bid.check.result": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT c.id,c.responsible_id responsibleId,c.rectifier_id rectifierId,b.project_id projectId
                FROM bid_check c
                JOIN bid_application b ON b.id=c.bid_id
@@ -4608,7 +4886,8 @@ export class MySqlActionExecutor {
           if (input.projectId)
             await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.leadId) {
-            const [leads] = await selectRows(connection,
+            const [leads] = await selectRows(
+              connection,
               `SELECT CAST(customer_id AS CHAR) customerId FROM mkt_lead WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
               [input.leadId, all ? 1 : 0, user.employeeId, user.id],
             );
@@ -4628,7 +4907,8 @@ export class MySqlActionExecutor {
           const counterpartyIds = Array.from(
             new Set([input.partnerId, input.finalCustomerId]),
           );
-          const [counterparties] = await selectRows(connection,
+          const [counterparties] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${counterpartyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
             [...counterpartyIds, all ? 1 : 0, user.employeeId],
           );
@@ -4662,8 +4942,11 @@ export class MySqlActionExecutor {
         case "contract.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const partyIds = Array.from(new Set([input.partyAId, input.partyBId]));
-          const [parties] = await selectRows(connection,
+          const partyIds = Array.from(
+            new Set([input.partyAId, input.partyBId]),
+          );
+          const [parties] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id FROM crm_counterparty WHERE id IN (${partyIds.map(() => "?").join(",")}) AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)`,
             [...partyIds, all ? 1 : 0, user.employeeId],
           );
@@ -4674,7 +4957,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.parentContractId) {
-            const [parents] = await selectRows(connection,
+            const [parents] = await selectRows(
+              connection,
               `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
               [input.parentContractId, input.projectId],
             );
@@ -4717,7 +5001,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "contract.change.create": {
-          const [contracts] = await selectRows(connection,
+          const [contracts] = await selectRows(
+            connection,
             `SELECT project_id projectId,tax_inclusive_amount taxInclusiveAmount,expires_on expiresOn,status FROM con_contract WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.contractId],
           );
@@ -4735,7 +5020,8 @@ export class MySqlActionExecutor {
               "只有履行中的合同可以申请变更",
               409,
             );
-          const [pending] = await selectRows(connection,
+          const [pending] = await selectRows(
+            connection,
             `SELECT id FROM con_contract_change WHERE contract_id=? AND status IN('DRAFT','APPROVAL_PENDING') AND is_deleted=0 LIMIT 1 FOR UPDATE`,
             [input.contractId],
           );
@@ -4770,7 +5056,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "contract.milestone.create": {
-          const [contracts] = await selectRows(connection,
+          const [contracts] = await selectRows(
+            connection,
             `SELECT id,project_id projectId,status FROM con_contract WHERE id=? AND is_deleted=0`,
             [input.contractId],
           );
@@ -4780,7 +5067,11 @@ export class MySqlActionExecutor {
               "合同不存在或无权访问",
               404,
             );
-          await requireProjectWriteAccess(connection, contracts[0].projectId, user);
+          await requireProjectWriteAccess(
+            connection,
+            contracts[0].projectId,
+            user,
+          );
           if (
             !["PENDING_SIGNATURE", "PERFORMING", "CHANGED"].includes(
               String(contracts[0].status),
@@ -4807,7 +5098,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "contract.milestone.complete": {
-          const [milestones] = await selectRows(connection,
+          const [milestones] = await selectRows(
+            connection,
             `SELECT m.id,m.status,c.project_id projectId FROM con_contract_milestone m JOIN con_contract c ON c.id=m.contract_id WHERE m.id=? AND m.is_deleted=0 AND c.is_deleted=0 FOR UPDATE`,
             [input.milestoneId],
           );
@@ -4817,7 +5109,11 @@ export class MySqlActionExecutor {
               "履约节点不存在或无权访问",
               404,
             );
-          await requireProjectWriteAccess(connection, milestones[0].projectId, user);
+          await requireProjectWriteAccess(
+            connection,
+            milestones[0].projectId,
+            user,
+          );
           if (milestones[0].status !== "PENDING")
             throw new AppError(
               "CONTRACT_MILESTONE_COMPLETED",
@@ -4833,7 +5129,8 @@ export class MySqlActionExecutor {
         case "partner.plan.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [partners] = await selectRows(connection,
+          const [partners] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.partnerId, all ? 1 : 0, user.employeeId],
           );
@@ -4844,7 +5141,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.settlementMethod === "RATIO") {
-            const [ratioRows] = await selectRows(connection,
+            const [ratioRows] = await selectRows(
+              connection,
               `SELECT v.ratio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.status IN('DRAFT','ENABLED') WHERE p.project_id=? AND p.is_deleted=0 AND p.status IN('DRAFT','ENABLED') AND v.calculation_basis=? FOR UPDATE`,
               [input.projectId, input.calculationBasis],
             );
@@ -4892,14 +5190,16 @@ export class MySqlActionExecutor {
           return { id: String(plan.insertId), code, version: 1 };
         }
         case "partner.plan.version.create": {
-          const [plans] = await selectRows(connection,
+          const [plans] = await selectRows(
+            connection,
             `SELECT id,project_id projectId,current_version currentVersion FROM partner_plan WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.planId],
           );
           if (!plans[0])
             throw new AppError("PARTNER_PLAN_NOT_FOUND", "合作方案不存在", 404);
           await requireProjectWriteAccess(connection, plans[0].projectId, user);
-          const [nextRows] = await selectRows(connection,
+          const [nextRows] = await selectRows(
+            connection,
             `SELECT COALESCE(MAX(version_number),0)+1 nextVersion FROM partner_plan_version WHERE plan_id=? FOR UPDATE`,
             [input.planId],
           );
@@ -4931,7 +5231,8 @@ export class MySqlActionExecutor {
           };
         }
         case "partner.plan.version.activate": {
-          const [versions] = await selectRows(connection,
+          const [versions] = await selectRows(
+            connection,
             `SELECT v.id,v.version_number versionNumber,v.settlement_method settlementMethod,v.ratio,v.calculation_basis calculationBasis,v.effective_from effectiveFrom,p.project_id projectId FROM partner_plan_version v JOIN partner_plan p ON p.id=v.plan_id WHERE v.id=? AND v.plan_id=? AND p.is_deleted=0 AND v.status='DRAFT' FOR UPDATE`,
             [input.versionId, input.planId],
           );
@@ -4944,7 +5245,8 @@ export class MySqlActionExecutor {
             );
           await requireProjectWriteAccess(connection, version.projectId, user);
           if (version.settlementMethod === "RATIO") {
-            const [ratios] = await selectRows(connection,
+            const [ratios] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(v.ratio),0) totalRatio FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id AND v.version_number=p.current_version WHERE p.project_id=? AND p.id<>? AND p.is_deleted=0 AND p.status='ENABLED' AND v.status='ENABLED' AND v.calculation_basis=?`,
               [version.projectId, input.planId, version.calculationBasis],
             );
@@ -4977,7 +5279,8 @@ export class MySqlActionExecutor {
           };
         }
         case "partner.settlement.create": {
-          const [plans] = await selectRows(connection,
+          const [plans] = await selectRows(
+            connection,
             `SELECT p.id planId,p.project_id projectId,p.partner_id partnerId,v.id versionId,v.version_number versionNumber,v.settlement_method settlementMethod,v.fixed_amount fixedAmount,v.ratio,v.calculation_basis basis,v.deductible_cost_scope deductibleScope,v.upper_limit upperLimit,v.lower_limit lowerLimit,v.rounding_rule roundingRule FROM partner_plan p JOIN partner_plan_version v ON v.plan_id=p.id WHERE p.id=? AND p.is_deleted=0 AND p.status='ENABLED' AND v.status='ENABLED' AND v.effective_from<=? AND (v.effective_to IS NULL OR v.effective_to>=?) ORDER BY v.version_number DESC LIMIT 1 FOR UPDATE`,
             [input.planId, input.periodEndOn, input.periodStartOn],
           );
@@ -4991,23 +5294,27 @@ export class MySqlActionExecutor {
           await requireProjectWriteAccess(connection, plan.projectId, user);
           let basisAmount = 0;
           if (plan.basis === "CONTRACT_REVENUE_EX_TAX") {
-            const [r] = await selectRows(connection,
+            const [r] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
               [plan.projectId],
             );
             basisAmount = Number(r[0]?.amount ?? 0);
           } else if (plan.basis === "ACTUAL_RECEIPTS") {
-            const [r] = await selectRows(connection,
+            const [r] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(amount),0) amount FROM fin_receipt WHERE project_id=? AND status='ACTIVE' AND is_deleted=0 AND received_on<=?`,
               [plan.projectId, input.periodEndOn],
             );
             basisAmount = Number(r[0]?.amount ?? 0);
           } else if (plan.basis === "PROJECT_GROSS_PROFIT") {
-            const [incomeRows] = await selectRows(connection,
+            const [incomeRows] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(tax_exclusive_amount),0) amount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
               [plan.projectId],
             );
-            const [costRows] = await selectRows(connection,
+            const [costRows] = await selectRows(
+              connection,
               `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=? AND is_deleted=0),0)) amount`,
               [plan.projectId, plan.projectId, plan.projectId],
             );
@@ -5017,7 +5324,8 @@ export class MySqlActionExecutor {
                 Number(costRows[0]?.amount ?? 0),
             );
           }
-          const [historyRows] = await selectRows(connection,
+          const [historyRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE plan_id=? AND status IN('APPROVED','PAID') AND is_deleted=0`,
             [plan.planId],
           );
@@ -5085,7 +5393,8 @@ export class MySqlActionExecutor {
         case "deposit.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
-          const [counterparties] = await selectRows(connection,
+          const [counterparties] = await selectRows(
+            connection,
             `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.counterpartyId, all ? 1 : 0, user.employeeId],
           );
@@ -5096,7 +5405,8 @@ export class MySqlActionExecutor {
               404,
             );
           if (input.bidId) {
-            const [bids] = await selectRows(connection,
+            const [bids] = await selectRows(
+              connection,
               `SELECT id FROM bid_application WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
               [input.bidId, input.projectId],
             );
@@ -5108,7 +5418,8 @@ export class MySqlActionExecutor {
               );
           }
           if (input.contractId) {
-            const [contracts] = await selectRows(connection,
+            const [contracts] = await selectRows(
+              connection,
               `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
               [input.contractId, input.projectId],
             );
@@ -5141,7 +5452,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), code };
         }
         case "deposit.event.create": {
-          const [old] = await selectRows(connection,
+          const [old] = await selectRows(
+            connection,
             `SELECT project_id projectId,amount,occupied_amount occupied,loss_confirmed_amount loss,status,direction FROM fin_deposit WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.depositId],
           );
@@ -5149,7 +5461,8 @@ export class MySqlActionExecutor {
           if (!deposit)
             throw new AppError("DEPOSIT_NOT_FOUND", "保证金不存在", 404);
           await requireProjectWriteAccess(connection, deposit.projectId, user);
-          const [seen] = await selectRows(connection,
+          const [seen] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,CAST(deposit_id AS CHAR) depositId,event_type eventType,amount,CAST(operator_id AS CHAR) operatorId FROM fin_deposit_event WHERE idempotency_key=?`,
             [input.idempotencyKey],
           );
@@ -5183,7 +5496,8 @@ export class MySqlActionExecutor {
                 "保证金缴纳审批通过后才能登记实缴",
                 409,
               );
-            const [paidRows] = await selectRows(connection,
+            const [paidRows] = await selectRows(
+              connection,
               `SELECT COALESCE(SUM(amount),0) amount FROM fin_deposit_event WHERE deposit_id=? AND event_type='PAY'`,
               [input.depositId],
             );
@@ -5281,12 +5595,14 @@ export class MySqlActionExecutor {
         }
         case "project.close.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
-          const [acceptanceRows] = await selectRows(connection,
+          const [acceptanceRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_acceptance WHERE project_id=? AND status='COMPLETED' AND is_deleted=0`,
             [input.projectId],
           );
           const acceptancePassed = Number(acceptanceRows[0]?.count ?? 0) > 0;
-          const [contractRows] = await selectRows(connection,
+          const [contractRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(tax_exclusive_amount),0) profitAmount,COALESCE(SUM(tax_inclusive_amount),0) receivableAmount FROM con_contract WHERE project_id=? AND contract_type='INCOME' AND amount_status='CONFIRMED' AND status IN('PENDING_SIGNATURE','PERFORMING','COMPLETED') AND is_deleted=0`,
             [input.projectId],
           );
@@ -5296,29 +5612,33 @@ export class MySqlActionExecutor {
           const contractReceivableAmount = Number(
             contractRows[0]?.receivableAmount ?? 0,
           );
-          const [invoiceRows] = await selectRows(connection,
+          const [invoiceRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(tax_inclusive_amount),0) amount FROM fin_sales_invoice WHERE project_id=? AND is_reversed=0 AND is_deleted=0`,
             [input.projectId],
           );
           const invoicedAmount = Number(invoiceRows[0]?.amount ?? 0);
-          const [receiptRows] = await selectRows(connection,
+          const [receiptRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(amount),0) amount FROM fin_receipt WHERE project_id=? AND status='ACTIVE' AND is_deleted=0`,
             [input.projectId],
           );
           const receivedAmount = Number(receiptRows[0]?.amount ?? 0);
-          const [depositRows] = await selectRows(connection,
+          const [depositRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(occupied_amount),0) amount FROM fin_deposit WHERE project_id=? AND is_deleted=0`,
             [input.projectId],
           );
           const unreturnedDeposit = Number(depositRows[0]?.amount ?? 0) > 0;
-          const [outstandingPayableRows] =
-            await selectRows(connection,
-              `SELECT (COALESCE((SELECT COUNT(*) FROM fin_payment_application pa WHERE pa.project_id=? AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT' AND pa.status IN('PENDING_PAYMENT','PARTIALLY_PAID') AND pa.requested_amount>COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=pa.id AND d.status='ACTIVE'),0)),0)+COALESCE((SELECT COUNT(*) FROM fin_reimbursement h WHERE h.project_id=? AND h.is_deleted=0 AND h.approval_status='APPROVED' AND h.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)+COALESCE((SELECT COUNT(*) FROM partner_settlement s WHERE s.project_id=? AND s.is_deleted=0 AND s.status='APPROVED' AND s.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)) count`,
-              [input.projectId, input.projectId, input.projectId],
-            );
+          const [outstandingPayableRows] = await selectRows(
+            connection,
+            `SELECT (COALESCE((SELECT COUNT(*) FROM fin_payment_application pa WHERE pa.project_id=? AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT' AND pa.status IN('PENDING_PAYMENT','PARTIALLY_PAID') AND pa.requested_amount>COALESCE((SELECT SUM(d.amount) FROM fin_payment_detail d WHERE d.payment_id=pa.id AND d.status='ACTIVE'),0)),0)+COALESCE((SELECT COUNT(*) FROM fin_reimbursement h WHERE h.project_id=? AND h.is_deleted=0 AND h.approval_status='APPROVED' AND h.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)+COALESCE((SELECT COUNT(*) FROM partner_settlement s WHERE s.project_id=? AND s.is_deleted=0 AND s.status='APPROVED' AND s.payment_status IN('UNPAID','PENDING_PAYMENT','PARTIALLY_PAID')),0)) count`,
+            [input.projectId, input.projectId, input.projectId],
+          );
           const outstandingPayable =
             Number(outstandingPayableRows[0]?.count ?? 0) > 0;
-          const [riskRows] = await selectRows(connection,
+          const [riskRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_risk_issue WHERE project_id=? AND is_deleted=0 AND status NOT IN('CLOSED')`,
             [input.projectId],
           );
@@ -5332,12 +5652,14 @@ export class MySqlActionExecutor {
             Number(riskRows[0]?.count ?? 0) +
               Number(acceptanceIssueRows[0]?.count ?? 0) >
             0;
-          const [settlementRows] = await selectRows(connection,
+          const [settlementRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(net_settlement_amount),0) amount FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0`,
             [input.projectId],
           );
           const settlementAmount = Number(settlementRows[0]?.amount ?? 0);
-          const [costRows] = await selectRows(connection,
+          const [costRows] = await selectRows(
+            connection,
             `SELECT (COALESCE((SELECT SUM(d.amount) FROM fin_reimbursement_detail d JOIN fin_reimbursement h ON h.id=d.reimbursement_id WHERE h.project_id=? AND h.approval_status='APPROVED' AND d.status='ACTIVE'),0)+COALESCE((SELECT SUM(confirmed_cost_amount) FROM partner_settlement WHERE project_id=? AND status IN('APPROVED','PAID') AND is_deleted=0),0)+COALESCE((SELECT SUM(loss_confirmed_amount) FROM fin_deposit WHERE project_id=? AND is_deleted=0),0)) amount`,
             [input.projectId, input.projectId, input.projectId],
           );
@@ -5352,11 +5674,11 @@ export class MySqlActionExecutor {
           };
           validateProjectClose(check, input.closeType, input.openItems);
           const code = await allocateNumber(connection, "PROJECT_CLOSE");
-          const [operatingPaymentRows] =
-            await selectRows(connection,
-              `SELECT COALESCE(SUM(d.amount),0) amount FROM fin_payment_detail d JOIN fin_payment_application pa ON pa.id=d.payment_id WHERE d.project_id=? AND d.status='ACTIVE' AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT'`,
-              [input.projectId],
-            );
+          const [operatingPaymentRows] = await selectRows(
+            connection,
+            `SELECT COALESCE(SUM(d.amount),0) amount FROM fin_payment_detail d JOIN fin_payment_application pa ON pa.id=d.payment_id WHERE d.project_id=? AND d.status='ACTIVE' AND pa.is_deleted=0 AND pa.source_type<>'DEPOSIT'`,
+            [input.projectId],
+          );
           const operatingPayment = Number(operatingPaymentRows[0]?.amount ?? 0);
           const profit = {
             contractOperatingProfit: contractProfitAmount - confirmedCost,
@@ -5403,33 +5725,28 @@ export class MySqlActionExecutor {
             pageSize = input.pageSize as number,
             closeAccess = buildProjectReferenceScope(user, "x.project_id"),
             openItemAccess = buildProjectReferenceScope(user, "c.project_id"),
-            [rows] = await selectRows(connection,
+            [rows] = await selectRows(
+              connection,
               `SELECT CAST(x.id AS CHAR) id,x.close_code code,CAST(x.project_id AS CHAR) projectId,p.project_name projectName,x.applied_on appliedOn,x.close_type closeType,x.contract_amount_snapshot contractAmount,x.received_amount_snapshot receivedAmount,x.confirmed_cost_snapshot confirmedCost,x.status FROM prj_close_application x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND (x.created_by=? OR ${closeAccess.sql}) ORDER BY x.id DESC LIMIT ? OFFSET ?`,
-              [
-                user.id,
-                ...closeAccess.params,
-                pageSize,
-                (page - 1) * pageSize,
-              ],
+              [user.id, ...closeAccess.params, pageSize, (page - 1) * pageSize],
             ),
-            [openItems] = await selectRows(connection,
+            [openItems] = await selectRows(
+              connection,
               `SELECT CAST(i.id AS CHAR) id,CAST(i.close_application_id AS CHAR) closeApplicationId,c.close_code closeCode,p.project_name projectName,i.item_type itemType,i.description,CAST(i.responsible_id AS CHAR) responsibleId,i.due_on dueOn,i.completed_on completedOn,i.status FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0 WHERE (c.created_by=? OR i.responsible_id=? OR ${openItemAccess.sql}) ORDER BY i.status='OPEN' DESC,i.due_on,i.id DESC LIMIT 500`,
-              [
-                user.id,
-                user.employeeId,
-                ...openItemAccess.params,
-              ],
+              [user.id, user.employeeId, ...openItemAccess.params],
             );
           return { items: rows, openItems, page, pageSize };
         }
         case "org.employee.options": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name,position_name positionName FROM org_employee WHERE account_status='ENABLED' AND is_deleted=0 ORDER BY name,id LIMIT 1000`,
           );
           return { items: rows };
         }
         case "project.close.openItem.complete": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT i.status,CAST(i.responsible_id AS CHAR) responsibleId,CAST(p.project_manager_id AS CHAR) projectManagerId,CAST(c.created_by AS CHAR) createdBy FROM prj_close_open_item i JOIN prj_close_application c ON c.id=i.close_application_id AND c.is_deleted=0 JOIN prj_project p ON p.id=c.project_id AND p.is_deleted=0 WHERE i.id=? FOR UPDATE`,
             [input.itemId],
           );
@@ -5471,19 +5788,23 @@ export class MySqlActionExecutor {
         }
         case "settlement.summary": {
           const access = buildProjectReferenceScope(user, "x.project_id");
-          const [planRows] = await selectRows(connection,
+          const [planRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM partner_plan x WHERE x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
-          const [settlementRows] = await selectRows(connection,
+          const [settlementRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(x.net_settlement_amount),0) amount FROM partner_settlement x WHERE x.status IN('APPROVED','PAID') AND x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
-          const [depositRows] = await selectRows(connection,
+          const [depositRows] = await selectRows(
+            connection,
             `SELECT COALESCE(SUM(x.occupied_amount),0) amount FROM fin_deposit x WHERE x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
-          const [closeRows] = await selectRows(connection,
+          const [closeRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_close_application x WHERE x.status NOT IN('CLOSED','REJECTED','WITHDRAWN') AND x.is_deleted=0 AND ${access.sql}`,
             access.params,
           );
@@ -5497,15 +5818,18 @@ export class MySqlActionExecutor {
         case "delivery.summary": {
           const projectId = (input.projectId as string | undefined) ?? null,
             access = buildProjectReferenceScope(user, "x.project_id");
-          const [stageRows] = await selectRows(connection,
+          const [stageRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count,COALESCE(AVG(completion_percentage),0) progress FROM prj_stage x WHERE x.is_deleted=0 AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
-          const [riskRows] = await selectRows(connection,
+          const [riskRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_risk_issue x WHERE x.is_deleted=0 AND x.status<>'CLOSED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
-          const [deliverableRows] = await selectRows(connection,
+          const [deliverableRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM prj_deliverable x WHERE x.is_deleted=0 AND x.status='CONFIRMED' AND (? IS NULL OR x.project_id=?) AND ${access.sql}`,
             [projectId, projectId, ...access.params],
           );
@@ -5518,23 +5842,28 @@ export class MySqlActionExecutor {
         }
         case "delivery.records": {
           const access = buildProjectReferenceScope(user, "x.project_id");
-          const [deliverables] = await selectRows(connection,
+          const [deliverables] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.deliverable_name deliverableName,x.deliverable_version deliverableVersion,x.submitted_on submittedOn,x.status,p.project_name projectName FROM prj_deliverable x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
-          const [acceptances] = await selectRows(connection,
+          const [acceptances] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,x.acceptance_type acceptanceType,x.accepted_on acceptedOn,x.result,x.status,p.project_name projectName FROM prj_acceptance x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
-          const [stages] = await selectRows(connection,
+          const [stages] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.stage_name stageName,x.completion_percentage completionPercentage,x.status,p.project_name projectName FROM prj_stage x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.project_id,x.stage_order`,
             access.params,
           );
-          const [risks] = await selectRows(connection,
+          const [risks] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.title,x.severity,x.status,p.project_name projectName FROM prj_risk_issue x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
-          const [changes] = await selectRows(connection,
+          const [changes] = await selectRows(
+            connection,
             `SELECT CAST(x.id AS CHAR) id,CAST(x.project_id AS CHAR) projectId,x.change_type changeType,x.schedule_impact_days scheduleImpactDays,x.amount_impact amountImpact,x.status,p.project_name projectName FROM prj_change x JOIN prj_project p ON p.id=x.project_id AND p.is_deleted=0 WHERE x.is_deleted=0 AND ${access.sql} ORDER BY x.id DESC LIMIT 100`,
             access.params,
           );
@@ -5542,7 +5871,8 @@ export class MySqlActionExecutor {
         }
         case "project.start.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
-          const [contractRows] = await selectRows(connection,
+          const [contractRows] = await selectRows(
+            connection,
             `SELECT COUNT(*) count FROM con_contract WHERE project_id=? AND status IN('PERFORMING','COMPLETED') AND effective_on IS NOT NULL AND effective_on<=CURDATE() AND is_deleted=0`,
             [input.projectId],
           );
@@ -5600,7 +5930,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "project.stage.transition": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM prj_stage WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.stageId],
           );
@@ -5617,7 +5948,8 @@ export class MySqlActionExecutor {
         case "project.progress.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.stageId) {
-            const [stages] = await selectRows(connection,
+            const [stages] = await selectRows(
+              connection,
               `SELECT id,status FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0 FOR UPDATE`,
               [input.stageId, input.projectId],
             );
@@ -5686,7 +6018,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId) };
         }
         case "project.risk.transition": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT status,project_id projectId FROM prj_risk_issue WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.riskId],
           );
@@ -5703,7 +6036,8 @@ export class MySqlActionExecutor {
         case "project.deliverable.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.stageId) {
-            const [stages] = await selectRows(connection,
+            const [stages] = await selectRows(
+              connection,
               `SELECT id FROM prj_stage WHERE id=? AND project_id=? AND is_deleted=0`,
               [input.stageId, input.projectId],
             );
@@ -5731,7 +6065,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), status: "SUBMITTED" };
         }
         case "project.deliverable.confirm": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT id,project_id projectId,status FROM prj_deliverable WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.deliverableId],
           );
@@ -5753,7 +6088,8 @@ export class MySqlActionExecutor {
         case "project.acceptance.create": {
           await requireProjectWriteAccess(connection, input.projectId, user);
           if (input.contractId) {
-            const [contracts] = await selectRows(connection,
+            const [contracts] = await selectRows(
+              connection,
               `SELECT id FROM con_contract WHERE id=? AND project_id=? AND is_deleted=0 LIMIT 1`,
               [input.contractId, input.projectId],
             );
@@ -5780,7 +6116,8 @@ export class MySqlActionExecutor {
           return { id: String(result.insertId), status: "DRAFT" };
         }
         case "project.acceptance.result": {
-          const [rows] = await selectRows(connection,
+          const [rows] = await selectRows(
+            connection,
             `SELECT project_id projectId,status FROM prj_acceptance WHERE id=? AND is_deleted=0 FOR UPDATE`,
             [input.acceptanceId],
           );
@@ -5867,5 +6204,3 @@ export class MySqlActionExecutor {
     return withTransaction(this.pool, work);
   }
 }
-
-

@@ -602,6 +602,25 @@ async function createAccount() {
   }
 }
 
+async function saveAccountInfo(user: User) {
+  error.value = null;
+  notice.value = null;
+  saving.value = true;
+  try {
+    await callApi("admin.user.update", {
+      userId: user.id,
+      username: account.value.username,
+      cloudbaseUid: account.value.cloudbaseUid,
+    });
+    await load();
+    notice.value = `${user.employeeName} 的登录账号信息已保存`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "账号信息保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function createPositionAssignment() {
   saving.value = true;
   try {
@@ -2061,16 +2080,24 @@ onMounted(load);
                         v-if="userForEmployee(person.id)"
                         class="existing-account-box"
                       >
-                        <div class="account-summary">
-                          <span>登录账号</span>
-                          <strong>{{
-                            userForEmployee(person.id)?.username
-                          }}</strong>
-                          <small
-                            >UID：{{
-                              userForEmployee(person.id)?.cloudbaseUid
-                            }}</small
-                          >
+                        <form
+                          class="account-summary account-info-form"
+                          @submit.prevent="
+                            saveAccountInfo(userForEmployee(person.id)!)
+                          "
+                        >
+                          <label
+                            >登录账号<input
+                              v-model="account.username"
+                              required
+                              placeholder="登录账号"
+                          /></label>
+                          <label
+                            >本地/身份 UID<input
+                              v-model="account.cloudbaseUid"
+                              required
+                              placeholder="本地/身份 UID"
+                          /></label>
                           <small
                             >状态：{{
                               statusText(
@@ -2078,7 +2105,8 @@ onMounted(load);
                               )
                             }}</small
                           >
-                        </div>
+                          <button :disabled="saving">保存账号信息</button>
+                        </form>
                         <div>
                           <strong class="field-title">账号角色</strong>
                           <div class="role-checkbox-grid account-role-options">
@@ -3904,6 +3932,25 @@ onMounted(load);
 
 .account-summary strong {
   font-size: 18px;
+}
+
+.account-info-form label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  color: #22304a;
+  font-weight: 900;
+}
+
+.account-info-form input {
+  width: 100%;
+  margin: 0;
+}
+
+.account-info-form button {
+  width: auto;
+  margin: 6px 0 0;
+  padding: 9px 14px;
 }
 
 .field-title {
