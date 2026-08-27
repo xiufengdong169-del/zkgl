@@ -15,6 +15,18 @@ const scopedUser: SessionUser = {
   dataScopes: [],
 };
 
+const approvalReader: SessionUser = {
+  id: "approver-user",
+  cloudbaseUid: "cb-approver",
+  employeeId: "approver-emp",
+  departmentId: "dept-1",
+  enabled: true,
+  roleCodes: ["MARKET_BUSINESS"],
+  permissionCodes: ["lead.read", "approval.task.read"],
+  sensitiveFieldAccess: {},
+  dataScopes: [],
+};
+
 function leadWriteConnection(options: { accessible: boolean }) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   return {
@@ -96,6 +108,74 @@ function leadCreateConnection(options: {
 }
 
 describe("lead write data scopes", () => {
+  it("allows approval participants to view the related lead detail", async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const connection = {
+      calls,
+      beginTransaction: async () => calls.push({ sql: "BEGIN", params: [] }),
+      commit: async () => calls.push({ sql: "COMMIT", params: [] }),
+      rollback: async () => calls.push({ sql: "ROLLBACK", params: [] }),
+      release: () => calls.push({ sql: "RELEASE", params: [] }),
+      execute: async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes("FROM mkt_lead l JOIN crm_counterparty c")) {
+          return [
+            [
+              {
+                id: "lead-1",
+                code: "XS-2026-0001",
+                projectName: "测试线索",
+                customerId: "customer-1",
+                customerName: "测试客户",
+                sourceCode: "VISIT",
+                discoveredOn: "2026-08-25",
+                estimatedAmount: 10,
+                projectType: "CONSULTING",
+                requirementSummary: "测试需求",
+                successProbability: 50,
+                status: "PENDING_REGISTRATION",
+                nextFollowUpAt: null,
+                approvalInstanceId: "instance-1",
+                version: 0,
+              },
+            ],
+            [],
+          ];
+        }
+        if (sql.includes("FROM mkt_lead_follow_up")) return [[], []];
+        if (sql.includes("FROM wf_instance i")) return [[], []];
+        return [[], []];
+      },
+    };
+    const executor = new MySqlActionExecutor({
+      getConnection: async () => connection,
+    } as never);
+
+    const result = (await executor.execute(
+      "lead.detail",
+      { leadId: "lead-1" },
+      approvalReader,
+    )) as { lead: { id: string } };
+
+    expect(result.lead.id).toBe("lead-1");
+    const detailQuery = calls.find((call) =>
+      call.sql.includes("FROM mkt_lead l JOIN crm_counterparty c"),
+    );
+    expect(detailQuery?.sql).toContain("FROM wf_instance wi");
+    expect(detailQuery?.sql).toContain("wt.assignee_id=?");
+    expect(detailQuery?.params).toEqual([
+      "lead-1",
+      0,
+      "approver-emp",
+      "approver-user",
+      "approver-user",
+      "approver-emp",
+      "approver-emp",
+      "approver-emp",
+    ]);
+    expect(calls.map((call) => call.sql)).toContain("COMMIT");
+  });
+
   it("requires accessible customer ownership before creating leads", async () => {
     const connection = leadCreateConnection({
       customerAccessible: false,
@@ -118,7 +198,9 @@ describe("lead write data scopes", () => {
     expect(access.sql).toContain("owner_id=?");
     expect(access.params).toEqual(["c1", 0, "e1"]);
     expect(
-      connection.calls.some((call) => call.sql.includes("FROM sys_number_rule")),
+      connection.calls.some((call) =>
+        call.sql.includes("FROM sys_number_rule"),
+      ),
     ).toBe(false);
     expect(
       connection.calls.some((call) =>
@@ -172,8 +254,10 @@ describe("lead write data scopes", () => {
     ).resolves.toEqual({ id: "33", code: "LEAD-2026-0001" });
 
     expect(
-      connection.calls.some((call) =>
-        call.sql.includes("FROM mkt_lead") && call.sql.includes("customer_id=?"),
+      connection.calls.some(
+        (call) =>
+          call.sql.includes("FROM mkt_lead") &&
+          call.sql.includes("customer_id=?"),
       ),
     ).toBe(true);
     expect(

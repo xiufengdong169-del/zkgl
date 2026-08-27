@@ -2185,8 +2185,17 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(
               connection,
-              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=?)`,
-              [input.leadId, all ? 1 : 0, user.employeeId, user.id],
+              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='LEAD' AND wi.business_id=l.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
+              [
+                input.leadId,
+                all ? 1 : 0,
+                user.employeeId,
+                user.id,
+                user.id,
+                user.employeeId,
+                user.employeeId,
+                user.employeeId,
+              ],
             );
           const lead = rows[0];
           if (!lead)
