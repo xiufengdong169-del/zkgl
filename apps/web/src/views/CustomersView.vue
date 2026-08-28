@@ -36,12 +36,20 @@ interface CounterpartyDetail {
   code: string;
   name: string;
   shortName?: string | null;
+  creditCode?: string | null;
   type: string;
   industry?: string | null;
   region?: string | null;
   address?: string | null;
   phone?: string | null;
   website?: string | null;
+  invoiceTitle?: string | null;
+  taxNumber?: string | null;
+  bankName?: string | null;
+  counterpartyBankAccount?: string | null;
+  bankBranchCode?: string | null;
+  invoicePhone?: string | null;
+  invoiceInformation?: string | null;
   cooperationStatus: string;
   remark?: string | null;
   version: number;
@@ -129,6 +137,13 @@ const form = ref({
   industry: "",
   address: "",
   phone: "",
+  invoiceTitle: "",
+  taxNumber: "",
+  bankName: "",
+  bankAccount: "",
+  bankBranchCode: "",
+  invoicePhone: "",
+  invoiceInformation: "",
   cooperationStatus: "POTENTIAL",
   remark: "",
 });
@@ -140,6 +155,13 @@ const editForm = ref({
   industry: "",
   address: "",
   phone: "",
+  invoiceTitle: "",
+  taxNumber: "",
+  bankName: "",
+  bankAccount: "",
+  bankBranchCode: "",
+  invoicePhone: "",
+  invoiceInformation: "",
   cooperationStatus: "POTENTIAL",
   remark: "",
   version: 0,
@@ -422,6 +444,13 @@ async function createCounterparty() {
       region: null,
       address: form.value.address || null,
       phone: form.value.phone || null,
+      invoiceTitle: form.value.invoiceTitle || form.value.name || null,
+      taxNumber: form.value.taxNumber || null,
+      bankName: form.value.bankName || null,
+      bankAccount: form.value.bankAccount || null,
+      bankBranchCode: form.value.bankBranchCode || null,
+      invoicePhone: form.value.invoicePhone || form.value.phone || null,
+      invoiceInformation: form.value.invoiceInformation || null,
       cooperationStatus: form.value.cooperationStatus,
       remark: form.value.remark || null,
     });
@@ -433,6 +462,13 @@ async function createCounterparty() {
       industry: "",
       address: "",
       phone: "",
+      invoiceTitle: "",
+      taxNumber: "",
+      bankName: "",
+      bankAccount: "",
+      bankBranchCode: "",
+      invoicePhone: "",
+      invoiceInformation: "",
       cooperationStatus: "POTENTIAL",
       remark: "",
     };
@@ -455,6 +491,13 @@ function startEditCounterparty() {
     industry: item.industry || "",
     address: item.address || item.region || "",
     phone: item.phone || "",
+    invoiceTitle: item.invoiceTitle || item.name || "",
+    taxNumber: item.taxNumber || item.creditCode || "",
+    bankName: item.bankName || "",
+    bankAccount: item.counterpartyBankAccount || "",
+    bankBranchCode: item.bankBranchCode || "",
+    invoicePhone: item.invoicePhone || item.phone || "",
+    invoiceInformation: item.invoiceInformation || "",
     cooperationStatus: item.cooperationStatus || "POTENTIAL",
     remark: item.remark || "",
     version: Number(item.version ?? 0),
@@ -478,6 +521,13 @@ async function updateCounterparty() {
       region: null,
       address: f.address || null,
       phone: f.phone || null,
+      invoiceTitle: f.invoiceTitle || f.name || null,
+      taxNumber: f.taxNumber || null,
+      bankName: f.bankName || null,
+      bankAccount: f.bankAccount || null,
+      bankBranchCode: f.bankBranchCode || null,
+      invoicePhone: f.invoicePhone || f.phone || null,
+      invoiceInformation: f.invoiceInformation || null,
       cooperationStatus: f.cooperationStatus,
       remark: f.remark || null,
       version: f.version,
@@ -629,7 +679,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <p class="eyebrow">CRM</p>
-        <h1>客户管理</h1>
+        <h1>往来单位管理</h1>
       </div>
       <div class="header-actions">
         <button class="primary-action" @click="openCounterpartyForm">
@@ -650,7 +700,7 @@ onMounted(async () => {
       </div>
     </header>
 
-    <nav class="crm-subnav" aria-label="客户管理分类">
+    <nav class="crm-subnav" aria-label="往来单位管理分类">
       <button
         type="button"
         :class="{ active: activeSection === 'counterparties' }"
@@ -736,6 +786,33 @@ onMounted(async () => {
         </select></label
       >
       <label>电话<input v-model="form.phone" maxlength="32" /></label>
+      <h2 class="wide form-section-title">发票和银行信息</h2>
+      <label
+        >发票抬头<input
+          v-model="form.invoiceTitle"
+          maxlength="255"
+          placeholder="默认同单位名称"
+      /></label>
+      <label
+        >发票税号（纳税人统一识别号）<input
+          v-model="form.taxNumber"
+          maxlength="64"
+      /></label>
+      <label>开户银行<input v-model="form.bankName" maxlength="255" /></label>
+      <label>银行账号<input v-model="form.bankAccount" maxlength="128" /></label>
+      <label>银行行号<input v-model="form.bankBranchCode" maxlength="64" /></label>
+      <label
+        >联系电话<input
+          v-model="form.invoicePhone"
+          maxlength="32"
+          placeholder="发票或收款联系电话"
+      /></label>
+      <label class="wide"
+        >开票备注<textarea
+          v-model="form.invoiceInformation"
+          maxlength="1000"
+        ></textarea>
+      </label>
       <label class="wide"
         >备注<textarea v-model="form.remark" maxlength="1000"></textarea>
       </label>
@@ -788,6 +865,39 @@ onMounted(async () => {
         </select></label
       >
       <label>电话<input v-model="editForm.phone" maxlength="32" /></label>
+      <h2 class="wide form-section-title">发票和银行信息</h2>
+      <label
+        >发票抬头<input
+          v-model="editForm.invoiceTitle"
+          maxlength="255"
+          placeholder="默认同单位名称"
+      /></label>
+      <label
+        >发票税号（纳税人统一识别号）<input
+          v-model="editForm.taxNumber"
+          maxlength="64"
+      /></label>
+      <label
+        >开户银行<input v-model="editForm.bankName" maxlength="255"
+      /></label>
+      <label
+        >银行账号<input v-model="editForm.bankAccount" maxlength="128"
+      /></label>
+      <label
+        >银行行号<input v-model="editForm.bankBranchCode" maxlength="64"
+      /></label>
+      <label
+        >联系电话<input
+          v-model="editForm.invoicePhone"
+          maxlength="32"
+          placeholder="发票或收款联系电话"
+      /></label>
+      <label class="wide"
+        >开票备注<textarea
+          v-model="editForm.invoiceInformation"
+          maxlength="1000"
+        ></textarea>
+      </label>
       <label class="wide"
         >备注<textarea v-model="editForm.remark" maxlength="1000"></textarea>
       </label>
@@ -966,6 +1076,19 @@ onMounted(async () => {
         >
         <span>电话：{{ detail.counterparty.phone || "-" }}</span>
         <span>简称：{{ detail.counterparty.shortName || "-" }}</span>
+        <span>发票抬头：{{ detail.counterparty.invoiceTitle || detail.counterparty.name }}</span>
+        <span>发票税号：{{ detail.counterparty.taxNumber || detail.counterparty.creditCode || "-" }}</span>
+        <span>开户银行：{{ detail.counterparty.bankName || "-" }}</span>
+        <span>银行账号：{{ detail.counterparty.counterpartyBankAccount || "-" }}</span>
+        <span>银行行号：{{ detail.counterparty.bankBranchCode || "-" }}</span>
+        <span>发票联系电话：{{ detail.counterparty.invoicePhone || detail.counterparty.phone || "-" }}</span>
+      </div>
+      <div
+        v-if="detail.counterparty.invoiceInformation"
+        class="invoice-note"
+      >
+        <strong>开票备注</strong>
+        <p>{{ detail.counterparty.invoiceInformation }}</p>
       </div>
 
       <div class="module-grid">
@@ -1272,6 +1395,14 @@ onMounted(async () => {
   margin-top: 0;
 }
 
+.form-section-title {
+  margin: 10px 0 -2px;
+  padding-top: 10px;
+  border-top: 1px solid #e6edf5;
+  color: #0b1f3a;
+  font-size: 18px;
+}
+
 .list-panel table {
   table-layout: auto;
   min-width: 760px;
@@ -1462,6 +1593,26 @@ onMounted(async () => {
   border-radius: 10px;
   background: #fbfdff;
   color: #4c5d75;
+}
+
+.invoice-note {
+  margin: -6px 0 22px;
+  padding: 12px 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  background: #fbfdff;
+  color: #4c5d75;
+}
+
+.invoice-note strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #0b1f3a;
+}
+
+.invoice-note p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 .danger-button {

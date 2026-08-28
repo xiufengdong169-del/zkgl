@@ -2153,19 +2153,22 @@ export class MySqlActionExecutor {
             keyword,
             pattern,
             pattern,
+            pattern,
+            pattern,
+            pattern,
           ];
           const [countRows] = await selectRows(
             connection,
             `SELECT COUNT(*) total
              FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
-              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')`,
+              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\' OR short_name LIKE ? ESCAPE '\\\\' OR tax_number LIKE ? ESCAPE '\\\\' OR bank_name LIKE ? ESCAPE '\\\\')`,
             scopeParams,
           );
           const [rows] = await selectRows(
             connection,
-            `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus
+            `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,cooperation_status cooperationStatus,invoice_title invoiceTitle,tax_number taxNumber,bank_name bankName,bank_account counterpartyBankAccount
              FROM crm_counterparty WHERE is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?)
-              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\')
+              AND (?='' OR name LIKE ? ESCAPE '\\\\' OR counterparty_code LIKE ? ESCAPE '\\\\' OR short_name LIKE ? ESCAPE '\\\\' OR tax_number LIKE ? ESCAPE '\\\\' OR bank_name LIKE ? ESCAPE '\\\\')
              ORDER BY id DESC LIMIT ? OFFSET ?`,
             [...scopeParams, pageSize, (page - 1) * pageSize],
           );
@@ -2180,7 +2183,7 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(
               connection,
-              `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,counterparty_type type,industry,region,address,phone,website,cooperation_status cooperationStatus,remark,version FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
+              `SELECT CAST(id AS CHAR) id,counterparty_code code,name,short_name shortName,credit_code creditCode,counterparty_type type,industry,region,address,phone,website,invoice_title invoiceTitle,bank_name bankName,bank_account counterpartyBankAccount,bank_branch_code bankBranchCode,tax_number taxNumber,invoice_phone invoicePhone,invoice_information invoiceInformation,cooperation_status cooperationStatus,remark,version FROM crm_counterparty WHERE id=? AND is_deleted=0 AND (?=1 OR owner_id=?)`,
               [input.counterpartyId, all ? 1 : 0, user.employeeId],
             );
           const counterparty = rows[0];
@@ -4260,8 +4263,8 @@ export class MySqlActionExecutor {
         case "crm.counterparty.create": {
           const code = await allocateNumber(connection, "COUNTERPARTY");
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO crm_counterparty(counterparty_code,name,short_name,credit_code,counterparty_type,industry,region,address,phone,website,owner_id,source_code,cooperation_status,remark,created_by,updated_by)
-             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO crm_counterparty(counterparty_code,name,short_name,credit_code,counterparty_type,industry,region,address,phone,website,invoice_title,bank_name,bank_account,bank_branch_code,tax_number,invoice_phone,invoice_information,owner_id,source_code,cooperation_status,remark,created_by,updated_by)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               code,
               input.name,
@@ -4273,6 +4276,13 @@ export class MySqlActionExecutor {
               input.address ?? null,
               input.phone ?? null,
               input.website ?? null,
+              input.invoiceTitle ?? input.name,
+              input.bankName ?? null,
+              input.bankAccount ?? null,
+              input.bankBranchCode ?? null,
+              input.taxNumber ?? input.creditCode ?? null,
+              input.invoicePhone ?? input.phone ?? null,
+              input.invoiceInformation ?? null,
               user.employeeId,
               input.sourceCode ?? null,
               input.cooperationStatus,
@@ -4287,7 +4297,7 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE crm_counterparty
-                SET name=?,short_name=?,credit_code=?,counterparty_type=?,industry=?,region=?,address=?,phone=?,website=?,source_code=?,cooperation_status=?,remark=?,updated_by=?,version=version+1
+                SET name=?,short_name=?,credit_code=?,counterparty_type=?,industry=?,region=?,address=?,phone=?,website=?,invoice_title=?,bank_name=?,bank_account=?,bank_branch_code=?,tax_number=?,invoice_phone=?,invoice_information=?,source_code=?,cooperation_status=?,remark=?,updated_by=?,version=version+1
               WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND version=? AND (?=1 OR owner_id=?)`,
             [
               input.name,
@@ -4299,6 +4309,13 @@ export class MySqlActionExecutor {
               input.address ?? null,
               input.phone ?? null,
               input.website ?? null,
+              input.invoiceTitle ?? input.name,
+              input.bankName ?? null,
+              input.bankAccount ?? null,
+              input.bankBranchCode ?? null,
+              input.taxNumber ?? input.creditCode ?? null,
+              input.invoicePhone ?? input.phone ?? null,
+              input.invoiceInformation ?? null,
               input.sourceCode ?? null,
               input.cooperationStatus,
               input.remark ?? null,

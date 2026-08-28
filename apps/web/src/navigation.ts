@@ -7,7 +7,7 @@ export interface NavigationItem {
 export const navigationItems: NavigationItem[] = [
   { to: "/", label: "工作台" },
   { to: "/demo", label: "演示测试中心" },
-  { to: "/customers", label: "客户管理", permission: "crm.counterparty.read" },
+  { to: "/customers", label: "往来单位管理", permission: "crm.counterparty.read" },
   { to: "/leads", label: "市场线索", permission: "lead.read" },
   { to: "/projects", label: "项目管理", permission: "project.read" },
   { to: "/bids", label: "投标管理", permission: "bid.application.read" },

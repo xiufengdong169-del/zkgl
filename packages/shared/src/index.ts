@@ -52,6 +52,10 @@ export interface CounterpartySummary {
   shortName: string | null;
   type: string;
   cooperationStatus: string;
+  invoiceTitle?: string | null;
+  taxNumber?: string | null;
+  bankName?: string | null;
+  counterpartyBankAccount?: string | null;
 }
 
 export interface LeadSummary {
