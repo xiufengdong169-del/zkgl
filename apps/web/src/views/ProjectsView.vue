@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { callApi } from "../api";
 import { approvalCodeText, businessTypeText } from "../approval-display";
 import { canSubmitApprovalStatus } from "../approval-status";
@@ -88,6 +88,7 @@ interface ProjectDetail {
 
 const auth = useAuthStore();
 const route = useRoute();
+const router = useRouter();
 const projects = ref<ProjectRow[]>([]);
 const applications = ref<ApplicationRow[]>([]);
 const customers = ref<Customer[]>([]);
@@ -381,6 +382,28 @@ function routeApplicationId() {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function routeReturnMode() {
+  const value = route.query.returnMode;
+  return Array.isArray(value) ? value[0] || "PENDING" : value || "PENDING";
+}
+
+function fromApprovalInbox() {
+  const value = route.query.returnTo;
+  const source = Array.isArray(value) ? value[0] : value;
+  return source === "approvals";
+}
+
+async function closeSelectedApplication() {
+  if (fromApprovalInbox()) {
+    await router.push({
+      path: "/approvals",
+      query: { mode: routeReturnMode() },
+    });
+    return;
+  }
+  selectedApplication.value = null;
+}
+
 async function loadPage() {
   await load();
   const applicationId = routeApplicationId();
@@ -556,9 +579,9 @@ watch(
         <button
           class="secondary-button"
           type="button"
-          @click="selectedApplication = null"
+          @click="closeSelectedApplication"
         >
-          返回项目管理
+          {{ fromApprovalInbox() ? "返回审批与待办" : "返回项目管理" }}
         </button>
       </header>
       <p>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LeadSummary } from "@zkgl/shared";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { callApi } from "../api";
 import { approvalCodeText } from "../approval-display";
 import { useAuthStore } from "../stores/auth";
@@ -59,6 +59,7 @@ interface LinkedProjectApplication {
 
 const auth = useAuthStore();
 const route = useRoute();
+const router = useRouter();
 
 const items = ref<LeadSummary[]>([]);
 const customers = ref<CustomerOption[]>([]);
@@ -176,6 +177,31 @@ const canWithdrawApproval = computed(() => {
 function routeLeadId() {
   const value = route.query.leadId;
   return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function routeReturnMode() {
+  const value = route.query.returnMode;
+  return Array.isArray(value) ? value[0] || "PENDING" : value || "PENDING";
+}
+
+function fromApprovalInbox() {
+  const value = route.query.returnTo;
+  const source = Array.isArray(value) ? value[0] : value;
+  return source === "approvals";
+}
+
+async function closeSelectedLeadDetail() {
+  showEdit.value = false;
+  showFollowUp.value = false;
+  showConvertForm.value = false;
+  if (fromApprovalInbox()) {
+    await router.push({
+      path: "/approvals",
+      query: { mode: routeReturnMode() },
+    });
+    return;
+  }
+  selected.value = null;
 }
 
 function leadStatusText(value?: string | null) {
@@ -750,14 +776,9 @@ watch(
         <button
           class="secondary-button"
           type="button"
-          @click="
-            selected = null;
-            showEdit = false;
-            showFollowUp = false;
-            showConvertForm = false;
-          "
+          @click="closeSelectedLeadDetail"
         >
-          关闭详情
+          {{ fromApprovalInbox() ? "返回审批与待办" : "关闭详情" }}
         </button>
       </header>
 

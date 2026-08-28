@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import type { RouteLocationRaw } from "vue-router";
-import { RouterLink } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 import { callApi } from "../api";
 import { approvalCodeText, businessTypeText } from "../approval-display";
 
@@ -34,6 +34,7 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const loading = ref(false);
 const processing = ref<string | null>(null);
+const route = useRoute();
 
 function approvalStatusText(value?: string | null) {
   const labels: Record<string, string> = {
@@ -62,11 +63,15 @@ function positionText(value?: string | null) {
 }
 
 function detailRoute(item: ApprovalItem): RouteLocationRaw | null {
+  const source = { returnTo: "approvals", returnMode: activeMode.value };
   if (item.businessType === "LEAD") {
-    return { path: "/leads", query: { leadId: item.businessId } };
+    return { path: "/leads", query: { leadId: item.businessId, ...source } };
   }
   if (item.businessType === "PROJECT_APPLICATION") {
-    return { path: "/projects", query: { applicationId: item.businessId } };
+    return {
+      path: "/projects",
+      query: { applicationId: item.businessId, ...source },
+    };
   }
   if (item.businessType === "BID_APPLICATION") return { path: "/bids" };
   if (item.businessType === "CONTRACT") return { path: "/contracts" };
@@ -81,6 +86,12 @@ function detailRoute(item: ApprovalItem): RouteLocationRaw | null {
     return { path: "/finance" };
   }
   return null;
+}
+
+function modeFromRoute(): Mode {
+  const value = route.query.mode;
+  const mode = Array.isArray(value) ? value[0] : value;
+  return filters.some((filter) => filter.mode === mode) ? (mode as Mode) : "PENDING";
 }
 
 async function load(mode = activeMode.value) {
@@ -183,7 +194,14 @@ async function deleteApprovalRecord(item: ApprovalItem) {
   }
 }
 
-onMounted(() => load());
+onMounted(() => load(modeFromRoute()));
+
+watch(
+  () => route.query.mode,
+  () => {
+    void load(modeFromRoute());
+  },
+);
 </script>
 
 <template>
