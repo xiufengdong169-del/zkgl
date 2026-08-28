@@ -630,7 +630,7 @@ watch(
         <h1>项目线索</h1>
       </div>
       <button
-        v-if="canCreateLead"
+        v-if="canCreateLead && !selected"
         class="primary-action"
         @click="showForm = !showForm"
       >
@@ -789,7 +789,13 @@ watch(
           leadStatusText(selected.status)
         }}
       </p>
-      <p class="status-hint">{{ leadStatusHint(selected.status) }}</p>
+      <p class="status-hint">
+        {{
+          selected.status === "FOLLOWING" && hasProjectApplication
+            ? "该线索已生成立项申请，不能重复申请；立项审批没有全部通过前，线索仍停留在“跟进中”，可以继续新增跟进。"
+            : leadStatusHint(selected.status)
+        }}
+      </p>
       <p>{{ selected.requirementSummary }}</p>
 
       <div
@@ -913,21 +919,6 @@ watch(
         >
           {{ showConvertForm ? "取消立项申请" : "生成立项申请" }}
         </button>
-        <RouterLink
-          v-if="
-            selected.status === 'FOLLOWING' &&
-            hasProjectApplication &&
-            canReadProjectApplication &&
-            canReadProject
-          "
-          class="button-link secondary"
-          :to="{
-            path: '/projects',
-            query: { applicationId: projectApplications[0]?.id },
-          }"
-        >
-          查看立项申请
-        </RouterLink>
         <button
           v-if="['DRAFT', 'RETURNED', 'FOLLOWING'].includes(selected.status)"
           type="button"
