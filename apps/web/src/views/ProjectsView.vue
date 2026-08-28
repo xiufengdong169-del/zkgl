@@ -437,6 +437,8 @@ async function viewApplication(applicationId: string) {
 
 async function loadDetail(projectId: string) {
   error.value = null;
+  selectedApplication.value = null;
+  selectedApplicationApprovalProgress.value = [];
   try {
     detail.value = await callApi<ProjectDetail>("project.detail", {
       projectId,
@@ -478,6 +480,11 @@ function routeProjectId() {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function routeReturnProjectId() {
+  const value = route.query.returnProjectId;
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
 function routeReturnMode() {
   const value = route.query.returnMode;
   return Array.isArray(value) ? value[0] || "PENDING" : value || "PENDING";
@@ -494,6 +501,14 @@ async function closeSelectedApplication() {
     await router.push({
       path: "/approvals",
       query: { mode: routeReturnMode() },
+    });
+    return;
+  }
+  const returnProjectId = routeReturnProjectId();
+  if (returnProjectId) {
+    await router.push({
+      path: "/projects",
+      query: { projectId: returnProjectId },
     });
     return;
   }
@@ -834,7 +849,7 @@ watch(
       </div>
     </section>
 
-    <section v-if="detail && !selectedApplication" class="data-panel">
+    <section v-if="detail && !selectedApplication" class="data-panel project-detail-panel">
       <header class="page-header">
         <div>
           <p class="eyebrow">项目详情</p>
@@ -854,7 +869,21 @@ watch(
         <div>
           <p class="eyebrow">立项来源</p>
           <h3 v-if="detail.project.applicationCode">
-            立项申请：{{ detail.project.applicationCode }}
+            立项申请：
+            <RouterLink
+              v-if="detail.project.applicationId"
+              class="text-link"
+              :to="{
+                path: '/projects',
+                query: {
+                  applicationId: detail.project.applicationId,
+                  returnProjectId: detail.project.id,
+                },
+              }"
+            >
+              {{ detail.project.applicationCode }}
+            </RouterLink>
+            <template v-else>{{ detail.project.applicationCode }}</template>
           </h3>
           <p v-if="detail.project.sourceLeadId">
             来源线索：
@@ -869,13 +898,28 @@ watch(
             </template>
           </p>
         </div>
-        <RouterLink
-          v-if="detail.project.sourceLeadId"
-          class="secondary-button"
-          :to="{ path: '/leads', query: { leadId: detail.project.sourceLeadId } }"
-        >
-          查看来源线索
-        </RouterLink>
+        <div class="trace-actions">
+          <RouterLink
+            v-if="detail.project.applicationId"
+            class="secondary-button"
+            :to="{
+              path: '/projects',
+              query: {
+                applicationId: detail.project.applicationId,
+                returnProjectId: detail.project.id,
+              },
+            }"
+          >
+            查看立项申请
+          </RouterLink>
+          <RouterLink
+            v-if="detail.project.sourceLeadId"
+            class="secondary-button"
+            :to="{ path: '/leads', query: { leadId: detail.project.sourceLeadId } }"
+          >
+            查看来源线索
+          </RouterLink>
+        </div>
       </section>
       <p>
         <RouterLink
