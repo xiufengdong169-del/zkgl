@@ -60,21 +60,23 @@ button:disabled { opacity: .65; cursor: wait; }
 .data-row.compact { padding:12px 0; }
 .project-row-link{color:inherit;text-decoration:none;border-radius:10px}.project-row-link:hover{background:#f3f8ff}.project-row-link strong{color:#001a3d}
 .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.section-title .muted{margin:0;font-size:13px}
+.project-card-list{display:grid;gap:10px;margin-top:14px}.project-card-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #e2eaf4;border-radius:12px;background:#fff;cursor:pointer}.project-card-row:hover{border-color:#bad3ef;background:#f6fbff}.project-card-row h3{margin:4px 0 6px;font-size:17px}.project-card-row p{margin:0;color:#637087}.project-card-row .eyebrow{margin:0;color:#356cad}.project-card-row button{flex:0 0 auto}.pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px}.pager button{width:auto;margin:0;padding:8px 14px;color:#245f9f;background:#e6f0fa}.pager span{color:#637087;font-size:13px}
 .dashboard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:22px; }
 .pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
 .pipeline-column span { min-width: 28px; padding: 4px 8px; border-radius: 999px; text-align: center; background: #edf2f7; }
-.project-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; }
-.project-summary > div { display: grid; gap: 6px; padding: 22px; border: 1px solid #dfe6ef; border-radius: 12px; background: #fff; }
-.project-summary strong { color: #173c68; font-size: 28px; }
+.project-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+.project-summary > div { display: grid; gap: 4px; padding: 14px 18px; border: 1px solid #dfe6ef; border-radius: 12px; background: #fff; }
+.project-summary strong { color: #173c68; font-size: 24px; }
 .project-summary span { color: #6b7689; font-size: 13px; }
-.workflow-card { margin-top: 20px; padding: 28px; border-radius: 14px; color: #fff; background: #173c68; }
-.workflow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
-.workflow-steps article { padding: 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.06); }
+.workflow-card { margin-top: 16px; padding: 18px 22px; border-radius: 14px; color: #fff; background: #173c68; }
+.workflow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.workflow-steps article { padding: 12px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.06); }
 .workflow-steps span { color: #8fc0ee; font-weight: 800; }
-.workflow-steps h2 { margin: 14px 0 8px; font-size: 18px; }
-.workflow-steps p { margin: 0; color: #dbe9f8; line-height: 1.55; }
+.workflow-steps h2 { margin: 8px 0 4px; font-size: 16px; }
+.workflow-steps p { margin: 0; color: #dbe9f8; line-height: 1.45; font-size:13px; }
 .demo-hero { margin-top: 28px; }
 .demo-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
 .demo-flow .module-card { display: grid; align-content: start; gap: 8px; }

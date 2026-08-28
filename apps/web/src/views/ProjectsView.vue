@@ -11,6 +11,7 @@ interface ProjectRow {
   code: string;
   projectName: string;
   status: string;
+  managerName?: string;
 }
 
 interface ApplicationRow {
@@ -120,6 +121,9 @@ const editingApplicationSourceLeadId = ref<string | null>(null);
 const detail = ref<ProjectDetail | null>(null);
 const selectedApplication = ref<ApplicationDetail | null>(null);
 const selectedApplicationApprovalProgress = ref<ApprovalProgressRow[]>([]);
+const listPageSize = 6;
+const projectPage = ref(1);
+const applicationPage = ref(1);
 
 const pendingApplicationCount = computed(
   () =>
@@ -144,6 +148,27 @@ const attentionProjectCount = computed(
     projects.value.filter((x) =>
       ["SUSPENDED", "PENDING_CLOSE", "TERMINATED"].includes(x.status),
     ).length,
+);
+const visibleApplications = computed(() =>
+  applications.value.filter((x) => x.status !== "APPROVED"),
+);
+const projectPageCount = computed(() =>
+  Math.max(1, Math.ceil(projects.value.length / listPageSize)),
+);
+const applicationPageCount = computed(() =>
+  Math.max(1, Math.ceil(visibleApplications.value.length / listPageSize)),
+);
+const pagedProjects = computed(() =>
+  projects.value.slice(
+    (projectPage.value - 1) * listPageSize,
+    projectPage.value * listPageSize,
+  ),
+);
+const pagedApplications = computed(() =>
+  visibleApplications.value.slice(
+    (applicationPage.value - 1) * listPageSize,
+    applicationPage.value * listPageSize,
+  ),
 );
 
 const today = new Date().toISOString().slice(0, 10);
@@ -303,6 +328,11 @@ async function load() {
     projects.value = p.items;
     applications.value = a.items;
     customers.value = c.items;
+    projectPage.value = Math.min(projectPage.value, projectPageCount.value);
+    applicationPage.value = Math.min(
+      applicationPage.value,
+      applicationPageCount.value,
+    );
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   }
@@ -760,29 +790,48 @@ watch(
     </section>
 
     <section v-if="!selectedApplication" class="data-panel">
-      <h2>正式项目</h2>
-      <table v-if="projects.length">
-        <thead>
-          <tr>
-            <th>编号</th>
-            <th>项目名称</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in projects"
-            :key="item.id"
-            class="clickable"
-            @click="loadDetail(item.id)"
-          >
-            <td>{{ item.code }}</td>
-            <td>{{ item.projectName }}</td>
-            <td>{{ statusText(item.status) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="section-title">
+        <h2>正式项目</h2>
+        <span class="muted">共 {{ projects.length }} 个</span>
+      </div>
+      <div v-if="projects.length" class="project-card-list">
+        <article
+          v-for="item in pagedProjects"
+          :key="item.id"
+          class="project-card-row"
+          @click="loadDetail(item.id)"
+        >
+          <div>
+            <p class="eyebrow">{{ item.code }}</p>
+            <h3>项目名称：{{ item.projectName }}</h3>
+            <p>
+              状态：{{ statusText(item.status) }}
+              <template v-if="item.managerName">
+                · 负责人：{{ item.managerName }}
+              </template>
+            </p>
+          </div>
+          <button class="secondary-button" type="button">查看详情</button>
+        </article>
+      </div>
       <p v-else>暂无正式项目</p>
+      <div v-if="projectPageCount > 1" class="pager">
+        <button
+          type="button"
+          :disabled="projectPage <= 1"
+          @click="projectPage -= 1"
+        >
+          上一页
+        </button>
+        <span>第 {{ projectPage }} / {{ projectPageCount }} 页</span>
+        <button
+          type="button"
+          :disabled="projectPage >= projectPageCount"
+          @click="projectPage += 1"
+        >
+          下一页
+        </button>
+      </div>
     </section>
 
     <section v-if="detail && !selectedApplication" class="data-panel">
@@ -939,11 +988,16 @@ watch(
     </section>
 
     <section v-if="!selectedApplication" class="data-panel">
-      <h2>立项申请</h2>
+      <div class="section-title">
+        <h2>立项申请</h2>
+        <span class="muted">
+          未完成 {{ visibleApplications.length }} 个，已通过的申请转入正式项目
+        </span>
+      </div>
       <p class="muted">
-        从线索生成的立项申请会出现在这里。草稿可修改、提交审批；审批通过后自动进入“正式项目”。
+        这里只显示草稿、审批中、退回或拒绝的立项申请；已通过的申请不再重复显示。
       </p>
-      <table v-if="applications.length">
+      <table v-if="visibleApplications.length">
         <thead>
           <tr>
             <th>申请编号</th>
@@ -956,7 +1010,7 @@ watch(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in applications" :key="item.id">
+          <tr v-for="item in pagedApplications" :key="item.id">
             <td>{{ item.code }}</td>
             <td>{{ item.projectName }}</td>
             <td>{{ moneyText(item.estimatedRevenue) }}</td>
@@ -997,7 +1051,24 @@ watch(
           </tr>
         </tbody>
       </table>
-      <p v-else>暂无立项申请</p>
+      <p v-else>暂无待处理立项申请</p>
+      <div v-if="applicationPageCount > 1" class="pager">
+        <button
+          type="button"
+          :disabled="applicationPage <= 1"
+          @click="applicationPage -= 1"
+        >
+          上一页
+        </button>
+        <span>第 {{ applicationPage }} / {{ applicationPageCount }} 页</span>
+        <button
+          type="button"
+          :disabled="applicationPage >= applicationPageCount"
+          @click="applicationPage += 1"
+        >
+          下一页
+        </button>
+      </div>
     </section>
   </main>
 </template>
