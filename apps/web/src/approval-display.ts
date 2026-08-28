@@ -3,6 +3,7 @@ const technicalWorkflowCodePattern =
 
 const businessTypeLabels: Record<string, string> = {
   LEAD: "线索登记",
+  PROJECT: "项目",
   BID_APPLICATION: "投标申请",
   CONTRACT: "合同审批",
   CONTRACT_CHANGE: "合同变更",

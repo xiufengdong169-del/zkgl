@@ -971,20 +971,6 @@ watch(
         </article>
         <p v-if="!detail.approvalRecords.length">暂无审批记录</p>
       </section>
-      <section class="data-list">
-        <h3>操作日志</h3>
-        <article v-for="log in detail.auditLogs" :key="log.id" class="data-row">
-          <div>
-            <strong>{{ log.action }} · {{ statusText(log.outcome) }}</strong>
-            <p>{{ log.resourceType }} {{ log.resourceId || "" }}</p>
-            <small>
-              操作人：{{ log.username || "匿名" }} · {{ log.requestId }}
-            </small>
-          </div>
-          <time>{{ new Date(log.occurredAt).toLocaleString() }}</time>
-        </article>
-        <p v-if="!detail.auditLogs.length">暂无操作日志</p>
-      </section>
     </section>
 
     <section v-if="!selectedApplication" class="data-panel">
