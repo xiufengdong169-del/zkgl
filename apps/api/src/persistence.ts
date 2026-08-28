@@ -2476,7 +2476,25 @@ export class MySqlActionExecutor {
             `SELECT CAST(employee_id AS CHAR) employeeId,proposed_role proposedRole FROM prj_application_member_suggestion WHERE application_id=? ORDER BY employee_id`,
             [input.applicationId],
           );
-          return { application: rows[0], memberSuggestions: members };
+          const [approvalProgress] = await selectRows(
+            connection,
+            `SELECT CAST(i.id AS CHAR) instanceId,i.instance_code instanceCode,i.status instanceStatus,i.current_node_order currentNodeOrder,
+                    t.node_order nodeOrder,t.status taskStatus,t.position_code positionCode,COALESCE(p.name,t.position_code) positionName,
+                    e.name approverName,t.assigned_at assignedAt,t.completed_at completedAt,done.name completedByName
+               FROM wf_instance i
+               JOIN wf_task t ON t.instance_id=i.id
+               LEFT JOIN org_position p ON p.position_code=t.position_code
+               LEFT JOIN org_employee e ON e.id=t.assignee_id
+               LEFT JOIN org_employee done ON done.id=t.completed_by
+              WHERE i.business_type='PROJECT_APPLICATION' AND i.business_id=?
+              ORDER BY i.id DESC,t.node_order,t.id`,
+            [input.applicationId],
+          );
+          return {
+            application: rows[0],
+            memberSuggestions: members,
+            approvalProgress,
+          };
         }
         case "project.list": {
           const page = input.page as number,

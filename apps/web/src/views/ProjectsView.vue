@@ -46,6 +46,21 @@ interface ApplicationDetail {
   version: number;
 }
 
+interface ApprovalProgressRow {
+  instanceId: string;
+  instanceCode: string;
+  instanceStatus: string;
+  currentNodeOrder: number | null;
+  nodeOrder: number;
+  taskStatus: string;
+  positionCode: string;
+  positionName: string;
+  approverName: string | null;
+  assignedAt: string | null;
+  completedAt: string | null;
+  completedByName: string | null;
+}
+
 interface Customer {
   id: string;
   name: string;
@@ -102,6 +117,7 @@ const editingApplicationVersion = ref(0);
 const editingApplicationSourceLeadId = ref<string | null>(null);
 const detail = ref<ProjectDetail | null>(null);
 const selectedApplication = ref<ApplicationDetail | null>(null);
+const selectedApplicationApprovalProgress = ref<ApprovalProgressRow[]>([]);
 
 const pendingApplicationCount = computed(
   () =>
@@ -183,6 +199,32 @@ function statusText(value?: string | null) {
     CANCELLED: "已取消",
   };
   return (value && labels[value]) || value || "-";
+}
+
+function approvalTaskStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    WAITING: "未到此环节",
+    PENDING: "待审批",
+    APPROVED: "已同意",
+    RETURNED: "已退回",
+    REJECTED: "已驳回",
+    CANCELLED: "已取消",
+    CANCELED: "已取消",
+    SKIPPED: "已跳过",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
+function applicationApprovalSummary() {
+  if (!selectedApplicationApprovalProgress.value.length) return "";
+  const current = selectedApplicationApprovalProgress.value.find(
+    (task) => task.taskStatus === "PENDING",
+  );
+  if (current) {
+    return `当前待审批：第 ${current.nodeOrder} 关 · ${current.positionName}${current.approverName ? `（${current.approverName}）` : ""}`;
+  }
+  const last = selectedApplicationApprovalProgress.value.at(-1);
+  return last ? `当前审批状态：${approvalTaskStatusText(last.taskStatus)}` : "";
 }
 
 function projectTypeText(value?: string | null) {
@@ -342,6 +384,10 @@ async function viewApplication(applicationId: string) {
       { applicationId },
     );
     selectedApplication.value = result.application;
+    selectedApplicationApprovalProgress.value =
+      (result as {
+        approvalProgress?: ApprovalProgressRow[];
+      }).approvalProgress || [];
     detail.value = null;
     showForm.value = false;
     editingApplicationId.value = null;
@@ -409,6 +455,7 @@ async function closeSelectedApplication() {
     return;
   }
   selectedApplication.value = null;
+  selectedApplicationApprovalProgress.value = [];
 }
 
 async function loadPage() {
@@ -596,6 +643,32 @@ watch(
           statusText(selectedApplication.status)
         }}　项目类型：{{ projectTypeText(selectedApplication.projectType) }}
       </p>
+      <section
+        v-if="selectedApplicationApprovalProgress.length"
+        class="approval-guide"
+      >
+        <h3>审批进度</h3>
+        <p class="status-hint">{{ applicationApprovalSummary() }}</p>
+        <div class="approval-progress-list">
+          <article
+            v-for="task in selectedApplicationApprovalProgress"
+            :key="`${task.instanceId}-${task.nodeOrder}-${task.positionCode}`"
+            class="approval-progress-item"
+          >
+            <strong>
+              第 {{ task.nodeOrder }} 关：{{ task.positionName }}
+            </strong>
+            <span>{{ approvalTaskStatusText(task.taskStatus) }}</span>
+            <small>
+              审批人：{{ task.approverName || "未配置" }}
+              <template v-if="task.completedAt">
+                · 处理人：{{ task.completedByName || task.approverName || "-" }}
+                · {{ new Date(task.completedAt).toLocaleString() }}
+              </template>
+            </small>
+          </article>
+        </div>
+      </section>
       <section class="contract-panels">
         <article>
           <p>预计收入</p>
