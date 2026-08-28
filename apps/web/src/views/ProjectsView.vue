@@ -149,6 +149,11 @@ const attentionProjectCount = computed(
 const today = new Date().toISOString().slice(0, 10);
 const later = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 
+function toDateInput(value?: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
 const form = ref({
   projectName: "",
   customerId: "",
@@ -362,8 +367,8 @@ async function editApplication(item: ApplicationRow) {
       serviceScope: application.serviceScope,
       estimatedRevenue: Number(application.estimatedRevenue),
       estimatedCost: Number(application.estimatedCost),
-      estimatedStartOn: application.estimatedStartOn,
-      estimatedEndOn: application.estimatedEndOn,
+      estimatedStartOn: toDateInput(application.estimatedStartOn),
+      estimatedEndOn: toDateInput(application.estimatedEndOn),
       biddingMethod: application.biddingMethod ?? "NONE",
       riskDescription: application.riskDescription ?? "",
       necessity: application.necessity,
@@ -485,11 +490,11 @@ watch(
         <h1>项目管理</h1>
       </div>
       <button
-        v-if="!selectedApplication"
+        v-if="!selectedApplication && !showForm"
         class="primary-action"
         @click="toggleApplicationForm"
       >
-        {{ showForm ? "取消" : "发起立项申请" }}
+        发起立项申请
       </button>
     </header>
 
