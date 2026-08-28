@@ -834,7 +834,7 @@ watch(
           class="data-row compact"
         >
           <div>
-            <strong>{{ application.projectName }}</strong>
+            <strong>项目名称：{{ application.projectName }}</strong>
             <p>
               {{ application.code }} ·
               {{ applicationStatusText(application.status) }}
