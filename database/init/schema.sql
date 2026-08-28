@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS org_employee (
   position_name VARCHAR(128) NULL,
   mobile VARCHAR(32) NULL,
   email VARCHAR(255) NULL,
+  bank_name VARCHAR(128) NULL,
+  bank_account VARCHAR(128) NULL,
   joined_on DATE NULL,
   left_on DATE NULL,
   supervisor_id BIGINT UNSIGNED NULL,

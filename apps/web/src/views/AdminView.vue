@@ -22,6 +22,8 @@ interface Employee {
   positionName?: string;
   mobile?: string | null;
   email?: string | null;
+  bankName?: string | null;
+  payrollBankAccount?: string | null;
   joinedOn?: string | null;
   leftOn?: string | null;
   supervisorId?: string | null;
@@ -412,6 +414,8 @@ const employee = ref({
   positionName: "",
   mobile: "",
   email: "",
+  bankName: "",
+  bankAccount: "",
   joinedOn: "",
 });
 const employeeEdit = ref({
@@ -421,6 +425,8 @@ const employeeEdit = ref({
   positionName: "",
   mobile: "",
   email: "",
+  bankName: "",
+  bankAccount: "",
   joinedOn: "",
   leftOn: "",
   supervisorId: "",
@@ -561,6 +567,8 @@ async function createEmployee() {
       positionName: f.positionName || null,
       mobile: f.mobile || null,
       email: f.email || null,
+      bankName: f.bankName || null,
+      bankAccount: f.bankAccount || null,
       joinedOn: f.joinedOn || null,
     });
     employee.value = {
@@ -571,6 +579,8 @@ async function createEmployee() {
       positionName: "",
       mobile: "",
       email: "",
+      bankName: "",
+      bankAccount: "",
       joinedOn: "",
     };
     showEmployeeForm.value = false;
@@ -1112,6 +1122,8 @@ function exportSelectedDepartmentMembers() {
     "职务",
     "手机",
     "邮箱",
+    "个人收款开户银行",
+    "个人收款银行账号",
     "账号状态",
   ];
   const rows = selectedDepartmentMembers.value.map((person) => [
@@ -1121,6 +1133,8 @@ function exportSelectedDepartmentMembers() {
     person.positionName || "",
     person.mobile || "",
     person.email || "",
+    person.bankName || "",
+    person.payrollBankAccount || "",
     statusText(person.accountStatus),
   ]);
   const csv = [header, ...rows]
@@ -1243,6 +1257,8 @@ function startEditEmployee(person: Employee) {
     positionName: person.positionName || "",
     mobile: person.mobile || "",
     email: person.email || "",
+    bankName: person.bankName || "",
+    bankAccount: person.payrollBankAccount || "",
     joinedOn: dateInput(person.joinedOn),
     leftOn: dateInput(person.leftOn),
     supervisorId: person.supervisorId || "",
@@ -1260,6 +1276,8 @@ async function saveEmployee(person: Employee) {
       positionName: employeeEdit.value.positionName || null,
       mobile: employeeEdit.value.mobile || null,
       email: employeeEdit.value.email || null,
+      bankName: employeeEdit.value.bankName || null,
+      bankAccount: employeeEdit.value.bankAccount || null,
       joinedOn: employeeEdit.value.joinedOn || null,
       leftOn: employeeEdit.value.leftOn || null,
       supervisorId: employeeEdit.value.supervisorId || null,
@@ -1924,6 +1942,7 @@ onMounted(load);
                 <th>姓名</th>
                 <th>手机</th>
                 <th>邮箱</th>
+                <th>收款银行</th>
                 <th>角色</th>
                 <th>账号状态</th>
                 <th>操作</th>
@@ -1944,6 +1963,12 @@ onMounted(load);
                   </td>
                   <td>{{ person.mobile || "-" }}</td>
                   <td>{{ person.email || "-" }}</td>
+                  <td>
+                    <strong>{{ person.bankName || "-" }}</strong>
+                    <small v-if="person.payrollBankAccount">
+                      {{ person.payrollBankAccount }}
+                    </small>
+                  </td>
                   <td>
                     <span
                       v-for="roleName in roleNamesForUser(
@@ -1988,7 +2013,7 @@ onMounted(load);
                   </td>
                 </tr>
                 <tr v-if="editingEmployeeId === person.id" class="editor-row">
-                  <td colspan="6">
+                  <td colspan="7">
                     <form
                       class="inline-editor employee-edit-panel"
                       @submit.prevent="saveEmployee(person)"
@@ -2024,6 +2049,16 @@ onMounted(load);
                       <label>手机<input v-model="employeeEdit.mobile" /></label>
                       <label
                         >邮箱<input v-model="employeeEdit.email" type="email"
+                      /></label>
+                      <label
+                        >个人收款开户银行<input
+                          v-model="employeeEdit.bankName"
+                          placeholder="如：中国建设银行广州某某支行"
+                      /></label>
+                      <label
+                        >个人收款银行账号<input
+                          v-model="employeeEdit.bankAccount"
+                          placeholder="用于工资、报销等个人收款"
                       /></label>
                       <label
                         >入职日<input
@@ -2062,7 +2097,7 @@ onMounted(load);
                   v-if="showAccountForm && accountPanelEmployeeId === person.id"
                   class="editor-row"
                 >
-                  <td colspan="6">
+                  <td colspan="7">
                     <section class="account-inline-panel">
                       <header>
                         <div>
@@ -2193,7 +2228,7 @@ onMounted(load);
                 </tr>
               </template>
               <tr v-if="!selectedDepartmentMembers.length">
-                <td colspan="6">{{ selectedDepartmentEmptyText }}</td>
+                <td colspan="7">{{ selectedDepartmentEmptyText }}</td>
               </tr>
             </tbody>
           </table>
@@ -2239,6 +2274,14 @@ onMounted(load);
             <input v-model="employee.positionName" placeholder="职务" />
             <input v-model="employee.mobile" placeholder="手机" />
             <input v-model="employee.email" placeholder="邮箱" type="email" />
+            <input
+              v-model="employee.bankName"
+              placeholder="个人收款开户银行"
+            />
+            <input
+              v-model="employee.bankAccount"
+              placeholder="个人收款银行账号"
+            />
             <input v-model="employee.joinedOn" type="date" />
             <button :disabled="saving">保存人员</button>
             <button type="button" @click="showEmployeeForm = false">

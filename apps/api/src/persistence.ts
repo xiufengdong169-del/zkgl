@@ -954,7 +954,7 @@ export class MySqlActionExecutor {
             ),
             [employees] = await selectRows(
               connection,
-              `SELECT CAST(e.id AS CHAR) id,e.employee_code employeeCode,e.name,e.employee_type employeeType,CAST(e.department_id AS CHAR) departmentId,d.name departmentName,e.position_name positionName,e.mobile,e.email,e.joined_on joinedOn,e.left_on leftOn,CAST(e.supervisor_id AS CHAR) supervisorId,s.name supervisorName,e.account_status accountStatus,e.version FROM org_employee e JOIN org_department d ON d.id=e.department_id LEFT JOIN org_employee s ON s.id=e.supervisor_id WHERE e.is_deleted=0 ORDER BY e.id DESC LIMIT 500`,
+              `SELECT CAST(e.id AS CHAR) id,e.employee_code employeeCode,e.name,e.employee_type employeeType,CAST(e.department_id AS CHAR) departmentId,d.name departmentName,e.position_name positionName,e.mobile,e.email,e.bank_name bankName,e.bank_account payrollBankAccount,e.joined_on joinedOn,e.left_on leftOn,CAST(e.supervisor_id AS CHAR) supervisorId,s.name supervisorName,e.account_status accountStatus,e.version FROM org_employee e JOIN org_department d ON d.id=e.department_id LEFT JOIN org_employee s ON s.id=e.supervisor_id WHERE e.is_deleted=0 ORDER BY e.id DESC LIMIT 500`,
             ),
             [roles] = await selectRows(
               connection,
@@ -1129,7 +1129,7 @@ export class MySqlActionExecutor {
         }
         case "admin.employee.create": {
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO org_employee(employee_code,name,employee_type,department_id,position_name,mobile,email,joined_on,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO org_employee(employee_code,name,employee_type,department_id,position_name,mobile,email,bank_name,bank_account,joined_on,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               input.employeeCode,
               input.name,
@@ -1138,6 +1138,8 @@ export class MySqlActionExecutor {
               input.positionName ?? null,
               input.mobile ?? null,
               input.email ?? null,
+              input.bankName ?? null,
+              input.bankAccount ?? null,
               input.joinedOn ?? null,
               user.id,
               user.id,
@@ -1153,7 +1155,7 @@ export class MySqlActionExecutor {
               409,
             );
           const [result] = await connection.execute<ResultSetHeader>(
-            `UPDATE org_employee SET name=?,employee_type=?,department_id=?,position_name=?,mobile=?,email=?,joined_on=?,left_on=?,supervisor_id=?,account_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
+            `UPDATE org_employee SET name=?,employee_type=?,department_id=?,position_name=?,mobile=?,email=?,bank_name=?,bank_account=?,joined_on=?,left_on=?,supervisor_id=?,account_status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0`,
             [
               input.name,
               input.employeeType,
@@ -1161,6 +1163,8 @@ export class MySqlActionExecutor {
               input.positionName ?? null,
               input.mobile ?? null,
               input.email ?? null,
+              input.bankName ?? null,
+              input.bankAccount ?? null,
               input.joinedOn ?? null,
               input.leftOn ?? null,
               input.supervisorId ?? null,
