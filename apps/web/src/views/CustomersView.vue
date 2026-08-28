@@ -760,17 +760,6 @@ onMounted(async () => {
         </select></label
       >
       <label>地址<input v-model="form.address" maxlength="512" /></label>
-      <label
-        >合作状态<select v-model="form.cooperationStatus">
-          <option
-            v-for="option in cooperationStatusOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select></label
-      >
       <label>电话<input v-model="form.phone" maxlength="32" /></label>
       <h2 class="wide form-section-title">发票和银行信息</h2>
       <label
@@ -827,17 +816,6 @@ onMounted(async () => {
         </select></label
       >
       <label>地址<input v-model="editForm.address" maxlength="512" /></label>
-      <label
-        >合作状态<select v-model="editForm.cooperationStatus">
-          <option
-            v-for="option in cooperationStatusOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select></label
-      >
       <label>电话<input v-model="editForm.phone" maxlength="32" /></label>
       <h2 class="wide form-section-title">发票和银行信息</h2>
       <label
