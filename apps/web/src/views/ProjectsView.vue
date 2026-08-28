@@ -31,6 +31,8 @@ interface ApplicationDetail {
   projectName: string;
   customerId: string;
   sourceLeadId: string | null;
+  sourceLeadCode?: string | null;
+  sourceLeadName?: string | null;
   projectType: string;
   background: string | null;
   serviceScope: string;
@@ -643,6 +645,26 @@ watch(
           statusText(selectedApplication.status)
         }}　项目类型：{{ projectTypeText(selectedApplication.projectType) }}
       </p>
+      <section v-if="selectedApplication.sourceLeadId" class="trace-card">
+        <div>
+          <p class="eyebrow">来源线索</p>
+          <h3>
+            {{ selectedApplication.sourceLeadCode || selectedApplication.sourceLeadId }}
+            <template v-if="selectedApplication.sourceLeadName">
+              · {{ selectedApplication.sourceLeadName }}
+            </template>
+          </h3>
+          <p class="muted">
+            立项项目名称可以修改，但这里固定保留来源线索，便于后续追溯。
+          </p>
+        </div>
+        <RouterLink
+          class="secondary-button"
+          :to="{ path: '/leads', query: { leadId: selectedApplication.sourceLeadId } }"
+        >
+          查看来源线索
+        </RouterLink>
+      </section>
       <section
         v-if="selectedApplicationApprovalProgress.length"
         class="approval-guide"
@@ -755,6 +777,36 @@ watch(
         {{ detail.project.managerName }} ·
         {{ statusText(detail.project.status) }}
       </p>
+      <section
+        v-if="detail.project.applicationCode || detail.project.sourceLeadId"
+        class="trace-card"
+      >
+        <div>
+          <p class="eyebrow">立项来源</p>
+          <h3 v-if="detail.project.applicationCode">
+            立项申请：{{ detail.project.applicationCode }}
+          </h3>
+          <p v-if="detail.project.sourceLeadId">
+            来源线索：
+            <RouterLink
+              class="text-link"
+              :to="{ path: '/leads', query: { leadId: detail.project.sourceLeadId } }"
+            >
+              {{ detail.project.sourceLeadCode || detail.project.sourceLeadId }}
+            </RouterLink>
+            <template v-if="detail.project.sourceLeadName">
+              · {{ detail.project.sourceLeadName }}
+            </template>
+          </p>
+        </div>
+        <RouterLink
+          v-if="detail.project.sourceLeadId"
+          class="secondary-button"
+          :to="{ path: '/leads', query: { leadId: detail.project.sourceLeadId } }"
+        >
+          查看来源线索
+        </RouterLink>
+      </section>
       <p>
         <RouterLink
           class="secondary-button"
