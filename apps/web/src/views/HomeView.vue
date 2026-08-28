@@ -75,6 +75,22 @@ function exportFailureText(reason: string | null) {
   );
 }
 
+function projectStatusText(value?: string | null) {
+  const labels: Record<string, string> = {
+    ESTABLISHED: "已立项",
+    PREPARING: "准备中",
+    PENDING_START: "待启动",
+    IN_PROGRESS: "实施中",
+    PENDING_ACCEPTANCE: "待验收",
+    SUSPENDED: "已暂停",
+    PENDING_CLOSE: "待结项",
+    CLOSED: "已结项",
+    TERMINATED: "已终止",
+    CANCELLED: "已取消",
+  };
+  return (value && labels[value]) || value || "-";
+}
+
 async function loadDashboardAndMessages() {
   const [report, messageResult, approvalResult, projectResult] =
     await Promise.allSettled([
@@ -252,19 +268,20 @@ async function markRead(message: Message) {
           </RouterLink>
         </div>
         <div v-if="myProjects.length">
-          <div
+          <RouterLink
             v-for="project in myProjects"
             :key="project.id"
-            class="data-row compact"
+            class="data-row compact project-row-link"
+            :to="{ name: 'projects', query: { projectId: project.id } }"
           >
             <div>
               <strong>{{ project.code }} · {{ project.projectName }}</strong>
               <p>
-                {{ project.status }} · 负责人
+                {{ projectStatusText(project.status) }} · 负责人
                 {{ project.managerName || project.projectManagerId }}
               </p>
             </div>
-          </div>
+          </RouterLink>
         </div>
         <p v-else>暂无可查看项目</p>
       </article>

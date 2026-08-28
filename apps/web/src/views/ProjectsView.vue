@@ -189,6 +189,7 @@ const workflow = [
 
 function statusText(value?: string | null) {
   const labels: Record<string, string> = {
+    ESTABLISHED: "已立项",
     DRAFT: "草稿",
     APPROVAL_PENDING: "审批中",
     RETURNED: "已退回",
@@ -442,6 +443,11 @@ function routeApplicationId() {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function routeProjectId() {
+  const value = route.query.projectId;
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
 function routeReturnMode() {
   const value = route.query.returnMode;
   return Array.isArray(value) ? value[0] || "PENDING" : value || "PENDING";
@@ -468,16 +474,26 @@ async function closeSelectedApplication() {
 async function loadPage() {
   await load();
   const applicationId = routeApplicationId();
-  if (applicationId) await viewApplication(applicationId);
+  const projectId = routeProjectId();
+  if (applicationId) {
+    await viewApplication(applicationId);
+    return;
+  }
+  if (projectId) await loadDetail(projectId);
 }
 
 onMounted(loadPage);
 
 watch(
-  () => route.query.applicationId,
+  () => [route.query.applicationId, route.query.projectId],
   async () => {
     const applicationId = routeApplicationId();
-    if (applicationId) await viewApplication(applicationId);
+    const projectId = routeProjectId();
+    if (applicationId) {
+      await viewApplication(applicationId);
+      return;
+    }
+    if (projectId) await loadDetail(projectId);
   },
 );
 </script>
