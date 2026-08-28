@@ -15,8 +15,6 @@ export const counterpartyInput = z.object({
   bankName: z.string().trim().max(255).nullable().optional(),
   bankAccount: z.string().trim().max(128).nullable().optional(),
   bankBranchCode: z.string().trim().max(64).nullable().optional(),
-  invoicePhone: z.string().trim().max(32).nullable().optional(),
-  invoiceInformation: z.string().trim().max(1000).nullable().optional(),
   sourceCode: z.string().trim().max(64).nullable().optional(),
   cooperationStatus: z.string().trim().min(1).max(64).default('POTENTIAL'),
   remark: z.string().trim().max(1000).nullable().optional()

@@ -22,7 +22,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .sidebar nav { display: grid; gap: 6px; }
 .sidebar a { padding: 11px 12px; border-radius: 8px; color: #ccdaea; text-decoration: none; }
 .sidebar a.router-link-active { color: #fff; background: #255581; }
-.sidebar-footer { display: grid; gap: 10px; margin-top: auto; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); }
+.sidebar-footer { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.12); }
 .sidebar-footer span { color: #b9cce1; font-size: 13px; line-height: 1.5; }
 .sidebar-footer button { width: 100%; margin: 0; padding: 10px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; color: #fff; background: #8f2f2f; font-weight: 800; }
 .sidebar-footer button:hover { background: #a83a3a; }

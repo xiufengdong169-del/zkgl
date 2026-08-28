@@ -149,8 +149,6 @@ CREATE TABLE IF NOT EXISTS crm_counterparty (
   bank_account VARCHAR(128) NULL,
   bank_branch_code VARCHAR(64) NULL,
   tax_number VARCHAR(64) NULL,
-  invoice_phone VARCHAR(32) NULL,
-  invoice_information VARCHAR(1000) NULL,
   owner_id BIGINT UNSIGNED NOT NULL,
   source_code VARCHAR(64) NULL,
   cooperation_status VARCHAR(32) NOT NULL DEFAULT 'POTENTIAL',
