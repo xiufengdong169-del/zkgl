@@ -720,7 +720,7 @@ watch(
       </button>
     </form>
 
-    <section class="pipeline">
+    <section v-if="!selected" class="pipeline">
       <article
         v-for="column in statusColumns"
         :key="column.code"
@@ -743,7 +743,7 @@ watch(
       </article>
     </section>
 
-    <section class="data-panel">
+    <section v-if="!selected" class="data-panel">
       <h2>全部线索</h2>
       <p v-if="loading">正在加载...</p>
       <table v-else-if="items.length">
