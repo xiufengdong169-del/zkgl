@@ -39,7 +39,7 @@ button:disabled { opacity: .65; cursor: wait; }
 .metric-strip article { display:grid; gap:7px; padding:18px; border:1px solid #dfe6ef; border-radius:11px; background:#fff; }
 .metric-strip span { color:#6b7689; font-size:13px; }.metric-strip strong { color:#173c68; font-size:22px; }
 .accounting-disclaimer { margin:10px 0 0; color:#8b5e00; font-size:12px; }
-.page { max-width: 1180px; margin: 0 auto; padding: 44px 28px; }
+.page { max-width: 1180px; margin: 0 auto; padding: 26px 28px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .primary-action { width: auto; margin: 0; padding-inline: 18px; }
 .header-actions{display:flex;gap:8px}.secondary-button{width:auto!important;margin:0!important;color:#245f9f!important;background:#e6f0fa!important}
@@ -50,8 +50,8 @@ button:disabled { opacity: .65; cursor: wait; }
 .module-card small, .pipeline-column small { color: #8490a1; }
 .bid-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .module-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 10px; color: #245f9f; background: #e6f0fa; font-weight: 800; }
-.data-panel { margin-top:18px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; overflow-x:auto; }
-.data-panel h2 { margin-top:0; font-size:18px; }.data-panel table { width:100%; border-collapse:collapse; }.data-panel th,.data-panel td { padding:11px; border-bottom:1px solid #edf1f5; text-align:left; white-space:nowrap; }.data-panel th { color:#59667a; font-size:13px; }
+.data-panel { margin-top:14px; padding:18px 22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; overflow-x:auto; }
+.data-panel h2 { margin-top:0; font-size:18px; }.data-panel table { width:100%; border-collapse:collapse; }.data-panel th,.data-panel td { padding:8px 11px; border-bottom:1px solid #edf1f5; text-align:left; white-space:nowrap; }.data-panel th { color:#59667a; font-size:13px; }
 .data-list { display:grid; gap:12px; margin-top:22px; padding:22px; border:1px solid #dfe6ef; border-radius:12px; background:#fff; }
 .data-list h2 { margin:0; font-size:18px; }
 .data-list p { margin:4px 0 0; color:#748095; line-height:1.55; }
@@ -61,22 +61,22 @@ button:disabled { opacity: .65; cursor: wait; }
 .project-row-link{color:inherit;text-decoration:none;border-radius:10px}.project-row-link:hover{background:#f3f8ff}.project-row-link strong{color:#001a3d}
 .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .section-title .muted{margin:0;font-size:13px}
-.project-card-list{display:grid;gap:10px;margin-top:14px}.project-card-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #e2eaf4;border-radius:12px;background:#fff;cursor:pointer}.project-card-row:hover{border-color:#bad3ef;background:#f6fbff}.project-card-row h3{margin:4px 0 6px;font-size:17px}.project-card-row p{margin:0;color:#637087}.project-card-row .eyebrow{margin:0;color:#356cad}.project-card-row button{flex:0 0 auto}.pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px}.pager button{width:auto;margin:0;padding:8px 14px;color:#245f9f;background:#e6f0fa}.pager span{color:#637087;font-size:13px}
+.project-card-list{display:grid;gap:8px;margin-top:10px}.project-card-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 14px;border:1px solid #e2eaf4;border-radius:10px;background:#fff;cursor:pointer}.project-card-row:hover{border-color:#bad3ef;background:#f6fbff}.project-card-row h3{margin:2px 0 4px;font-size:16px}.project-card-row p{margin:0;color:#637087;line-height:1.35}.project-card-row .eyebrow{margin:0;color:#356cad}.project-card-row button{flex:0 0 auto}.pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px}.pager button{width:auto;margin:0;padding:7px 12px;color:#245f9f;background:#e6f0fa}.pager span{color:#637087;font-size:13px}
 .dashboard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:22px; }
 .pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
 .pipeline-column span { min-width: 28px; padding: 4px 8px; border-radius: 999px; text-align: center; background: #edf2f7; }
-.project-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
-.project-summary > div { display: grid; gap: 4px; padding: 14px 18px; border: 1px solid #dfe6ef; border-radius: 12px; background: #fff; }
-.project-summary strong { color: #173c68; font-size: 24px; }
+.project-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+.project-summary > div { display: grid; gap: 2px; padding: 10px 16px; border: 1px solid #dfe6ef; border-radius: 10px; background: #fff; }
+.project-summary strong { color: #173c68; font-size: 22px; line-height:1.15; }
 .project-summary span { color: #6b7689; font-size: 13px; }
-.workflow-card { margin-top: 16px; padding: 18px 22px; border-radius: 14px; color: #fff; background: #173c68; }
-.workflow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
-.workflow-steps article { padding: 12px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.06); }
+.workflow-card { margin-top: 12px; padding: 14px 20px; border-radius: 14px; color: #fff; background: #173c68; }
+.workflow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.workflow-steps article { padding: 9px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: rgba(255,255,255,.06); }
 .workflow-steps span { color: #8fc0ee; font-weight: 800; }
-.workflow-steps h2 { margin: 8px 0 4px; font-size: 16px; }
-.workflow-steps p { margin: 0; color: #dbe9f8; line-height: 1.45; font-size:13px; }
+.workflow-steps h2 { margin: 5px 0 2px; font-size: 15px; }
+.workflow-steps p { margin: 0; color: #dbe9f8; line-height: 1.32; font-size:12px; }
 .demo-hero { margin-top: 28px; }
 .demo-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
 .demo-flow .module-card { display: grid; align-content: start; gap: 8px; }
