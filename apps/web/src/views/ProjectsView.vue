@@ -630,7 +630,7 @@ watch(
       <header class="page-header">
         <div>
           <p class="eyebrow">立项申请详情</p>
-          <h2>{{ selectedApplication.projectName }}</h2>
+          <h2>项目名称：{{ selectedApplication.projectName }}</h2>
         </div>
         <button
           class="secondary-button"
@@ -768,7 +768,7 @@ watch(
       <header class="page-header">
         <div>
           <p class="eyebrow">项目详情</p>
-          <h2>{{ detail.project.projectName }}</h2>
+          <h2>项目名称：{{ detail.project.projectName }}</h2>
         </div>
         <button class="secondary-button" @click="detail = null">关闭</button>
       </header>
