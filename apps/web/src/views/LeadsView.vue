@@ -75,6 +75,9 @@ const showForm = ref(false);
 const showEdit = ref(false);
 const showFollowUp = ref(false);
 const showConvertForm = ref(false);
+const leadPageSize = 6;
+const leadPage = ref(1);
+const showConvertedLeads = ref(false);
 
 const form = ref({
   projectName: "",
@@ -131,7 +134,6 @@ const statusColumns = [
   { label: "草稿", code: "DRAFT" },
   { label: "待登记", code: "PENDING_REGISTRATION" },
   { label: "跟进中", code: "FOLLOWING" },
-  { label: "已转项目", code: "CONVERTED" },
 ];
 
 const grouped = computed(() =>
@@ -140,6 +142,24 @@ const grouped = computed(() =>
       column.code,
       items.value.filter((item) => item.status === column.code),
     ]),
+  ),
+);
+const convertedLeads = computed(() =>
+  items.value.filter((item) => item.status === "CONVERTED"),
+);
+const activeLeads = computed(() =>
+  items.value.filter((item) => item.status !== "CONVERTED"),
+);
+const displayedLeads = computed(() =>
+  showConvertedLeads.value ? convertedLeads.value : activeLeads.value,
+);
+const leadPageCount = computed(() =>
+  Math.max(1, Math.ceil(displayedLeads.value.length / leadPageSize)),
+);
+const pagedLeads = computed(() =>
+  displayedLeads.value.slice(
+    (leadPage.value - 1) * leadPageSize,
+    leadPage.value * leadPageSize,
   ),
 );
 
@@ -321,11 +341,17 @@ async function load() {
     ]);
     items.value = leads.items;
     customers.value = customerResult.items;
+    leadPage.value = Math.min(leadPage.value, leadPageCount.value);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
   } finally {
     loading.value = false;
   }
+}
+
+function toggleConvertedLeads() {
+  showConvertedLeads.value = !showConvertedLeads.value;
+  leadPage.value = 1;
 }
 
 async function openDetail(id: string) {
@@ -731,22 +757,39 @@ watch(
           <span>{{ grouped[column.code]?.length || 0 }}</span>
         </div>
         <button
-          v-for="lead in grouped[column.code]"
+          v-for="lead in grouped[column.code]?.slice(0, 5)"
           :key="lead.id"
           type="button"
           @click="openDetail(lead.id)"
         >
           {{ lead.projectName }} · {{ lead.successProbability }}%
         </button>
+        <p v-if="(grouped[column.code]?.length || 0) > 5">
+          还有 {{ (grouped[column.code]?.length || 0) - 5 }} 条，请在下方列表分页查看
+        </p>
         <p v-if="!grouped[column.code]?.length">暂无记录</p>
         <small>{{ leadStatusText(column.code) }}</small>
       </article>
     </section>
 
     <section v-if="!selected" class="data-panel">
-      <h2>全部线索</h2>
+      <section v-if="convertedLeads.length" class="archive-strip">
+        <div>
+          <strong>已转项目线索 {{ convertedLeads.length }} 条</strong>
+          <p>这类线索已生成正式项目，默认归档，不占用当前跟进列表。</p>
+        </div>
+        <button type="button" class="secondary-button" @click="toggleConvertedLeads">
+          {{ showConvertedLeads ? "返回当前线索" : "查看已转项目线索" }}
+        </button>
+      </section>
+      <div class="section-title">
+        <h2>{{ showConvertedLeads ? "已转项目线索" : "当前线索" }}</h2>
+        <span class="muted">
+          共 {{ displayedLeads.length }} 条，每页 {{ leadPageSize }} 条
+        </span>
+      </div>
       <p v-if="loading">正在加载...</p>
-      <table v-else-if="items.length">
+      <table v-else-if="pagedLeads.length">
         <thead>
           <tr>
             <th>编号</th>
@@ -756,7 +799,12 @@ watch(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in items" :key="item.id" @click="openDetail(item.id)">
+          <tr
+            v-for="item in pagedLeads"
+            :key="item.id"
+            class="clickable"
+            @click="openDetail(item.id)"
+          >
             <td>{{ item.code }}</td>
             <td>{{ item.projectName }}</td>
             <td>{{ item.successProbability }}%</td>
@@ -764,7 +812,24 @@ watch(
           </tr>
         </tbody>
       </table>
-      <p v-else>暂无线索</p>
+      <p v-else>{{ showConvertedLeads ? "暂无已转项目线索" : "暂无当前线索" }}</p>
+      <div v-if="leadPageCount > 1" class="pager">
+        <button
+          type="button"
+          :disabled="leadPage <= 1"
+          @click="leadPage -= 1"
+        >
+          上一页
+        </button>
+        <span>第 {{ leadPage }} / {{ leadPageCount }} 页</span>
+        <button
+          type="button"
+          :disabled="leadPage >= leadPageCount"
+          @click="leadPage += 1"
+        >
+          下一页
+        </button>
+      </div>
     </section>
 
     <section v-if="selected" class="data-panel lead-detail-panel">

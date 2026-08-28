@@ -63,10 +63,11 @@ button:disabled { opacity: .65; cursor: wait; }
 .section-title .muted{margin:0;font-size:13px}
 .project-card-list{display:grid;gap:8px;margin-top:10px}.project-card-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 14px;border:1px solid #e2eaf4;border-radius:10px;background:#fff;cursor:pointer}.project-card-row:hover{border-color:#bad3ef;background:#f6fbff}.project-card-row h3{margin:2px 0 4px;font-size:16px}.project-card-row p{margin:0;color:#637087;line-height:1.35}.project-card-row .eyebrow{margin:0;color:#356cad}.project-card-row button{flex:0 0 auto}.pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px}.pager button{width:auto;margin:0;padding:7px 12px;color:#245f9f;background:#e6f0fa}.pager span{color:#637087;font-size:13px}
 .dashboard-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:22px; }
-.pipeline { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 38px; overflow-x: auto; }
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 24px; overflow-x: auto; }
 .pipeline-column > div { display: flex; align-items: center; justify-content: space-between; }
 .pipeline-column h2 { margin: 0; }
 .pipeline-column span { min-width: 28px; padding: 4px 8px; border-radius: 999px; text-align: center; background: #edf2f7; }
+.archive-strip{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;padding:12px 14px;border:1px solid #cfe0f3;border-radius:12px;background:#f7fbff}.archive-strip strong{color:#173c68}.archive-strip p{margin:3px 0 0;color:#637087;font-size:13px}.archive-strip button{flex:0 0 auto}
 .project-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
 .project-summary > div { display: grid; gap: 2px; padding: 10px 16px; border: 1px solid #dfe6ef; border-radius: 10px; background: #fff; }
 .project-summary strong { color: #173c68; font-size: 22px; line-height:1.15; }
