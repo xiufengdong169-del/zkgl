@@ -4657,6 +4657,17 @@ export class MySqlActionExecutor {
                 "来源线索不存在或无权访问",
                 404,
               );
+            const [existingApplications] = await selectRows(
+              connection,
+              `SELECT id,application_code applicationCode,status FROM prj_project_application WHERE source_lead_id=? AND is_deleted=0 LIMIT 1`,
+              [input.sourceLeadId],
+            );
+            if (existingApplications[0])
+              throw new AppError(
+                "PROJECT_APPLICATION_SOURCE_LEAD_DUPLICATED",
+                `该线索已生成立项申请：${existingApplications[0].applicationCode}`,
+                409,
+              );
           }
           const code = await allocateNumber(connection, "PROJECT_APPLICATION");
           const [result] = await connection.execute<ResultSetHeader>(
@@ -4697,7 +4708,7 @@ export class MySqlActionExecutor {
           const data = input.data as Record<string, any>,
             [rows] = await selectRows(
               connection,
-              `SELECT status,version,CAST(created_by AS CHAR) createdBy FROM prj_project_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
+              `SELECT status,version,CAST(created_by AS CHAR) createdBy,CAST(source_lead_id AS CHAR) sourceLeadId FROM prj_project_application WHERE id=? AND is_deleted=0 FOR UPDATE`,
               [input.applicationId],
             );
           const application = rows[0];
@@ -4735,12 +4746,13 @@ export class MySqlActionExecutor {
               "客户不存在或无权访问",
               404,
             );
-          if (data.sourceLeadId) {
+          const sourceLeadId = data.sourceLeadId ?? application.sourceLeadId ?? null;
+          if (sourceLeadId) {
             const [sourceLeads] = await selectRows(
               connection,
               `SELECT id FROM mkt_lead WHERE id=? AND customer_id=? AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
               [
-                data.sourceLeadId,
+                sourceLeadId,
                 data.customerId,
                 all ? 1 : 0,
                 user.employeeId,
@@ -4759,7 +4771,7 @@ export class MySqlActionExecutor {
             [
               data.projectName,
               data.customerId,
-              data.sourceLeadId ?? null,
+              sourceLeadId,
               data.projectType,
               data.background ?? null,
               data.serviceScope,

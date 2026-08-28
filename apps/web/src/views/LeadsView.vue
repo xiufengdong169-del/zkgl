@@ -225,7 +225,7 @@ function leadStatusHint(value?: string | null) {
     RETURNED: "审批退回后可以修改线索，再重新提交登记审批。",
     REJECTED: "审批已拒绝，该线索可删除。",
     FOLLOWING:
-      "审批通过后进入跟进中。此阶段可以继续新增跟进，也可以生成立项申请。",
+      "审批通过后进入跟进中。此阶段可以继续新增跟进；如果尚未生成立项申请，也可以发起立项。",
     CONVERTED: "立项申请审批通过后，线索自动转为正式项目。",
     INVALID: "线索已关闭或失效，可删除。",
   };
@@ -837,13 +837,13 @@ watch(
           <RouterLink
             v-if="canReadProjectApplication && canReadProject"
             class="button-link secondary"
-            to="/projects"
+            :to="{ path: '/projects', query: { applicationId: application.id } }"
           >
-            去项目管理
+            查看立项申请
           </RouterLink>
         </article>
         <small>
-          线索转立项后仍可继续跟进；只有立项审批通过后，线索才会自动变成“已转项目”。
+          该线索已生成立项申请，不能重复申请。审批没有全部通过前，线索仍停留在“跟进中”，可以继续新增跟进；立项审批全部通过后，会自动变为“已转项目”。
         </small>
       </section>
 
@@ -921,7 +921,10 @@ watch(
             canReadProject
           "
           class="button-link secondary"
-          to="/projects"
+          :to="{
+            path: '/projects',
+            query: { applicationId: projectApplications[0]?.id },
+          }"
         >
           查看立项申请
         </RouterLink>

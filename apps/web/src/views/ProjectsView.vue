@@ -30,6 +30,7 @@ interface ApplicationDetail {
   code: string;
   projectName: string;
   customerId: string;
+  sourceLeadId: string | null;
   projectType: string;
   background: string | null;
   serviceScope: string;
@@ -98,6 +99,7 @@ const showForm = ref(false);
 const saving = ref(false);
 const editingApplicationId = ref<string | null>(null);
 const editingApplicationVersion = ref(0);
+const editingApplicationSourceLeadId = ref<string | null>(null);
 const detail = ref<ProjectDetail | null>(null);
 const selectedApplication = ref<ApplicationDetail | null>(null);
 
@@ -228,6 +230,7 @@ function resetForm() {
   };
   editingApplicationId.value = null;
   editingApplicationVersion.value = 0;
+  editingApplicationSourceLeadId.value = null;
 }
 
 async function load() {
@@ -270,7 +273,9 @@ async function createApplication() {
     const data = {
       ...form.value,
       background: form.value.background || null,
-      sourceLeadId: null,
+      sourceLeadId: editingApplicationId.value
+        ? editingApplicationSourceLeadId.value
+        : null,
       proposedManagerId: auth.user.employeeId,
       memberSuggestions: [],
       riskDescription: form.value.riskDescription || null,
@@ -321,6 +326,7 @@ async function editApplication(item: ApplicationRow) {
     };
     editingApplicationId.value = application.id;
     editingApplicationVersion.value = application.version;
+    editingApplicationSourceLeadId.value = application.sourceLeadId ?? null;
     showForm.value = true;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载立项申请失败";
@@ -339,6 +345,7 @@ async function viewApplication(applicationId: string) {
     detail.value = null;
     showForm.value = false;
     editingApplicationId.value = null;
+    editingApplicationSourceLeadId.value = null;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载立项申请详情失败";
   }
