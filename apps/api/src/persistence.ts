@@ -1790,8 +1790,21 @@ export class MySqlActionExecutor {
               "DICTIONARY_ITEM_CONFLICT",
               "字典项已被修改，请刷新后重试",
               409,
-            );
+          );
           return { id: input.itemId, version: input.version + 1 };
+        }
+        case "admin.dictionary.item.delete": {
+          const [result] = await connection.execute<ResultSetHeader>(
+            `DELETE FROM sys_dictionary_item WHERE id=? AND version=?`,
+            [input.itemId, input.version],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "DICTIONARY_ITEM_DELETE_CONFLICT",
+              "字典项不存在或已被修改，请刷新后重试",
+              409,
+            );
+          return { id: input.itemId, deleted: true };
         }
         case "admin.approvalNode.update": {
           const [result] = await connection.execute<ResultSetHeader>(
@@ -2532,7 +2545,12 @@ export class MySqlActionExecutor {
           const projectScope = buildProjectDataScope(user),
             [projects] = await selectRows(
               connection,
-              `SELECT CAST(p.id AS CHAR) id,CAST(p.application_id AS CHAR) applicationId,a.application_code applicationCode,CAST(a.source_lead_id AS CHAR) sourceLeadId,l.lead_code sourceLeadCode,l.project_name sourceLeadName,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName FROM prj_project p LEFT JOIN prj_project_application a ON a.id=p.application_id AND a.is_deleted=0 LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
+              `SELECT CAST(p.id AS CHAR) id,CAST(p.application_id AS CHAR) applicationId,a.application_code applicationCode,CAST(a.source_lead_id AS CHAR) sourceLeadId,l.lead_code sourceLeadCode,l.project_name sourceLeadName,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName,
+                      a.project_name applicationProjectName,a.project_type applicationProjectType,a.background applicationBackground,a.service_scope applicationServiceScope,
+                      a.estimated_revenue applicationEstimatedRevenue,a.estimated_cost applicationEstimatedCost,a.estimated_start_on applicationEstimatedStartOn,
+                      a.estimated_end_on applicationEstimatedEndOn,a.bidding_method applicationBiddingMethod,a.risk_description applicationRiskDescription,
+                      a.necessity applicationNecessity,a.status applicationStatus
+                 FROM prj_project p LEFT JOIN prj_project_application a ON a.id=p.application_id AND a.is_deleted=0 LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
               [input.projectId, ...projectScope.params],
             );
           const project = projects[0];
@@ -2624,6 +2642,8 @@ export class MySqlActionExecutor {
           if (!canReadFinancial) {
             delete project.estimatedRevenue;
             delete project.estimatedCost;
+            delete project.applicationEstimatedRevenue;
+            delete project.applicationEstimatedCost;
             for (const contract of contracts)
               delete contract.taxExclusiveAmount;
           }

@@ -786,6 +786,13 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       version: z.number().int().nonnegative(),
     }),
   },
+  "admin.dictionary.item.delete": {
+    permission: "system.admin",
+    input: z.object({
+      itemId: z.string().min(1),
+      version: z.number().int().nonnegative(),
+    }),
+  },
   "admin.approvalNode.update": {
     permission: "system.admin",
     input: z

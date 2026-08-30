@@ -779,6 +779,8 @@ async function saveParameter(parameter: SystemParameter) {
   }
 }
 async function createDictionaryType() {
+  error.value = null;
+  notice.value = null;
   saving.value = true;
   try {
     await callApi("admin.dictionary.type.create", {
@@ -787,6 +789,7 @@ async function createDictionaryType() {
     });
     dictionaryTypeForm.value = { typeCode: "", name: "", description: "" };
     await load();
+    notice.value = "字典类型已保存";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "字典类型保存失败";
   } finally {
@@ -794,6 +797,8 @@ async function createDictionaryType() {
   }
 }
 async function createDictionaryItem() {
+  error.value = null;
+  notice.value = null;
   saving.value = true;
   try {
     await callApi("admin.dictionary.item.create", dictionaryItemForm.value);
@@ -805,6 +810,7 @@ async function createDictionaryItem() {
       sortOrder: 0,
     };
     await load();
+    notice.value = "字典项已新增";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "字典项保存失败";
   } finally {
@@ -812,6 +818,8 @@ async function createDictionaryItem() {
   }
 }
 async function saveDictionaryItem(item: DictionaryItem) {
+  error.value = null;
+  notice.value = null;
   saving.value = true;
   try {
     await callApi("admin.dictionary.item.update", {
@@ -823,8 +831,31 @@ async function saveDictionaryItem(item: DictionaryItem) {
       version: item.version,
     });
     await load();
+    notice.value = `字典项已保存：${item.label}`;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "字典项更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+async function deleteDictionaryItem(item: DictionaryItem) {
+  if (
+    typeof window !== "undefined" &&
+    !window.confirm(`确认删除字典项“${item.label}”？删除后下拉选项将不再显示。`)
+  )
+    return;
+  error.value = null;
+  notice.value = null;
+  saving.value = true;
+  try {
+    await callApi("admin.dictionary.item.delete", {
+      itemId: item.id,
+      version: item.version,
+    });
+    await load();
+    notice.value = `字典项已删除：${item.label}`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "字典项删除失败";
   } finally {
     saving.value = false;
   }
@@ -2826,7 +2857,7 @@ onMounted(load);
             type="number" /></label
         ><button :disabled="saving">保存字典项</button>
       </form>
-      <table v-if="dictionaryItems.length">
+      <table v-if="dictionaryItems.length" class="dictionary-table">
         <thead>
           <tr>
             <th>类型</th>
@@ -2864,9 +2895,16 @@ onMounted(load);
                 <option value="DISABLED">停用</option>
               </select>
             </td>
-            <td>
+            <td class="dictionary-actions">
               <button :disabled="saving" @click="saveDictionaryItem(item)">
                 保存
+              </button>
+              <button
+                class="danger-link-button"
+                :disabled="saving"
+                @click="deleteDictionaryItem(item)"
+              >
+                删除
               </button>
             </td>
           </tr>
@@ -3516,6 +3554,76 @@ onMounted(load);
   margin-top: 4px;
   color: #748095;
   font-size: 12px;
+}
+
+.dictionary-table {
+  table-layout: fixed;
+}
+
+.dictionary-table th,
+.dictionary-table td {
+  padding: 7px 8px;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.dictionary-table th:nth-child(1) {
+  width: 15%;
+}
+
+.dictionary-table th:nth-child(2) {
+  width: 17%;
+}
+
+.dictionary-table th:nth-child(3),
+.dictionary-table th:nth-child(4) {
+  width: 17%;
+}
+
+.dictionary-table th:nth-child(5) {
+  width: 10%;
+}
+
+.dictionary-table th:nth-child(6) {
+  width: 8%;
+}
+
+.dictionary-table th:nth-child(7) {
+  width: 16%;
+}
+
+.dictionary-table input,
+.dictionary-table select {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.dictionary-table select {
+  width: 100%;
+}
+
+.dictionary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dictionary-actions button {
+  width: auto;
+  min-width: 56px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.danger-link-button {
+  color: #d14343;
+  background: #fff1f1;
+}
+
+.danger-link-button:hover {
+  background: #ffe4e4;
 }
 
 .approval-header,

@@ -87,7 +87,8 @@ describe("project read data scopes", () => {
     await executor.execute("project.detail", { projectId: "p9" }, scopedUser);
 
     const query = connection.calls.find((call) =>
-      call.sql.includes("FROM prj_project p JOIN crm_counterparty"),
+      call.sql.includes("FROM prj_project p") &&
+      call.sql.includes("JOIN crm_counterparty"),
     )!;
     expect(query.sql).toContain("p.id IN (?)");
     expect(query.sql).toContain("pm.department_id IN (?)");

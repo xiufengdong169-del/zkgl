@@ -283,6 +283,11 @@ function moneyText(value?: string | number | null) {
   return `${Number.isFinite(numberValue) ? numberValue.toFixed(2) : "0.00"} 万元`;
 }
 
+function dateText(value?: string | null) {
+  if (!value) return "未填写";
+  return value.slice(0, 10);
+}
+
 function applicationProfit(item: ApplicationRow) {
   if (item.estimatedProfit != null) return moneyText(item.estimatedProfit);
   return moneyText(Number(item.estimatedRevenue) - Number(item.estimatedCost));
@@ -919,6 +924,65 @@ watch(
           >
             查看来源线索
           </RouterLink>
+        </div>
+      </section>
+      <section v-if="detail.project.applicationCode" class="application-full-card">
+        <div class="section-title">
+          <h3>立项申请填写信息</h3>
+          <span class="muted">
+            {{ detail.project.applicationCode }} ·
+            {{ statusText(detail.project.applicationStatus) }}
+          </span>
+        </div>
+        <div class="application-detail-grid">
+          <p>
+            <span>立项项目名称</span>
+            <strong>{{
+              detail.project.applicationProjectName || detail.project.projectName
+            }}</strong>
+          </p>
+          <p>
+            <span>项目类型</span>
+            <strong>{{
+              projectTypeText(detail.project.applicationProjectType || detail.project.projectType)
+            }}</strong>
+          </p>
+          <p>
+            <span>预计开始</span>
+            <strong>{{ dateText(detail.project.applicationEstimatedStartOn) }}</strong>
+          </p>
+          <p>
+            <span>预计结束</span>
+            <strong>{{ dateText(detail.project.applicationEstimatedEndOn) }}</strong>
+          </p>
+          <p>
+            <span>投标方式</span>
+            <strong>{{
+              biddingMethodText(detail.project.applicationBiddingMethod)
+            }}</strong>
+          </p>
+          <p v-if="detail.financialVisible">
+            <span>预计成本</span>
+            <strong>{{ moneyText(detail.project.applicationEstimatedCost) }}</strong>
+          </p>
+        </div>
+        <div class="application-text-grid">
+          <article>
+            <h4>服务范围</h4>
+            <p>{{ detail.project.applicationServiceScope || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>立项必要性</h4>
+            <p>{{ detail.project.applicationNecessity || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>项目背景</h4>
+            <p>{{ detail.project.applicationBackground || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>风险说明</h4>
+            <p>{{ detail.project.applicationRiskDescription || "暂无" }}</p>
+          </article>
         </div>
       </section>
       <p>

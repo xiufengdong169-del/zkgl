@@ -99,19 +99,41 @@ function projectApplicationReadConnection() {
       if (sql.includes("FROM prj_project_application WHERE is_deleted=0")) {
         return [[], []];
       }
-      if (sql.includes("FROM prj_project_application WHERE id=?")) {
+      if (
+        sql.includes("FROM prj_project_application WHERE id=?") ||
+        sql.includes("FROM prj_project_application a")
+      ) {
         return [
           [
             {
               id: "app-1",
               code: "PA-1",
               projectName: "智慧园区二期",
+              customerId: "c1",
+              sourceLeadId: null,
+              projectType: "CONSULTING",
+              background: null,
+              serviceScope: "服务范围",
+              estimatedRevenue: 100,
+              estimatedCost: 60,
+              estimatedStartOn: "2026-08-01",
+              estimatedEndOn: "2026-09-01",
+              proposedManagerId: "e-reader",
+              biddingMethod: "PUBLIC",
+              riskDescription: null,
+              necessity: "立项必要性",
               status: "DRAFT",
               version: 1,
             },
           ],
           [],
         ];
+      }
+      if (
+        sql.includes("FROM prj_application_member_suggestion") ||
+        sql.includes("FROM wf_instance i")
+      ) {
+        return [[], []];
       }
       return [{ affectedRows: 1 }, []];
     },
@@ -149,7 +171,7 @@ describe("project application write scopes", () => {
     ).resolves.toMatchObject({ application: { id: "app-1" } });
 
     const detailQuery = connection.calls.find((call) =>
-      call.sql.includes("FROM prj_project_application WHERE id=?"),
+      call.sql.includes("FROM prj_project_application a"),
     )!;
     expect(detailQuery.sql).toContain("created_by=?");
     expect(detailQuery.sql).toContain("applicant_id=?");
