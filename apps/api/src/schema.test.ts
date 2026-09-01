@@ -934,7 +934,7 @@ describe("empty database initialization schema", () => {
       "UPDATE mkt_lead SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE mkt_lead SET success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE con_contract SET signed_on=?,effective_on=?,status='PERFORMING',updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
-      "UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0",
+      "UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,customer_lead_department=?,customer_contact_name=?,project_address=?,project_type=?,background=?,service_scope=?,investment_amount=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0",
       "UPDATE bid_application SET status=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE bid_task SET status=?,completion_description=COALESCE(?,completion_description),updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",
       "UPDATE bid_check SET result=?,issue_description=?,rectifier_id=?,rectification_due_at=?,recheck_result=?,updated_by=?,version=version+1 WHERE id=? AND is_deleted=0",

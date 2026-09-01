@@ -31,17 +31,23 @@ interface ApplicationDetail {
   code: string;
   projectName: string;
   customerId: string;
+  customerName?: string | null;
   sourceLeadId: string | null;
   sourceLeadCode?: string | null;
   sourceLeadName?: string | null;
+  customerLeadDepartment: string;
+  customerContactName: string;
+  projectAddress: string;
   projectType: string;
   background: string | null;
   serviceScope: string;
+  investmentAmount: number;
   estimatedRevenue: number;
   estimatedCost: number;
   estimatedStartOn: string;
   estimatedEndOn: string;
   proposedManagerId: string;
+  proposedManagerName?: string | null;
   biddingMethod: string | null;
   riskDescription: string | null;
   necessity: string;
@@ -67,6 +73,21 @@ interface ApprovalProgressRow {
 interface Customer {
   id: string;
   name: string;
+}
+
+interface EmployeeOption {
+  id: string;
+  employeeCode: string;
+  name: string;
+  positionName?: string;
+}
+
+interface DictionaryOption {
+  typeCode: string;
+  itemCode: string;
+  label: string;
+  valueText: string;
+  sortOrder: number;
 }
 
 interface ProjectDetail {
@@ -111,6 +132,33 @@ const router = useRouter();
 const projects = ref<ProjectRow[]>([]);
 const applications = ref<ApplicationRow[]>([]);
 const customers = ref<Customer[]>([]);
+const employees = ref<EmployeeOption[]>([]);
+const defaultBiddingMethodOptions: DictionaryOption[] = [
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "PUBLIC",
+    label: "公开投标",
+    valueText: "PUBLIC",
+    sortOrder: 10,
+  },
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "NEGOTIATION",
+    label: "商务洽谈",
+    valueText: "NEGOTIATION",
+    sortOrder: 20,
+  },
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "NONE",
+    label: "无需投标",
+    valueText: "NONE",
+    sortOrder: 30,
+  },
+];
+const biddingMethodOptions = ref<DictionaryOption[]>(
+  defaultBiddingMethodOptions,
+);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const showForm = ref(false);
@@ -182,9 +230,14 @@ function toDateInput(value?: string | null) {
 const form = ref({
   projectName: "",
   customerId: "",
+  customerLeadDepartment: "",
+  customerContactName: "",
+  projectAddress: "",
+  proposedManagerId: auth.user?.employeeId || "",
   projectType: "CONSULTING",
   background: "",
   serviceScope: "",
+  investmentAmount: 0,
   estimatedRevenue: 0,
   estimatedCost: 0,
   estimatedStartOn: today,
@@ -270,12 +323,10 @@ function projectTypeText(value?: string | null) {
 }
 
 function biddingMethodText(value?: string | null) {
-  const labels: Record<string, string> = {
-    PUBLIC: "公开投标",
-    NEGOTIATION: "商务洽谈",
-    NONE: "无需投标",
-  };
-  return (value && labels[value]) || value || "-";
+  const option = biddingMethodOptions.value.find(
+    (item) => item.valueText === value || item.itemCode === value,
+  );
+  return option?.label || value || "-";
 }
 
 function moneyText(value?: string | number | null) {
@@ -297,9 +348,14 @@ function resetForm() {
   form.value = {
     projectName: "",
     customerId: "",
+    customerLeadDepartment: "",
+    customerContactName: "",
+    projectAddress: "",
+    proposedManagerId: auth.user?.employeeId || "",
     projectType: "CONSULTING",
     background: "",
     serviceScope: "",
+    investmentAmount: 0,
     estimatedRevenue: 0,
     estimatedCost: 0,
     estimatedStartOn: today,
@@ -316,7 +372,7 @@ function resetForm() {
 async function load() {
   error.value = null;
   try {
-    const [p, a, c] = await Promise.all([
+    const [p, a, c, e, projectOptions] = await Promise.all([
       callApi<{ items: ProjectRow[] }>("project.list", {
         page: 1,
         pageSize: 20,
@@ -329,10 +385,21 @@ async function load() {
         page: 1,
         pageSize: 50,
       }),
+      callApi<{ items: EmployeeOption[] }>("project.employee.options", {}),
+      callApi<{ items: DictionaryOption[] }>("dictionary.projectOptions", {}),
     ]);
     projects.value = p.items;
     applications.value = a.items;
     customers.value = c.items;
+    employees.value = e.items;
+    biddingMethodOptions.value =
+      projectOptions.items.filter(
+        (item) => item.typeCode === "PROJECT_BIDDING_METHOD",
+      ).length > 0
+        ? projectOptions.items.filter(
+            (item) => item.typeCode === "PROJECT_BIDDING_METHOD",
+          )
+        : defaultBiddingMethodOptions;
     projectPage.value = Math.min(projectPage.value, projectPageCount.value);
     applicationPage.value = Math.min(
       applicationPage.value,
@@ -361,7 +428,7 @@ async function createApplication() {
       sourceLeadId: editingApplicationId.value
         ? editingApplicationSourceLeadId.value
         : null,
-      proposedManagerId: auth.user.employeeId,
+      proposedManagerId: form.value.proposedManagerId,
       memberSuggestions: [],
       riskDescription: form.value.riskDescription || null,
     };
@@ -398,9 +465,14 @@ async function editApplication(item: ApplicationRow) {
     form.value = {
       projectName: application.projectName,
       customerId: application.customerId,
+      customerLeadDepartment: application.customerLeadDepartment,
+      customerContactName: application.customerContactName,
+      projectAddress: application.projectAddress,
+      proposedManagerId: application.proposedManagerId,
       projectType: application.projectType,
       background: application.background ?? "",
       serviceScope: application.serviceScope,
+      investmentAmount: Number(application.investmentAmount),
       estimatedRevenue: Number(application.estimatedRevenue),
       estimatedCost: Number(application.estimatedCost),
       estimatedStartOn: toDateInput(application.estimatedStartOn),
@@ -576,11 +648,11 @@ watch(
         {{ editingApplicationId ? "修改立项申请" : "新增立项申请" }}
       </h2>
       <label>
-        项目名称
+        项目名称<span class="required-mark">*</span>
         <input v-model="form.projectName" required minlength="2" />
       </label>
       <label>
-        客户
+        客户<span class="required-mark">*</span>
         <select v-model="form.customerId" required>
           <option value="" disabled>请选择</option>
           <option v-for="c in customers" :key="c.id" :value="c.id">
@@ -589,15 +661,46 @@ watch(
         </select>
       </label>
       <label>
-        项目类型
-        <select v-model="form.projectType">
+        客户项目牵头部门<span class="required-mark">*</span>
+        <input v-model="form.customerLeadDepartment" required maxlength="128" />
+      </label>
+      <label>
+        客户对接联系人<span class="required-mark">*</span>
+        <input v-model="form.customerContactName" required maxlength="128" />
+      </label>
+      <label>
+        项目类型<span class="required-mark">*</span>
+        <select v-model="form.projectType" required>
           <option value="CONSULTING">信息化咨询</option>
           <option value="SUPERVISION">信息化监理</option>
           <option value="OTHER">其他</option>
         </select>
       </label>
       <label>
-        预计收入（万元）
+        项目地址<span class="required-mark">*</span>
+        <input v-model="form.projectAddress" required maxlength="512" />
+      </label>
+      <label>
+        拟任项目负责人<span class="required-mark">*</span>
+        <select v-model="form.proposedManagerId" required>
+          <option value="" disabled>请选择</option>
+          <option v-for="person in employees" :key="person.id" :value="person.id">
+            {{ person.name }}{{ person.positionName ? ` · ${person.positionName}` : "" }}
+          </option>
+        </select>
+      </label>
+      <label>
+        项目投资规模（万元）<span class="required-mark">*</span>
+        <input
+          v-model.number="form.investmentAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          required
+        />
+      </label>
+      <label>
+        预计收入（万元）<span class="required-mark">*</span>
         <input
           v-model.number="form.estimatedRevenue"
           type="number"
@@ -624,7 +727,7 @@ watch(
         />
       </label>
       <label>
-        预计开始
+        预计开始<span class="required-mark">*</span>
         <input v-model="form.estimatedStartOn" type="date" required />
       </label>
       <label>
@@ -632,11 +735,15 @@ watch(
         <input v-model="form.estimatedEndOn" type="date" required />
       </label>
       <label>
-        投标方式
-        <select v-model="form.biddingMethod">
-          <option value="PUBLIC">公开投标</option>
-          <option value="NEGOTIATION">商务洽谈</option>
-          <option value="NONE">无需投标</option>
+        投标方式<span class="required-mark">*</span>
+        <select v-model="form.biddingMethod" required>
+          <option
+            v-for="item in biddingMethodOptions"
+            :key="item.itemCode"
+            :value="item.valueText"
+          >
+            {{ item.label }}
+          </option>
         </select>
       </label>
       <label class="wide">
@@ -697,7 +804,7 @@ watch(
       </div>
     </section>
 
-    <section v-if="selectedApplication" class="data-panel">
+    <section v-if="selectedApplication" class="data-panel project-detail-panel">
       <header class="page-header">
         <div>
           <p class="eyebrow">立项申请详情</p>
@@ -711,11 +818,98 @@ watch(
           {{ fromApprovalInbox() ? "返回审批与待办" : "返回项目管理" }}
         </button>
       </header>
-      <p>
-        申请编号：{{ selectedApplication.code }}　状态：{{
-          statusText(selectedApplication.status)
-        }}　项目类型：{{ projectTypeText(selectedApplication.projectType) }}
-      </p>
+      <section class="application-full-card">
+        <div class="section-title">
+          <h3>立项申请填写信息</h3>
+          <span class="muted">
+            {{ selectedApplication.code }} ·
+            {{ statusText(selectedApplication.status) }}
+          </span>
+        </div>
+        <div class="application-detail-grid">
+          <p>
+            <span>项目名称</span>
+            <strong>{{ selectedApplication.projectName }}</strong>
+          </p>
+          <p>
+            <span>客户</span>
+            <strong>{{ selectedApplication.customerName || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>项目类型</span>
+            <strong>{{ projectTypeText(selectedApplication.projectType) }}</strong>
+          </p>
+          <p>
+            <span>客户项目牵头部门</span>
+            <strong>{{ selectedApplication.customerLeadDepartment || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>客户对接联系人</span>
+            <strong>{{ selectedApplication.customerContactName || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>项目地址</span>
+            <strong>{{ selectedApplication.projectAddress || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>项目投资规模</span>
+            <strong>{{ moneyText(selectedApplication.investmentAmount) }}</strong>
+          </p>
+          <p>
+            <span>预计收入</span>
+            <strong>{{ moneyText(selectedApplication.estimatedRevenue) }}</strong>
+          </p>
+          <p>
+            <span>预计成本</span>
+            <strong>{{ moneyText(selectedApplication.estimatedCost) }}</strong>
+          </p>
+          <p>
+            <span>预计利润</span>
+            <strong>
+              {{
+                moneyText(
+                  Number(selectedApplication.estimatedRevenue) -
+                    Number(selectedApplication.estimatedCost),
+                )
+              }}
+            </strong>
+          </p>
+          <p>
+            <span>预计开始</span>
+            <strong>{{ dateText(selectedApplication.estimatedStartOn) }}</strong>
+          </p>
+          <p>
+            <span>预计结束</span>
+            <strong>{{ dateText(selectedApplication.estimatedEndOn) }}</strong>
+          </p>
+          <p>
+            <span>投标方式</span>
+            <strong>{{ biddingMethodText(selectedApplication.biddingMethod) }}</strong>
+          </p>
+          <p>
+            <span>拟任项目负责人</span>
+            <strong>{{ selectedApplication.proposedManagerName || "暂无" }}</strong>
+          </p>
+        </div>
+        <div class="application-text-grid">
+          <article>
+            <h4>服务范围</h4>
+            <p>{{ selectedApplication.serviceScope || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>立项必要性</h4>
+            <p>{{ selectedApplication.necessity || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>项目背景</h4>
+            <p>{{ selectedApplication.background || "暂无" }}</p>
+          </article>
+          <article>
+            <h4>风险说明</h4>
+            <p>{{ selectedApplication.riskDescription || "暂无" }}</p>
+          </article>
+        </div>
+      </section>
       <section v-if="selectedApplication.sourceLeadId" class="trace-card">
         <div>
           <p class="eyebrow">来源线索</p>
@@ -753,7 +947,7 @@ watch(
             </strong>
             <span>{{ approvalTaskStatusText(task.taskStatus) }}</span>
             <small>
-              审批人：{{ task.approverName || "未配置" }}
+              审批岗位：{{ task.positionName }} · 审批人员：{{ task.approverName || "未配置" }}
               <template v-if="task.completedAt">
                 · 处理人：{{ task.completedByName || task.approverName || "-" }}
                 · {{ new Date(task.completedAt).toLocaleString() }}
@@ -762,51 +956,6 @@ watch(
           </article>
         </div>
       </section>
-      <section class="contract-panels">
-        <article>
-          <p>预计收入</p>
-          <strong>{{ moneyText(selectedApplication.estimatedRevenue) }}</strong>
-        </article>
-        <article>
-          <p>预计成本</p>
-          <strong>{{ moneyText(selectedApplication.estimatedCost) }}</strong>
-        </article>
-        <article>
-          <p>预计利润</p>
-          <strong>
-            {{
-              moneyText(
-                Number(selectedApplication.estimatedRevenue) -
-                  Number(selectedApplication.estimatedCost),
-              )
-            }}
-          </strong>
-        </article>
-      </section>
-      <div class="module-grid">
-        <article class="module-card">
-          <h3>基本信息</h3>
-          <p>预计开始：{{ selectedApplication.estimatedStartOn }}</p>
-          <p>预计结束：{{ selectedApplication.estimatedEndOn }}</p>
-          <p>
-            投标方式：{{ biddingMethodText(selectedApplication.biddingMethod) }}
-          </p>
-        </article>
-        <article class="module-card">
-          <h3>服务范围</h3>
-          <p>{{ selectedApplication.serviceScope || "暂无" }}</p>
-        </article>
-        <article class="module-card">
-          <h3>立项必要性</h3>
-          <p>{{ selectedApplication.necessity || "暂无" }}</p>
-        </article>
-      </div>
-      <p v-if="selectedApplication.background">
-        项目背景：{{ selectedApplication.background }}
-      </p>
-      <p v-if="selectedApplication.riskDescription">
-        风险说明：{{ selectedApplication.riskDescription }}
-      </p>
     </section>
 
     <section v-if="!selectedApplication" class="data-panel">
@@ -864,7 +1013,6 @@ watch(
       </header>
       <p>
         {{ detail.project.code }} · {{ detail.project.customerName }} ·
-        {{ detail.project.managerName }} ·
         {{ statusText(detail.project.status) }}
       </p>
       <section
@@ -948,6 +1096,22 @@ watch(
             }}</strong>
           </p>
           <p>
+            <span>客户项目牵头部门</span>
+            <strong>{{ detail.project.applicationCustomerLeadDepartment || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>客户对接联系人</span>
+            <strong>{{ detail.project.applicationCustomerContactName || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>项目地址</span>
+            <strong>{{ detail.project.applicationProjectAddress || "暂无" }}</strong>
+          </p>
+          <p>
+            <span>项目投资规模</span>
+            <strong>{{ moneyText(detail.project.applicationInvestmentAmount) }}</strong>
+          </p>
+          <p>
             <span>预计开始</span>
             <strong>{{ dateText(detail.project.applicationEstimatedStartOn) }}</strong>
           </p>
@@ -959,6 +1123,14 @@ watch(
             <span>投标方式</span>
             <strong>{{
               biddingMethodText(detail.project.applicationBiddingMethod)
+            }}</strong>
+          </p>
+          <p>
+            <span>拟任项目负责人</span>
+            <strong>{{
+              detail.project.applicationProposedManagerName ||
+              detail.project.managerName ||
+              "暂无"
             }}</strong>
           </p>
           <p v-if="detail.financialVisible">

@@ -21,6 +21,8 @@ describe("domain actions", () => {
     const result = authorizeAndParseAction(user, "crm.counterparty.create", {
       name: "测试客户有限公司",
       type: "CUSTOMER",
+      industry: "信息化/软件",
+      address: "广州市天河区",
       ownerId: "u1",
     });
     expect(result).toMatchObject({

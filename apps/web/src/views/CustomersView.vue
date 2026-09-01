@@ -10,8 +10,14 @@ interface ContactRecord {
   departmentName?: string;
   positionName?: string;
   mobile?: string;
+  phone?: string | null;
   email?: string;
+  wechat?: string | null;
   isKeyContact: boolean;
+  relationshipLevel?: string | null;
+  decisionRole?: string | null;
+  remark?: string | null;
+  version?: number;
 }
 
 interface VisitRecord {
@@ -68,10 +74,12 @@ const auth = useAuthStore();
 const items = ref<CounterpartySummary[]>([]);
 const detail = ref<Detail | null>(null);
 const selectedId = ref("");
+const selectedContact = ref<ContactRecord | null>(null);
 const selectedVisit = ref<VisitRecord | null>(null);
 const showForm = ref(false);
 const showEdit = ref(false);
 const showContact = ref(false);
+const showContactEdit = ref(false);
 const showVisit = ref(false);
 const showVisitEdit = ref(false);
 const saving = ref(false);
@@ -173,6 +181,19 @@ const contact = ref({
   remark: "",
 });
 
+const contactEdit = ref({
+  contactId: "",
+  name: "",
+  departmentName: "",
+  positionName: "",
+  mobile: "",
+  email: "",
+  isKeyContact: false,
+  relationshipLevel: "NORMAL",
+  decisionRole: "",
+  remark: "",
+});
+
 const visit = ref({
   contactId: "",
   visitedAt: new Date().toISOString().slice(0, 16),
@@ -199,12 +220,17 @@ const visitEdit = ref({
   opportunityAssessment: "",
   nextAction: "",
   nextFollowUpAt: "",
+  generateLead: false,
 });
 
 function switchSection(section: "counterparties" | "contacts" | "visits") {
   activeSection.value = section;
   if (section !== "counterparties") showForm.value = false;
-  if (section !== "contacts") showContact.value = false;
+  if (section !== "contacts") {
+    showContact.value = false;
+    showContactEdit.value = false;
+    selectedContact.value = null;
+  }
   if (section !== "visits") {
     showVisit.value = false;
     showVisitEdit.value = false;
@@ -222,6 +248,8 @@ function openCounterpartyForm() {
 function openContactForm() {
   activeSection.value = "contacts";
   showContact.value = !showContact.value;
+  showContactEdit.value = false;
+  selectedContact.value = null;
   showForm.value = false;
   showVisit.value = false;
 }
@@ -231,6 +259,8 @@ function openVisitForm() {
   showVisit.value = !showVisit.value;
   showForm.value = false;
   showContact.value = false;
+  showContactEdit.value = false;
+  selectedContact.value = null;
 }
 
 const modules = [
@@ -293,6 +323,30 @@ function contactName(contactId?: string | null) {
   );
 }
 
+function startEditContact(item: ContactRecord) {
+  activeSection.value = "contacts";
+  selectedContact.value = item;
+  contactEdit.value = {
+    contactId: item.id,
+    name: item.name || "",
+    departmentName: item.departmentName || "",
+    positionName: item.positionName || "",
+    mobile: item.mobile || "",
+    email: item.email || "",
+    isKeyContact: Boolean(item.isKeyContact),
+    relationshipLevel: item.relationshipLevel || "NORMAL",
+    decisionRole: item.decisionRole || "",
+    remark: item.remark || "",
+  };
+  showContact.value = false;
+  showContactEdit.value = true;
+}
+
+function closeContactEdit() {
+  selectedContact.value = null;
+  showContactEdit.value = false;
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
@@ -321,7 +375,8 @@ function selectVisit(record: VisitRecord) {
   switchSection("visits");
 }
 
-function startEditVisit() {
+function startEditVisit(record?: VisitRecord) {
+  if (record) selectedVisit.value = record;
   if (!selectedVisit.value) return;
   const item = selectedVisit.value;
   visitEdit.value = {
@@ -336,6 +391,7 @@ function startEditVisit() {
     opportunityAssessment: item.opportunityAssessment || "",
     nextAction: item.nextAction || "",
     nextFollowUpAt: toDateTimeInput(item.nextFollowUpAt),
+    generateLead: Boolean(item.generateLead),
   };
   showVisitEdit.value = true;
 }
@@ -420,6 +476,14 @@ async function loadDetail(id: string) {
         detail.value.visits.find((item) => item.id === selectedVisit.value?.id) ||
         null;
     }
+    if (selectedContact.value) {
+      const latestContact =
+        detail.value.contacts.find(
+          (item) => item.id === selectedContact.value?.id,
+        ) || null;
+      selectedContact.value = latestContact;
+      if (!latestContact) showContactEdit.value = false;
+    }
     showEdit.value = false;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载详情失败";
@@ -434,9 +498,9 @@ async function createCounterparty() {
     const created = await callApi<{ id?: string }>("crm.counterparty.create", {
       ...form.value,
       shortName: form.value.shortName || null,
-      industry: form.value.industry || null,
+      industry: form.value.industry,
       region: null,
-      address: form.value.address || null,
+      address: form.value.address,
       phone: form.value.phone || null,
       invoiceTitle: form.value.invoiceTitle || form.value.name || null,
       taxNumber: form.value.taxNumber || null,
@@ -505,9 +569,9 @@ async function updateCounterparty() {
       name: f.name,
       shortName: f.shortName || null,
       type: f.type,
-      industry: f.industry || null,
+      industry: f.industry,
       region: null,
-      address: f.address || null,
+      address: f.address,
       phone: f.phone || null,
       invoiceTitle: f.invoiceTitle || f.name || null,
       taxNumber: f.taxNumber || null,
@@ -554,13 +618,14 @@ async function deleteCounterparty() {
 async function createContact() {
   if (!auth.user || !selectedId.value) return;
   saving.value = true;
+  error.value = null;
   try {
     const f = contact.value;
     await callApi("crm.contact.create", {
       counterpartyId: selectedId.value,
       ...f,
       gender: null,
-      departmentName: f.departmentName || null,
+      departmentName: f.departmentName,
       positionName: f.positionName || null,
       mobile: f.mobile || null,
       phone: null,
@@ -574,6 +639,53 @@ async function createContact() {
     await loadDetail(selectedId.value);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "保存失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function updateContact() {
+  if (!auth.user || !selectedId.value || !selectedContact.value) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const f = contactEdit.value;
+    await callApi("crm.contact.update", {
+      contactId: f.contactId,
+      name: f.name,
+      gender: null,
+      departmentName: f.departmentName,
+      positionName: f.positionName || null,
+      mobile: f.mobile || null,
+      phone: null,
+      email: f.email || null,
+      wechat: null,
+      isKeyContact: f.isKeyContact,
+      relationshipLevel: f.relationshipLevel || null,
+      decisionRole: f.decisionRole || null,
+      remark: f.remark || null,
+    });
+    showContactEdit.value = false;
+    selectedContact.value = null;
+    await loadDetail(selectedId.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "保存联系人失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteContact(item: ContactRecord) {
+  if (!auth.user || !selectedId.value) return;
+  if (!window.confirm(`确认删除联系人“${item.name}”？`)) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("crm.contact.delete", { contactId: item.id });
+    if (selectedContact.value?.id === item.id) closeContactEdit();
+    await loadDetail(selectedId.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "删除联系人失败";
   } finally {
     saving.value = false;
   }
@@ -609,10 +721,15 @@ async function createVisit() {
 
 async function updateVisit() {
   if (!auth.user || !selectedId.value || !selectedVisit.value) return;
+  const f = visitEdit.value;
+  if (selectedVisit.value.generateLead && !f.generateLead) {
+    error.value =
+      "该拜访已生成项目线索，不能直接改为不生成线索；请先到项目线索中处理或删除对应线索。";
+    return;
+  }
   saving.value = true;
   error.value = null;
   try {
-    const f = visitEdit.value;
     await callApi("crm.visit.update", {
       visitId: f.visitId,
       contactId: f.contactId || null,
@@ -627,6 +744,7 @@ async function updateVisit() {
       nextFollowUpAt: f.nextFollowUpAt
         ? new Date(f.nextFollowUpAt).toISOString()
         : null,
+      generateLead: f.generateLead,
     });
     showVisitEdit.value = false;
     await loadDetail(selectedId.value);
@@ -637,9 +755,11 @@ async function updateVisit() {
   }
 }
 
-async function deleteVisit() {
+async function deleteVisit(record?: VisitRecord) {
+  if (record) selectedVisit.value = record;
   if (!auth.user || !selectedId.value || !selectedVisit.value) return;
-  if (!window.confirm("确认删除这条拜访记录？")) return;
+  if (!window.confirm(`确认删除拜访记录“${selectedVisit.value.purpose}”？`))
+    return;
   saving.value = true;
   error.value = null;
   try {
@@ -729,7 +849,7 @@ onMounted(async () => {
       @submit.prevent="createCounterparty"
     >
       <label
-        >单位名称<input
+        >单位名称<span class="required-mark">*</span><input
           v-model="form.name"
           required
           minlength="2"
@@ -737,7 +857,7 @@ onMounted(async () => {
       /></label>
       <label>单位简称<input v-model="form.shortName" maxlength="128" /></label>
       <label
-        >单位类型<select v-model="form.type">
+        >单位类型<span class="required-mark">*</span><select v-model="form.type" required>
           <option
             v-for="option in typeOptions"
             :key="option.value"
@@ -748,8 +868,8 @@ onMounted(async () => {
         </select></label
       >
       <label
-        >所属行业<select v-model="form.industry">
-          <option value="">请选择</option>
+        >所属行业<span class="required-mark">*</span><select v-model="form.industry" required>
+          <option value="" disabled>请选择</option>
           <option
             v-for="option in industryOptions"
             :key="option.value"
@@ -759,7 +879,7 @@ onMounted(async () => {
           </option>
         </select></label
       >
-      <label>地址<input v-model="form.address" maxlength="512" /></label>
+      <label>地址<span class="required-mark">*</span><input v-model="form.address" required maxlength="512" /></label>
       <label>电话<input v-model="form.phone" maxlength="32" /></label>
       <h2 class="wide form-section-title">发票和银行信息</h2>
       <label
@@ -790,10 +910,10 @@ onMounted(async () => {
       @submit.prevent="updateCounterparty"
     >
       <h2 class="wide">修改往来单位</h2>
-      <label>单位名称<input v-model="editForm.name" required /></label>
+      <label>单位名称<span class="required-mark">*</span><input v-model="editForm.name" required minlength="2" /></label>
       <label>单位简称<input v-model="editForm.shortName" maxlength="128" /></label>
       <label
-        >单位类型<select v-model="editForm.type">
+        >单位类型<span class="required-mark">*</span><select v-model="editForm.type" required>
           <option
             v-for="option in typeOptions"
             :key="option.value"
@@ -804,8 +924,8 @@ onMounted(async () => {
         </select></label
       >
       <label
-        >所属行业<select v-model="editForm.industry">
-          <option value="">请选择</option>
+        >所属行业<span class="required-mark">*</span><select v-model="editForm.industry" required>
+          <option value="" disabled>请选择</option>
           <option
             v-for="option in industryOptions"
             :key="option.value"
@@ -815,7 +935,7 @@ onMounted(async () => {
           </option>
         </select></label
       >
-      <label>地址<input v-model="editForm.address" maxlength="512" /></label>
+      <label>地址<span class="required-mark">*</span><input v-model="editForm.address" required maxlength="512" /></label>
       <label>电话<input v-model="editForm.phone" maxlength="32" /></label>
       <h2 class="wide form-section-title">发票和银行信息</h2>
       <label
@@ -850,8 +970,8 @@ onMounted(async () => {
       class="entity-form"
       @submit.prevent="createContact"
     >
-      <label>姓名<input v-model="contact.name" required /></label
-      ><label>部门<input v-model="contact.departmentName" /></label
+      <label>姓名<span class="required-mark">*</span><input v-model="contact.name" required /></label
+      ><label>部门<span class="required-mark">*</span><input v-model="contact.departmentName" required /></label
       ><label>职务<input v-model="contact.positionName" /></label
       ><label>手机<input v-model="contact.mobile" /></label
       ><label>邮箱<input v-model="contact.email" type="email" /></label
@@ -869,6 +989,34 @@ onMounted(async () => {
         </select></label
       ><label>决策角色<input v-model="contact.decisionRole" /></label
       ><button :disabled="saving">保存联系人</button>
+    </form>
+
+    <form
+      v-if="activeSection === 'contacts' && showContactEdit && selectedContact"
+      class="entity-form"
+      @submit.prevent="updateContact"
+    >
+      <h2 class="wide">修改联系人：{{ selectedContact.name }}</h2>
+      <label>姓名<span class="required-mark">*</span><input v-model="contactEdit.name" required /></label
+      ><label>部门<span class="required-mark">*</span><input v-model="contactEdit.departmentName" required /></label
+      ><label>职务<input v-model="contactEdit.positionName" /></label
+      ><label>手机<input v-model="contactEdit.mobile" /></label
+      ><label>邮箱<input v-model="contactEdit.email" type="email" /></label
+      ><label class="checkbox-field"
+        ><span>关键联系人</span>
+        <span class="checkbox-line">
+          <input v-model="contactEdit.isKeyContact" type="checkbox" />
+          <em>{{ contactEdit.isKeyContact ? "是" : "否" }}</em>
+        </span></label
+      ><label
+        >关系程度<select v-model="contactEdit.relationshipLevel">
+          <option value="NORMAL">一般</option>
+          <option value="GOOD">良好</option>
+          <option value="STRONG">密切</option>
+        </select></label
+      ><label>决策角色<input v-model="contactEdit.decisionRole" /></label
+      ><button :disabled="saving">保存修改</button>
+      <button type="button" @click="closeContactEdit">取消</button>
     </form>
 
     <form
@@ -897,7 +1045,7 @@ onMounted(async () => {
         </select></label
       ><label>地点<input v-model="visit.location" /></label
       ><label class="wide"
-        >拜访目的<textarea v-model="visit.purpose" required></textarea></label
+        >拜访目的（潜在项目）<textarea v-model="visit.purpose" required></textarea></label
       ><label class="wide"
         >沟通内容<textarea
           v-model="visit.communication"
@@ -1075,6 +1223,7 @@ onMounted(async () => {
             <th>手机</th>
             <th>邮箱</th>
             <th>关键联系人</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -1085,6 +1234,23 @@ onMounted(async () => {
             <td>{{ c.mobile || "-" }}</td>
             <td>{{ c.email || "-" }}</td>
             <td>{{ c.isKeyContact ? "是" : "否" }}</td>
+            <td class="inline-actions">
+              <button
+                type="button"
+                class="secondary-button"
+                @click="startEditContact(c)"
+              >
+                修改
+              </button>
+              <button
+                type="button"
+                class="danger-button"
+                :disabled="saving"
+                @click="deleteContact(c)"
+              >
+                删除
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -1113,9 +1279,10 @@ onMounted(async () => {
           <tr>
             <th>拜访时间</th>
             <th>方式</th>
-            <th>目的</th>
+            <th>潜在项目</th>
             <th>沟通内容</th>
             <th>下一步</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -1131,6 +1298,30 @@ onMounted(async () => {
             <td>{{ v.purpose }}</td>
             <td>{{ v.communication }}</td>
             <td>{{ v.nextAction || "-" }}</td>
+            <td class="inline-actions">
+              <button
+                type="button"
+                class="secondary-button"
+                @click.stop="selectVisit(v)"
+              >
+                查看
+              </button>
+              <button
+                type="button"
+                class="secondary-button"
+                @click.stop="startEditVisit(v)"
+              >
+                修改
+              </button>
+              <button
+                type="button"
+                class="danger-button"
+                :disabled="saving"
+                @click.stop="deleteVisit(v)"
+              >
+                删除
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -1150,7 +1341,7 @@ onMounted(async () => {
             <button
               type="button"
               class="secondary-button"
-              @click="startEditVisit"
+              @click="startEditVisit()"
             >
               修改拜访
             </button>
@@ -1158,7 +1349,7 @@ onMounted(async () => {
               type="button"
               class="danger-button"
               :disabled="saving"
-              @click="deleteVisit"
+              @click="deleteVisit()"
             >
               删除拜访
             </button>
@@ -1223,7 +1414,7 @@ onMounted(async () => {
             </select></label
           ><label>地点<input v-model="visitEdit.location" /></label
           ><label class="wide"
-            >拜访目的<textarea
+            >拜访目的（潜在项目）<textarea
               v-model="visitEdit.purpose"
               required
             ></textarea></label
@@ -1244,6 +1435,19 @@ onMounted(async () => {
             >下次跟进<input
               v-model="visitEdit.nextFollowUpAt"
               type="datetime-local" /></label
+          ><label class="checkbox-field wide"
+            ><span>是否生成线索</span>
+            <span class="checkbox-line">
+              <input v-model="visitEdit.generateLead" type="checkbox" />
+              <em>{{ visitEdit.generateLead ? "是" : "否" }}</em>
+            </span>
+            <small
+              :class="{
+                'warning-text':
+                  selectedVisit.generateLead && !visitEdit.generateLead,
+              }"
+              >已生成项目线索后不能直接取消；如需取消，请先到项目线索中处理或删除对应线索。</small
+            ></label
           ><button :disabled="saving">保存修改</button>
           <button type="button" @click="showVisitEdit = false">取消</button>
         </form>
@@ -1428,6 +1632,27 @@ onMounted(async () => {
   text-decoration: underline;
 }
 
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.inline-actions button {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.inline-actions .danger-button {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .clickable {
   cursor: pointer;
 }
@@ -1490,6 +1715,11 @@ onMounted(async () => {
 .checkbox-line em {
   color: #0b1f3a;
   font-style: normal;
+  font-weight: 700;
+}
+
+.warning-text {
+  color: #b45309;
   font-weight: 700;
 }
 

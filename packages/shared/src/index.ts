@@ -14,6 +14,7 @@ export interface SessionUser {
   departmentId: string;
   enabled: boolean;
   roleCodes: string[];
+  roleNames?: string[];
   permissionCodes: string[];
   sensitiveFieldAccess: Record<string, "FULL" | "MASKED" | "DENY">;
   dataScopes: DataScope[];
@@ -63,6 +64,9 @@ export interface LeadSummary {
   code: string;
   projectName: string;
   customerId: string;
+  customerLeadDepartment?: string;
+  customerContactName?: string;
+  projectAddress?: string;
   ownerId: string;
   successProbability: number;
   status: LeadStatus;

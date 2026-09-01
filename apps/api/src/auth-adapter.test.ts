@@ -34,6 +34,11 @@ describe("auth adapter", () => {
     expect(
       extractBearerAccessToken({ authorization: "Bearer abcdefghijklmnop" }),
     ).toBe("abcdefghijklmnop");
+    expect(
+      extractBearerAccessToken({
+        authorization: "Bearer local-username:dongxiufeng",
+      }),
+    ).toBe("local-username:dongxiufeng");
     expect(extractBearerAccessToken({ authorization: "Basic token" })).toBeNull();
     expect(extractBearerAccessToken({ authorization: "Bearer short" })).toBeNull();
     expect(
@@ -49,6 +54,9 @@ describe("auth adapter", () => {
     );
     expect(normalizeVerifiedUid("cloudbase-user-456")).toBe(
       "cloudbase-user-456",
+    );
+    expect(normalizeVerifiedUid("local-username:dongxiufeng")).toBe(
+      "local-username:dongxiufeng",
     );
     expect(() => normalizeVerifiedUid("../bad")).toThrow("Invalid verified UID");
   });

@@ -44,6 +44,134 @@ function toMySqlDateTime(value: unknown): string | null {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
+const roleCodePattern = /^[A-Z][A-Z0-9_]*$/;
+
+const roleNameCodeHints: Array<[RegExp, string]> = [
+  [/人事|人力|HR/i, "HR"],
+  [/行政/i, "ADMINISTRATION"],
+  [/市场|营销/i, "MARKET"],
+  [/商务|经营/i, "BUSINESS"],
+  [/项目/i, "PROJECT"],
+  [/经理/i, "MANAGER"],
+  [/成员/i, "MEMBER"],
+  [/投标|招投标/i, "BID"],
+  [/财务|资金/i, "FINANCE"],
+  [/公司/i, "COMPANY"],
+  [/负责人/i, "PRINCIPAL"],
+  [/普通|员工/i, "EMPLOYEE"],
+];
+
+function generatedRoleCodeFromName(name: string) {
+  const parts = roleNameCodeHints
+    .filter(([pattern]) => pattern.test(name))
+    .map(([, part]) => part);
+  const uniqueParts = [...new Set(parts)];
+  if (uniqueParts.length) return uniqueParts.join("_");
+  return `ROLE_${createHash("sha1")
+    .update(name)
+    .digest("hex")
+    .slice(0, 10)
+    .toUpperCase()}`;
+}
+
+async function resolveCreatableRoleCode(
+  connection: PoolConnection,
+  rawCode: unknown,
+  name: string,
+) {
+  const explicitCode = String(rawCode ?? "").trim().toUpperCase();
+  if (explicitCode && roleCodePattern.test(explicitCode)) {
+    const [existing] = await selectRows(
+      connection,
+      `SELECT id FROM iam_role WHERE code=? LIMIT 1`,
+      [explicitCode],
+    );
+    if (existing[0])
+      throw new AppError("ROLE_CODE_DUPLICATED", "角色编码已存在", 409);
+    return explicitCode;
+  }
+  const baseCode = generatedRoleCodeFromName(name);
+  for (let index = 0; index < 100; index += 1) {
+    const candidate = index === 0 ? baseCode : `${baseCode}_${index + 1}`;
+    const [existing] = await selectRows(
+      connection,
+      `SELECT id FROM iam_role WHERE code=? LIMIT 1`,
+      [candidate],
+    );
+    if (!existing[0]) return candidate;
+  }
+  throw new AppError(
+    "ROLE_CODE_DUPLICATED",
+    "角色编码已存在，请手工填写新的编码",
+    409,
+  );
+}
+
+async function activePositionAssigneeIds(
+  connection: PoolConnection,
+  positionCode: string,
+) {
+  const [people] = await selectRows(
+    connection,
+    `SELECT CAST(a.employee_id AS CHAR) employeeId
+       FROM org_position_assignment a
+       JOIN org_position p ON p.id=a.position_id
+      WHERE p.position_code=?
+        AND a.status='ENABLED'
+        AND a.starts_on<=CURDATE()
+        AND (a.ends_on IS NULL OR a.ends_on>=CURDATE())`,
+    [positionCode],
+  );
+  return [...new Set(people.map((person) => String(person.employeeId)))];
+}
+
+async function syncPendingApprovalTasksForPosition(
+  connection: PoolConnection,
+  positionCode: string,
+) {
+  const assigneeIds = await activePositionAssigneeIds(connection, positionCode);
+  if (!assigneeIds.length) return { synced: false, taskGroups: 0 };
+  const [taskGroups] = await selectRows(
+    connection,
+    `SELECT CAST(t.instance_id AS CHAR) instanceId,t.node_order nodeOrder,t.status taskStatus,MIN(t.assigned_at) assignedAt
+       FROM wf_task t
+       JOIN wf_instance i ON i.id=t.instance_id
+      WHERE i.status='PENDING'
+        AND t.status IN('PENDING','WAITING')
+        AND t.position_code=?
+      GROUP BY t.instance_id,t.node_order,t.status`,
+    [positionCode],
+  );
+  for (const group of taskGroups) {
+    for (const assigneeId of assigneeIds) {
+      await connection.execute(
+        `INSERT IGNORE INTO wf_task(instance_id,node_order,position_code,assignee_id,status,assigned_at)
+         VALUES(?,?,?,?,?, ?)`,
+        [
+          group.instanceId,
+          group.nodeOrder,
+          positionCode,
+          assigneeId,
+          group.taskStatus,
+          group.assignedAt,
+        ],
+      );
+    }
+  }
+  const placeholders = assigneeIds.map(() => "?").join(",");
+  await connection.execute(
+    `DELETE t
+       FROM wf_task t
+      JOIN wf_instance i ON i.id=t.instance_id
+      WHERE i.status='PENDING'
+        AND t.status IN('PENDING','WAITING')
+        AND t.position_code=?
+        AND t.assignee_id NOT IN (${placeholders})`,
+    [positionCode, ...assigneeIds],
+  );
+  return { synced: true, taskGroups: taskGroups.length };
+}
+
 function toMySqlDate(value: unknown): string | null {
   if (value == null || value === "") return null;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -701,7 +829,7 @@ async function applyBusinessApprovalResult(
     if (!existing[0]) {
       const [apps] = await selectRows(
         connection,
-        `SELECT project_name,customer_id,project_type,service_scope,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=? AND is_deleted=0`,
+        `SELECT project_name,customer_id,customer_lead_department,customer_contact_name,project_address,project_type,service_scope,investment_amount,proposed_manager_id,estimated_revenue,estimated_cost,source_lead_id FROM prj_project_application WHERE id=? AND is_deleted=0`,
         [businessId],
       );
       const app = apps[0];
@@ -1234,9 +1362,21 @@ export class MySqlActionExecutor {
               user.id,
             ],
           );
+          await syncPendingApprovalTasksForPosition(
+            connection,
+            String(input.positionCode),
+          );
           return { id: String(result.insertId) };
         }
         case "admin.positionAssignment.status": {
+          const [assignments] = await selectRows(
+            connection,
+            `SELECT p.position_code positionCode
+               FROM org_position_assignment a
+               JOIN org_position p ON p.id=a.position_id
+              WHERE a.id=?`,
+            [input.assignmentId],
+          );
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE org_position_assignment SET status=? WHERE id=?`,
             [input.status, input.assignmentId],
@@ -1245,9 +1385,99 @@ export class MySqlActionExecutor {
             throw new AppError(
               "POSITION_ASSIGNMENT_NOT_FOUND",
               "岗位任职记录不存在",
-              404,
+                404,
+              );
+          if (assignments[0]?.positionCode)
+            await syncPendingApprovalTasksForPosition(
+              connection,
+              String(assignments[0].positionCode),
             );
           return { id: input.assignmentId, status: input.status };
+        }
+        case "admin.positionAssignment.update": {
+          const [existingAssignments] = await selectRows(
+            connection,
+            `SELECT p.position_code positionCode
+               FROM org_position_assignment a
+               JOIN org_position p ON p.id=a.position_id
+              WHERE a.id=?`,
+            [input.assignmentId],
+          );
+          const [positions] = await selectRows(
+            connection,
+            `SELECT id FROM org_position WHERE position_code=? AND status='ENABLED'`,
+            [input.positionCode],
+          );
+          if (!positions[0])
+            throw new AppError(
+              "POSITION_NOT_FOUND",
+              "审批岗位不存在或未启用",
+              404,
+            );
+          const [employees] = await selectRows(
+            connection,
+            `SELECT id FROM org_employee WHERE id=? AND is_deleted=0 AND account_status='ENABLED'`,
+            [input.employeeId],
+          );
+          if (!employees[0])
+            throw new AppError("EMPLOYEE_NOT_FOUND", "人员不存在或已停用", 404);
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE org_position_assignment SET position_id=?,employee_id=?,starts_on=?,ends_on=?,is_delegate=?,status=? WHERE id=?`,
+            [
+              positions[0].id,
+              input.employeeId,
+              input.startsOn,
+              input.endsOn ?? null,
+              input.isDelegate,
+              input.status,
+              input.assignmentId,
+            ],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "POSITION_ASSIGNMENT_NOT_FOUND",
+              "岗位任职记录不存在",
+                404,
+              );
+          const positionCodesToSync = [
+            ...new Set(
+              [
+                existingAssignments[0]?.positionCode,
+                input.positionCode,
+              ]
+                .filter(Boolean)
+                .map(String),
+            ),
+          ];
+          for (const positionCode of positionCodesToSync)
+            await syncPendingApprovalTasksForPosition(connection, positionCode);
+          return { id: input.assignmentId };
+        }
+        case "admin.positionAssignment.delete": {
+          const [assignments] = await selectRows(
+            connection,
+            `SELECT p.position_code positionCode
+               FROM org_position_assignment a
+               JOIN org_position p ON p.id=a.position_id
+              WHERE a.id=?`,
+            [input.assignmentId],
+          );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `DELETE FROM org_position_assignment WHERE id=?`,
+            [input.assignmentId],
+          );
+          if (!result.affectedRows)
+            throw new AppError(
+              "POSITION_ASSIGNMENT_NOT_FOUND",
+              "岗位任职记录不存在",
+                404,
+              );
+          if (assignments[0]?.positionCode)
+            await syncPendingApprovalTasksForPosition(
+              connection,
+              String(assignments[0].positionCode),
+            );
+          return { id: input.assignmentId, deleted: true };
         }
         case "admin.projectGrant.create": {
           const [projects] = await selectRows(
@@ -1340,9 +1570,14 @@ export class MySqlActionExecutor {
             if (valid.length !== permissionIds.length)
               throw new AppError("PERMISSION_INVALID", "所选权限不存在", 409);
           }
+          const roleCode = await resolveCreatableRoleCode(
+            connection,
+            input.code,
+            String(input.name),
+          );
           const [result] = await connection.execute<ResultSetHeader>(
             `INSERT INTO iam_role(code,name,status) VALUES(?,?, 'ENABLED')`,
-            [input.code, input.name],
+            [roleCode, input.name],
           );
           for (const permissionId of permissionIds)
             await connection.execute(
@@ -2208,7 +2443,7 @@ export class MySqlActionExecutor {
             );
           const [contacts] = await selectRows(
               connection,
-              `SELECT CAST(id AS CHAR) id,name,department_name departmentName,position_name positionName,mobile,phone,email,wechat,is_key_contact isKeyContact,relationship_level relationshipLevel,decision_role decisionRole FROM crm_contact WHERE counterparty_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY is_key_contact DESC,id DESC`,
+              `SELECT CAST(id AS CHAR) id,name,department_name departmentName,position_name positionName,mobile,phone,email,wechat,is_key_contact isKeyContact,relationship_level relationshipLevel,decision_role decisionRole,remark,version FROM crm_contact WHERE counterparty_id=? AND status='ACTIVE' AND is_deleted=0 ORDER BY is_key_contact DESC,id DESC`,
               [input.counterpartyId],
             ),
             [visits] = await selectRows(
@@ -2227,6 +2462,19 @@ export class MySqlActionExecutor {
               WHERE t.status='ENABLED'
                 AND i.status='ENABLED'
                 AND t.type_code IN ('CRM_COUNTERPARTY_TYPE','CRM_COOPERATION_STATUS','CRM_INDUSTRY')
+              ORDER BY t.type_code,i.sort_order,i.id`,
+          );
+          return { items: rows };
+        }
+        case "dictionary.projectOptions": {
+          const [rows] = await selectRows(
+            connection,
+            `SELECT t.type_code typeCode,i.item_code itemCode,i.label,i.value_text valueText,i.sort_order sortOrder
+               FROM sys_dictionary_type t
+               JOIN sys_dictionary_item i ON i.type_id=t.id
+              WHERE t.status='ENABLED'
+                AND i.status='ENABLED'
+                AND t.type_code IN ('PROJECT_BIDDING_METHOD')
               ORDER BY t.type_code,i.sort_order,i.id`,
           );
           return { items: rows };
@@ -2261,7 +2509,7 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(
               connection,
-              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='LEAD' AND wi.business_id=l.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
+              `SELECT CAST(l.id AS CHAR) id,l.lead_code code,l.project_name projectName,CAST(l.customer_id AS CHAR) customerId,c.name customerName,l.customer_lead_department customerLeadDepartment,l.customer_contact_name customerContactName,l.project_address projectAddress,l.source_code sourceCode,l.source_description sourceDescription,l.discovered_on discoveredOn,l.estimated_amount estimatedAmount,l.estimated_start_on estimatedStartOn,l.project_type projectType,l.project_background projectBackground,l.requirement_summary requirementSummary,l.competition,l.success_probability successProbability,l.status,l.next_follow_up_at nextFollowUpAt,CAST(l.approval_instance_id AS CHAR) approvalInstanceId,l.version FROM mkt_lead l JOIN crm_counterparty c ON c.id=l.customer_id WHERE l.id=? AND l.is_deleted=0 AND (?=1 OR l.owner_id=? OR l.created_by=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='LEAD' AND wi.business_id=l.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
               [
                 input.leadId,
                 all ? 1 : 0,
@@ -2354,7 +2602,7 @@ export class MySqlActionExecutor {
             );
           const [customers] = await selectRows(
             connection,
-            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            `SELECT id,address FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
           if (!customers[0])
@@ -2378,22 +2626,25 @@ export class MySqlActionExecutor {
             );
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE mkt_lead
-                SET project_name=?,customer_id=?,source_code=?,source_description=?,discovered_on=?,estimated_amount=?,estimated_start_on=?,project_type=?,project_background=?,requirement_summary=?,competition=?,success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1
+                SET project_name=?,customer_id=?,customer_lead_department=?,customer_contact_name=?,project_address=?,source_code=?,source_description=?,discovered_on=?,estimated_amount=?,estimated_start_on=?,project_type=?,project_background=?,requirement_summary=?,competition=?,success_probability=?,next_follow_up_at=?,updated_by=?,version=version+1
               WHERE id=? AND is_deleted=0`,
             [
               input.projectName,
               input.customerId,
+              input.customerLeadDepartment,
+              input.customerContactName,
+              input.projectAddress,
               input.sourceCode,
               input.sourceDescription ?? null,
               input.discoveredOn,
-              input.estimatedAmount ?? null,
+              input.estimatedAmount,
               input.estimatedStartOn ?? null,
               input.projectType,
               input.projectBackground ?? null,
               input.requirementSummary,
               input.competition ?? null,
               input.successProbability,
-              input.nextFollowUpAt ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
               user.id,
               input.leadId,
             ],
@@ -2472,7 +2723,7 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL"),
             [rows] = await selectRows(
               connection,
-              `SELECT CAST(a.id AS CHAR) id,a.application_code code,a.project_name projectName,CAST(a.customer_id AS CHAR) customerId,CAST(a.source_lead_id AS CHAR) sourceLeadId,l.lead_code sourceLeadCode,l.project_name sourceLeadName,a.project_type projectType,a.background,a.service_scope serviceScope,a.estimated_revenue estimatedRevenue,a.estimated_cost estimatedCost,a.estimated_start_on estimatedStartOn,a.estimated_end_on estimatedEndOn,CAST(a.proposed_manager_id AS CHAR) proposedManagerId,a.bidding_method biddingMethod,a.risk_description riskDescription,a.necessity,a.status,a.version FROM prj_project_application a LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 WHERE a.id=? AND a.is_deleted=0 AND (?=1 OR a.created_by=? OR a.applicant_id=? OR a.proposed_manager_id=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='PROJECT_APPLICATION' AND wi.business_id=a.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
+              `SELECT CAST(a.id AS CHAR) id,a.application_code code,a.project_name projectName,CAST(a.customer_id AS CHAR) customerId,c.name customerName,CAST(a.source_lead_id AS CHAR) sourceLeadId,l.lead_code sourceLeadCode,l.project_name sourceLeadName,a.customer_lead_department customerLeadDepartment,a.customer_contact_name customerContactName,a.project_address projectAddress,a.project_type projectType,a.background,a.service_scope serviceScope,a.investment_amount investmentAmount,a.estimated_revenue estimatedRevenue,a.estimated_cost estimatedCost,a.estimated_start_on estimatedStartOn,a.estimated_end_on estimatedEndOn,CAST(a.proposed_manager_id AS CHAR) proposedManagerId,pm.name proposedManagerName,a.bidding_method biddingMethod,a.risk_description riskDescription,a.necessity,a.status,a.version FROM prj_project_application a JOIN crm_counterparty c ON c.id=a.customer_id AND c.is_deleted=0 LEFT JOIN org_employee pm ON pm.id=a.proposed_manager_id LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 WHERE a.id=? AND a.is_deleted=0 AND (?=1 OR a.created_by=? OR a.applicant_id=? OR a.proposed_manager_id=? OR EXISTS(SELECT 1 FROM wf_instance wi LEFT JOIN wf_task wt ON wt.instance_id=wi.id LEFT JOIN wf_cc_recipient wc ON wc.instance_id=wi.id WHERE wi.business_type='PROJECT_APPLICATION' AND wi.business_id=a.id AND (wi.applicant_id=? OR wt.assignee_id=? OR wt.completed_by=? OR wc.recipient_id=?)))`,
               [
                 input.applicationId,
                 all ? 1 : 0,
@@ -2516,6 +2767,17 @@ export class MySqlActionExecutor {
             approvalProgress,
           };
         }
+        case "project.employee.options": {
+          const [rows] = await selectRows(
+            connection,
+            `SELECT CAST(id AS CHAR) id,employee_code employeeCode,name,position_name positionName
+               FROM org_employee
+              WHERE account_status='ENABLED' AND is_deleted=0
+              ORDER BY name,id
+              LIMIT 1000`,
+          );
+          return { items: rows };
+        }
         case "project.list": {
           const page = input.page as number,
             pageSize = input.pageSize as number,
@@ -2546,11 +2808,12 @@ export class MySqlActionExecutor {
             [projects] = await selectRows(
               connection,
               `SELECT CAST(p.id AS CHAR) id,CAST(p.application_id AS CHAR) applicationId,a.application_code applicationCode,CAST(a.source_lead_id AS CHAR) sourceLeadId,l.lead_code sourceLeadCode,l.project_name sourceLeadName,p.project_code code,p.project_name projectName,p.project_type projectType,p.service_scope serviceScope,p.status,p.estimated_revenue estimatedRevenue,p.estimated_cost estimatedCost,p.project_manager_id projectManagerId,c.name customerName,e.name managerName,
-                      a.project_name applicationProjectName,a.project_type applicationProjectType,a.background applicationBackground,a.service_scope applicationServiceScope,
+                      a.project_name applicationProjectName,a.customer_lead_department applicationCustomerLeadDepartment,a.customer_contact_name applicationCustomerContactName,a.project_address applicationProjectAddress,a.project_type applicationProjectType,a.background applicationBackground,a.service_scope applicationServiceScope,
+                      a.investment_amount applicationInvestmentAmount,
                       a.estimated_revenue applicationEstimatedRevenue,a.estimated_cost applicationEstimatedCost,a.estimated_start_on applicationEstimatedStartOn,
                       a.estimated_end_on applicationEstimatedEndOn,a.bidding_method applicationBiddingMethod,a.risk_description applicationRiskDescription,
-                      a.necessity applicationNecessity,a.status applicationStatus
-                 FROM prj_project p LEFT JOIN prj_project_application a ON a.id=p.application_id AND a.is_deleted=0 LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
+                      a.necessity applicationNecessity,CAST(a.proposed_manager_id AS CHAR) applicationProposedManagerId,apm.name applicationProposedManagerName,a.status applicationStatus
+                 FROM prj_project p LEFT JOIN prj_project_application a ON a.id=p.application_id AND a.is_deleted=0 LEFT JOIN org_employee apm ON apm.id=a.proposed_manager_id LEFT JOIN mkt_lead l ON l.id=a.source_lead_id AND l.is_deleted=0 JOIN crm_counterparty c ON c.id=p.customer_id JOIN org_employee e ON e.id=p.project_manager_id JOIN org_employee pm ON pm.id=p.project_manager_id WHERE p.id=? AND p.is_deleted=0 AND ${projectScope.sql}`,
               [input.projectId, ...projectScope.params],
             );
           const project = projects[0];
@@ -3763,7 +4026,7 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [customers] = await selectRows(
             connection,
-            `SELECT id FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
+            `SELECT id,address FROM crm_counterparty WHERE id=? AND is_deleted=0 AND status='ACTIVE' AND (?=1 OR owner_id=?) LIMIT 1`,
             [input.customerId, all ? 1 : 0, user.employeeId],
           );
           if (!customers[0])
@@ -4291,9 +4554,9 @@ export class MySqlActionExecutor {
               input.shortName ?? null,
               input.creditCode ?? null,
               input.type,
-              input.industry ?? null,
+              input.industry,
               input.region ?? null,
-              input.address ?? null,
+              input.address,
               input.phone ?? null,
               input.website ?? null,
               input.invoiceTitle ?? input.name,
@@ -4322,9 +4585,9 @@ export class MySqlActionExecutor {
               input.shortName ?? null,
               input.creditCode ?? null,
               input.type,
-              input.industry ?? null,
+              input.industry,
               input.region ?? null,
-              input.address ?? null,
+              input.address,
               input.phone ?? null,
               input.website ?? null,
               input.invoiceTitle ?? input.name,
@@ -4400,7 +4663,7 @@ export class MySqlActionExecutor {
               input.counterpartyId,
               input.name,
               input.gender ?? null,
-              input.departmentName ?? null,
+              input.departmentName,
               input.positionName ?? null,
               input.mobile ?? null,
               input.phone ?? null,
@@ -4416,6 +4679,89 @@ export class MySqlActionExecutor {
             ],
           );
           return { id: String(result.insertId) };
+        }
+        case "crm.contact.update": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [contacts] = await selectRows(
+            connection,
+            `SELECT ct.id
+               FROM crm_contact ct
+               JOIN crm_counterparty cp ON cp.id=ct.counterparty_id AND cp.is_deleted=0 AND cp.status='ACTIVE'
+              WHERE ct.id=? AND ct.status='ACTIVE' AND ct.is_deleted=0
+                AND (?=1 OR ct.owner_id=? OR ct.created_by=? OR cp.owner_id=?)
+              LIMIT 1`,
+            [
+              input.contactId,
+              all ? 1 : 0,
+              user.employeeId,
+              user.id,
+              user.employeeId,
+            ],
+          );
+          if (!contacts[0])
+            throw new AppError(
+              "CONTACT_NOT_FOUND",
+              "联系人不存在或无权访问",
+              404,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE crm_contact
+                SET name=?,gender=?,department_name=?,position_name=?,mobile=?,phone=?,email=?,wechat=?,is_key_contact=?,relationship_level=?,decision_role=?,remark=?,updated_by=?,version=version+1
+              WHERE id=? AND status='ACTIVE' AND is_deleted=0`,
+            [
+              input.name,
+              input.gender ?? null,
+              input.departmentName,
+              input.positionName ?? null,
+              input.mobile ?? null,
+              input.phone ?? null,
+              input.email ?? null,
+              input.wechat ?? null,
+              input.isKeyContact,
+              input.relationshipLevel ?? null,
+              input.decisionRole ?? null,
+              input.remark ?? null,
+              user.id,
+              input.contactId,
+            ],
+          );
+          if (result.affectedRows !== 1)
+            throw new AppError("CONTACT_UPDATE_FAILED", "联系人更新失败", 409);
+          return { id: input.contactId };
+        }
+        case "crm.contact.delete": {
+          const all = user.dataScopes.some((scope) => scope.type === "ALL");
+          const [contacts] = await selectRows(
+            connection,
+            `SELECT ct.id
+               FROM crm_contact ct
+               JOIN crm_counterparty cp ON cp.id=ct.counterparty_id AND cp.is_deleted=0 AND cp.status='ACTIVE'
+              WHERE ct.id=? AND ct.status='ACTIVE' AND ct.is_deleted=0
+                AND (?=1 OR ct.owner_id=? OR ct.created_by=? OR cp.owner_id=?)
+              LIMIT 1`,
+            [
+              input.contactId,
+              all ? 1 : 0,
+              user.employeeId,
+              user.id,
+              user.employeeId,
+            ],
+          );
+          if (!contacts[0])
+            throw new AppError(
+              "CONTACT_NOT_FOUND",
+              "联系人不存在或无权访问",
+              404,
+            );
+          const [result] = await connection.execute<ResultSetHeader>(
+            `UPDATE crm_contact
+                SET is_deleted=1,status='DELETED',updated_by=?,version=version+1
+              WHERE id=? AND status='ACTIVE' AND is_deleted=0`,
+            [user.id, input.contactId],
+          );
+          if (result.affectedRows !== 1)
+            throw new AppError("CONTACT_DELETE_FAILED", "联系人删除失败", 409);
+          return { id: input.contactId };
         }
         case "crm.visit.create": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
@@ -4472,13 +4818,31 @@ export class MySqlActionExecutor {
             );
           let leadId: string | null = null;
           if (input.generateLead) {
+            let contactName = "待确认";
+            let contactDepartment = "待确认";
+            if (input.contactId) {
+              const [leadContacts] = await selectRows(
+                connection,
+                `SELECT name,department_name departmentName FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0 LIMIT 1`,
+                [input.contactId, input.customerId],
+              );
+              if (leadContacts[0]) {
+                contactName = String(leadContacts[0].name || "待确认");
+                contactDepartment = String(
+                  leadContacts[0].departmentName || "待确认",
+                );
+              }
+            }
             const leadCode = await allocateNumber(connection, "LEAD");
             const [lead] = await connection.execute<ResultSetHeader>(
-              `INSERT INTO mkt_lead(lead_code,project_name,customer_id,source_code,source_description,discovered_on,project_type,requirement_summary,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by) VALUES(?,?,?,?,?,DATE(?),'OTHER',?,?,?,?,?,?,?)`,
+              `INSERT INTO mkt_lead(lead_code,project_name,customer_id,customer_lead_department,customer_contact_name,project_address,source_code,source_description,discovered_on,estimated_amount,project_type,requirement_summary,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,DATE(?),0,'OTHER',?,?,?,?,?,?,?)`,
               [
                 leadCode,
                 input.purpose,
                 input.customerId,
+                contactDepartment,
+                contactName,
+                input.location || counterparties[0].address || "待确认",
                 "CUSTOMER_VISIT",
                 input.opportunityAssessment ?? null,
                 toMySqlDate(input.visitedAt),
@@ -4499,7 +4863,12 @@ export class MySqlActionExecutor {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
           const [visits] = await selectRows(
             connection,
-            `SELECT id,customer_id customerId FROM crm_visit WHERE id=? AND status='ACTIVE' AND is_deleted=0 AND (?=1 OR owner_id=? OR created_by=?) LIMIT 1`,
+            `SELECT v.id,v.customer_id customerId,v.generate_lead generateLead,cp.address customerAddress
+               FROM crm_visit v
+               JOIN crm_counterparty cp ON cp.id=v.customer_id AND cp.is_deleted=0 AND cp.status='ACTIVE'
+              WHERE v.id=? AND v.status='ACTIVE' AND v.is_deleted=0
+                AND (?=1 OR v.owner_id=? OR v.created_by=?)
+              LIMIT 1`,
             [input.visitId, all ? 1 : 0, user.employeeId, user.id],
           );
           const existing = visits[0];
@@ -4522,9 +4891,25 @@ export class MySqlActionExecutor {
                 409,
               );
           }
+          const [generatedLeads] = await selectRows(
+            connection,
+            `SELECT CAST(id AS CHAR) id
+               FROM mkt_lead
+              WHERE source_visit_id=? AND is_deleted=0
+              LIMIT 1`,
+            [input.visitId],
+          );
+          const shouldGenerateLead =
+            input.generateLead ?? Boolean(existing.generateLead);
+          if (!shouldGenerateLead && generatedLeads[0])
+            throw new AppError(
+              "VISIT_LEAD_EXISTS",
+              "该拜访已生成项目线索，请先到项目线索中处理或删除对应线索后再取消生成线索",
+              409,
+            );
           const [result] = await connection.execute<ResultSetHeader>(
             `UPDATE crm_visit
-                SET contact_id=?,visited_at=?,visit_method=?,location=?,purpose=?,communication=?,customer_needs=?,opportunity_assessment=?,next_action=?,next_follow_up_at=?,updated_by=?,version=version+1
+                SET contact_id=?,visited_at=?,visit_method=?,location=?,purpose=?,communication=?,customer_needs=?,opportunity_assessment=?,next_action=?,next_follow_up_at=?,generate_lead=?,updated_by=?,version=version+1
               WHERE id=? AND status='ACTIVE' AND is_deleted=0`,
             [
               input.contactId ?? null,
@@ -4537,13 +4922,55 @@ export class MySqlActionExecutor {
               input.opportunityAssessment ?? null,
               input.nextAction ?? null,
               toMySqlDateTime(input.nextFollowUpAt),
+              shouldGenerateLead,
               user.id,
               input.visitId,
             ],
           );
           if (result.affectedRows !== 1)
             throw new AppError("VISIT_UPDATE_FAILED", "拜访记录更新失败", 409);
-          return { id: input.visitId };
+          let leadId = generatedLeads[0]?.id ? String(generatedLeads[0].id) : null;
+          if (shouldGenerateLead && !leadId) {
+            let contactName = "待确认";
+            let contactDepartment = "待确认";
+            if (input.contactId) {
+              const [leadContacts] = await selectRows(
+                connection,
+                `SELECT name,department_name departmentName FROM crm_contact WHERE id=? AND counterparty_id=? AND status='ACTIVE' AND is_deleted=0 LIMIT 1`,
+                [input.contactId, existing.customerId],
+              );
+              if (leadContacts[0]) {
+                contactName = String(leadContacts[0].name || "待确认");
+                contactDepartment = String(
+                  leadContacts[0].departmentName || "待确认",
+                );
+              }
+            }
+            const leadCode = await allocateNumber(connection, "LEAD");
+            const [lead] = await connection.execute<ResultSetHeader>(
+              `INSERT INTO mkt_lead(lead_code,project_name,customer_id,customer_lead_department,customer_contact_name,project_address,source_code,source_description,discovered_on,estimated_amount,project_type,requirement_summary,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,DATE(?),0,'OTHER',?,?,?,?,?,?,?)`,
+              [
+                leadCode,
+                input.purpose,
+                existing.customerId,
+                contactDepartment,
+                contactName,
+                input.location || existing.customerAddress || "待确认",
+                "CUSTOMER_VISIT",
+                input.opportunityAssessment ?? null,
+                toMySqlDate(input.visitedAt),
+                input.communication,
+                10,
+                user.employeeId,
+                toMySqlDateTime(input.nextFollowUpAt),
+                input.visitId,
+                user.id,
+                user.id,
+              ],
+            );
+            leadId = String(lead.insertId);
+          }
+          return { id: input.visitId, leadId };
         }
         case "crm.visit.delete": {
           const all = user.dataScopes.some((scope) => scope.type === "ALL");
@@ -4608,16 +5035,19 @@ export class MySqlActionExecutor {
             );
           const code = await allocateNumber(connection, "LEAD");
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO mkt_lead(lead_code,project_name,customer_id,source_code,source_description,discovered_on,estimated_amount,estimated_start_on,project_type,project_background,requirement_summary,competition,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by)
-             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO mkt_lead(lead_code,project_name,customer_id,customer_lead_department,customer_contact_name,project_address,source_code,source_description,discovered_on,estimated_amount,estimated_start_on,project_type,project_background,requirement_summary,competition,success_probability,owner_id,next_follow_up_at,source_visit_id,created_by,updated_by)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               code,
               input.projectName,
               input.customerId,
+              input.customerLeadDepartment,
+              input.customerContactName,
+              input.projectAddress,
               input.sourceCode,
               input.sourceDescription ?? null,
               input.discoveredOn,
-              input.estimatedAmount ?? null,
+              input.estimatedAmount,
               input.estimatedStartOn ?? null,
               input.projectType,
               input.projectBackground ?? null,
@@ -4625,7 +5055,7 @@ export class MySqlActionExecutor {
               input.competition ?? null,
               input.successProbability,
               user.employeeId,
-              input.nextFollowUpAt ?? null,
+              toMySqlDateTime(input.nextFollowUpAt),
               input.sourceVisitId ?? null,
               user.id,
               user.id,
@@ -4726,22 +5156,26 @@ export class MySqlActionExecutor {
           }
           const code = await allocateNumber(connection, "PROJECT_APPLICATION");
           const [result] = await connection.execute<ResultSetHeader>(
-            `INSERT INTO prj_project_application(application_code,project_name,customer_id,source_lead_id,project_type,background,service_scope,estimated_revenue,estimated_cost,estimated_start_on,estimated_end_on,proposed_manager_id,bidding_method,risk_description,necessity,applicant_id,created_by,updated_by)
-             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO prj_project_application(application_code,project_name,customer_id,source_lead_id,customer_lead_department,customer_contact_name,project_address,project_type,background,service_scope,investment_amount,estimated_revenue,estimated_cost,estimated_start_on,estimated_end_on,proposed_manager_id,bidding_method,risk_description,necessity,applicant_id,created_by,updated_by)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               code,
               input.projectName,
               input.customerId,
               input.sourceLeadId ?? null,
+              input.customerLeadDepartment,
+              input.customerContactName,
+              input.projectAddress,
               input.projectType,
               input.background ?? null,
               input.serviceScope,
+              input.investmentAmount,
               input.estimatedRevenue,
               input.estimatedCost,
               input.estimatedStartOn,
               input.estimatedEndOn,
               input.proposedManagerId,
-              input.biddingMethod ?? null,
+              input.biddingMethod,
               input.riskDescription ?? null,
               input.necessity,
               user.employeeId,
@@ -4822,20 +5256,24 @@ export class MySqlActionExecutor {
               );
           }
           const [result] = await connection.execute<ResultSetHeader>(
-            `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,project_type=?,background=?,service_scope=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0`,
+            `UPDATE prj_project_application SET project_name=?,customer_id=?,source_lead_id=?,customer_lead_department=?,customer_contact_name=?,project_address=?,project_type=?,background=?,service_scope=?,investment_amount=?,estimated_revenue=?,estimated_cost=?,estimated_start_on=?,estimated_end_on=?,proposed_manager_id=?,bidding_method=?,risk_description=?,necessity=?,status='DRAFT',updated_by=?,version=version+1 WHERE id=? AND version=? AND is_deleted=0`,
             [
               data.projectName,
               data.customerId,
               sourceLeadId,
+              data.customerLeadDepartment,
+              data.customerContactName,
+              data.projectAddress,
               data.projectType,
               data.background ?? null,
               data.serviceScope,
+              data.investmentAmount,
               data.estimatedRevenue,
               data.estimatedCost,
               data.estimatedStartOn,
               data.estimatedEndOn,
               data.proposedManagerId,
-              data.biddingMethod ?? null,
+              data.biddingMethod,
               data.riskDescription ?? null,
               data.necessity,
               user.id,

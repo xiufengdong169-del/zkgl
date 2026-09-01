@@ -11,8 +11,26 @@ interface CustomerOption {
   name: string;
 }
 
+interface EmployeeOption {
+  id: string;
+  employeeCode: string;
+  name: string;
+  positionName?: string;
+}
+
+interface DictionaryOption {
+  typeCode: string;
+  itemCode: string;
+  label: string;
+  valueText: string;
+  sortOrder: number;
+}
+
 interface LeadDetail extends LeadSummary {
   customerName: string;
+  customerLeadDepartment: string;
+  customerContactName: string;
+  projectAddress: string;
   sourceCode: string;
   sourceDescription?: string | null;
   discoveredOn: string;
@@ -63,6 +81,33 @@ const router = useRouter();
 
 const items = ref<LeadSummary[]>([]);
 const customers = ref<CustomerOption[]>([]);
+const employees = ref<EmployeeOption[]>([]);
+const defaultBiddingMethodOptions: DictionaryOption[] = [
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "PUBLIC",
+    label: "公开投标",
+    valueText: "PUBLIC",
+    sortOrder: 10,
+  },
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "NEGOTIATION",
+    label: "商务洽谈",
+    valueText: "NEGOTIATION",
+    sortOrder: 20,
+  },
+  {
+    typeCode: "PROJECT_BIDDING_METHOD",
+    itemCode: "NONE",
+    label: "无需投标",
+    valueText: "NONE",
+    sortOrder: 30,
+  },
+];
+const biddingMethodOptions = ref<DictionaryOption[]>(
+  defaultBiddingMethodOptions,
+);
 const selected = ref<LeadDetail | null>(null);
 const followUps = ref<FollowUp[]>([]);
 const pendingApprovals = ref<PendingApproval[]>([]);
@@ -82,7 +127,10 @@ const showConvertedLeads = ref(false);
 const form = ref({
   projectName: "",
   customerId: "",
-  sourceCode: "VISIT",
+  customerLeadDepartment: "",
+  customerContactName: "",
+  projectAddress: "",
+  sourceCode: "CUSTOMER_VISIT",
   discoveredOn: new Date().toISOString().slice(0, 10),
   estimatedAmount: null as number | null,
   estimatedStartOn: null as string | null,
@@ -107,7 +155,10 @@ const editForm = ref({
   leadId: "",
   projectName: "",
   customerId: "",
-  sourceCode: "VISIT",
+  customerLeadDepartment: "",
+  customerContactName: "",
+  projectAddress: "",
+  sourceCode: "CUSTOMER_VISIT",
   discoveredOn: new Date().toISOString().slice(0, 10),
   estimatedAmount: null as number | null,
   estimatedStartOn: null as string | null,
@@ -118,6 +169,12 @@ const editForm = ref({
 });
 
 const convertForm = ref({
+  projectName: "",
+  customerLeadDepartment: "",
+  customerContactName: "",
+  projectAddress: "",
+  proposedManagerId: auth.user?.employeeId || "",
+  investmentAmount: 0,
   estimatedRevenue: 0,
   estimatedCost: 0,
   estimatedStartOn: new Date().toISOString().slice(0, 10),
@@ -314,6 +371,12 @@ function resetConvertForm(lead: LeadDetail) {
     .toISOString()
     .slice(0, 10);
   convertForm.value = {
+    projectName: lead.projectName,
+    customerLeadDepartment: lead.customerLeadDepartment || "",
+    customerContactName: lead.customerContactName || "",
+    projectAddress: lead.projectAddress || "",
+    proposedManagerId: auth.user?.employeeId || "",
+    investmentAmount: estimatedRevenue,
     estimatedRevenue,
     estimatedCost: 0,
     estimatedStartOn,
@@ -329,7 +392,8 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [leads, customerResult] = await Promise.all([
+    const [leads, customerResult, employeeResult, projectOptions] =
+      await Promise.all([
       callApi<{ items: LeadSummary[] }>("lead.list", {
         page: 1,
         pageSize: 50,
@@ -338,9 +402,22 @@ async function load() {
         page: 1,
         pageSize: 50,
       }),
+      canCreateProjectApplication.value
+        ? callApi<{ items: EmployeeOption[] }>("project.employee.options", {})
+        : Promise.resolve({ items: [] as EmployeeOption[] }),
+      canCreateProjectApplication.value
+        ? callApi<{ items: DictionaryOption[] }>("dictionary.projectOptions", {})
+        : Promise.resolve({ items: [] as DictionaryOption[] }),
     ]);
     items.value = leads.items;
     customers.value = customerResult.items;
+    employees.value = employeeResult.items;
+    const biddingMethods = projectOptions.items.filter(
+      (item) => item.typeCode === "PROJECT_BIDDING_METHOD",
+    );
+    biddingMethodOptions.value = biddingMethods.length
+      ? biddingMethods
+      : defaultBiddingMethodOptions;
     leadPage.value = Math.min(leadPage.value, leadPageCount.value);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载失败";
@@ -391,7 +468,13 @@ function startEditLead() {
     leadId: selected.value.id,
     projectName: selected.value.projectName,
     customerId: selected.value.customerId,
-    sourceCode: selected.value.sourceCode || "VISIT",
+    customerLeadDepartment: selected.value.customerLeadDepartment || "",
+    customerContactName: selected.value.customerContactName || "",
+    projectAddress: selected.value.projectAddress || "",
+    sourceCode:
+      selected.value.sourceCode === "VISIT"
+        ? "CUSTOMER_VISIT"
+        : selected.value.sourceCode || "CUSTOMER_VISIT",
     discoveredOn: toDateInput(selected.value.discoveredOn),
     estimatedAmount:
       selected.value.estimatedAmount == null
@@ -590,17 +673,21 @@ async function createProjectApplicationFromLead() {
   notice.value = null;
   try {
     await callApi("project.application.create", {
-      projectName: selected.value.projectName,
+      projectName: convertForm.value.projectName.trim(),
       customerId: selected.value.customerId,
       sourceLeadId: selected.value.id,
+      customerLeadDepartment: convertForm.value.customerLeadDepartment,
+      customerContactName: convertForm.value.customerContactName,
+      projectAddress: convertForm.value.projectAddress,
       projectType: selected.value.projectType,
       background: selected.value.requirementSummary || null,
       serviceScope: convertForm.value.serviceScope,
+      investmentAmount: Number(convertForm.value.investmentAmount),
       estimatedRevenue: Number(convertForm.value.estimatedRevenue),
       estimatedCost: Number(convertForm.value.estimatedCost),
       estimatedStartOn: convertForm.value.estimatedStartOn,
       estimatedEndOn: convertForm.value.estimatedEndOn,
-      proposedManagerId: auth.user.employeeId,
+      proposedManagerId: convertForm.value.proposedManagerId,
       memberSuggestions: [],
       biddingMethod: convertForm.value.biddingMethod,
       riskDescription: convertForm.value.riskDescription || null,
@@ -669,11 +756,11 @@ watch(
 
     <form v-if="showForm" class="entity-form" @submit.prevent="createLead">
       <label>
-        项目名称
+        项目名称<span class="required-mark">*</span>
         <input v-model="form.projectName" required minlength="2" />
       </label>
       <label>
-        客户
+        客户<span class="required-mark">*</span>
         <select v-model="form.customerId" required>
           <option value="" disabled>请选择</option>
           <option
@@ -686,9 +773,21 @@ watch(
         </select>
       </label>
       <label>
+        客户项目牵头部门<span class="required-mark">*</span>
+        <input v-model="form.customerLeadDepartment" required maxlength="128" />
+      </label>
+      <label>
+        客户对接联系人<span class="required-mark">*</span>
+        <input v-model="form.customerContactName" required maxlength="128" />
+      </label>
+      <label>
+        项目地址<span class="required-mark">*</span>
+        <input v-model="form.projectAddress" required maxlength="512" />
+      </label>
+      <label>
         来源
         <select v-model="form.sourceCode">
-          <option value="VISIT">客户拜访</option>
+          <option value="CUSTOMER_VISIT">客户拜访</option>
           <option value="REFERRAL">转介绍</option>
           <option value="PUBLIC">公开信息</option>
           <option value="OTHER">其他</option>
@@ -699,12 +798,13 @@ watch(
         <input v-model="form.discoveredOn" type="date" required />
       </label>
       <label>
-        预计金额（万元）
+        预计金额（万元）<span class="required-mark">*</span>
         <input
           v-model.number="form.estimatedAmount"
           type="number"
           min="0"
           step="0.01"
+          required
         />
       </label>
       <label>
@@ -712,8 +812,8 @@ watch(
         <input v-model="form.estimatedStartOn" type="date" />
       </label>
       <label>
-        项目类型
-        <select v-model="form.projectType">
+        项目类型<span class="required-mark">*</span>
+        <select v-model="form.projectType" required>
           <option value="CONSULTING">信息化咨询</option>
           <option value="SUPERVISION">信息化监理</option>
           <option value="OTHER">其他</option>
@@ -854,6 +954,11 @@ watch(
           leadStatusText(selected.status)
         }}
       </p>
+      <p>
+        客户项目牵头部门：{{ selected.customerLeadDepartment }}　客户对接联系人：{{
+          selected.customerContactName
+        }}　项目地址：{{ selected.projectAddress }}
+      </p>
       <p class="status-hint">
         {{
           selected.status === "FOLLOWING" && hasProjectApplication
@@ -871,8 +976,9 @@ watch(
         <p v-if="currentPendingApproval">
           审批单：{{
             approvalCodeText(currentPendingApproval.instanceCode, "LEAD")
-          }}　当前环节：{{ currentPendingApproval.nodeOrder }}.
-          {{ currentPendingApproval.positionName }}　审批人：{{
+          }}　当前节点：第 {{ currentPendingApproval.nodeOrder }} 关　审批岗位：{{
+            currentPendingApproval.positionName
+          }}　审批人员：{{
             currentPendingApproval.approverName
           }}
         </p>
@@ -997,11 +1103,11 @@ watch(
       <form v-if="showEdit" class="entity-form" @submit.prevent="updateLead">
         <h3 class="wide">修改线索</h3>
         <label>
-          项目名称
+          项目名称<span class="required-mark">*</span>
           <input v-model="editForm.projectName" required minlength="2" />
         </label>
         <label>
-          客户
+          客户<span class="required-mark">*</span>
           <select v-model="editForm.customerId" required>
             <option value="" disabled>请选择</option>
             <option
@@ -1014,9 +1120,29 @@ watch(
           </select>
         </label>
         <label>
+          客户项目牵头部门<span class="required-mark">*</span>
+          <input
+            v-model="editForm.customerLeadDepartment"
+            required
+            maxlength="128"
+          />
+        </label>
+        <label>
+          客户对接联系人<span class="required-mark">*</span>
+          <input
+            v-model="editForm.customerContactName"
+            required
+            maxlength="128"
+          />
+        </label>
+        <label>
+          项目地址<span class="required-mark">*</span>
+          <input v-model="editForm.projectAddress" required maxlength="512" />
+        </label>
+        <label>
           来源
           <select v-model="editForm.sourceCode">
-            <option value="VISIT">客户拜访</option>
+            <option value="CUSTOMER_VISIT">客户拜访</option>
             <option value="REFERRAL">转介绍</option>
             <option value="PUBLIC">公开信息</option>
             <option value="OTHER">其他</option>
@@ -1027,12 +1153,13 @@ watch(
           <input v-model="editForm.discoveredOn" type="date" required />
         </label>
         <label>
-          预计金额（万元）
+          预计金额（万元）<span class="required-mark">*</span>
           <input
             v-model.number="editForm.estimatedAmount"
             type="number"
             min="0"
             step="0.01"
+            required
           />
         </label>
         <label>
@@ -1040,8 +1167,8 @@ watch(
           <input v-model="editForm.estimatedStartOn" type="date" />
         </label>
         <label>
-          项目类型
-          <select v-model="editForm.projectType">
+          项目类型<span class="required-mark">*</span>
+          <select v-model="editForm.projectType" required>
             <option value="CONSULTING">信息化咨询</option>
             <option value="SUPERVISION">信息化监理</option>
             <option value="OTHER">其他</option>
@@ -1081,10 +1208,62 @@ watch(
         <h3 class="wide">生成立项申请</h3>
         <p class="wide status-hint">
           保存后到“项目管理 →
-          立项申请”提交立项审批；审批通过后，线索自动变为“已转项目”。
+          立项申请”提交立项审批；这里的项目名称可以按正式立项名称调整，来源线索仍会保留便于追溯。
         </p>
+        <label class="wide">
+          项目名称<span class="required-mark">*</span>
+          <input
+            v-model="convertForm.projectName"
+            required
+            minlength="2"
+            maxlength="255"
+          />
+        </label>
         <label>
-          预计收入（万元）
+          客户项目牵头部门<span class="required-mark">*</span>
+          <input
+            v-model="convertForm.customerLeadDepartment"
+            required
+            maxlength="128"
+          />
+        </label>
+        <label>
+          客户对接联系人<span class="required-mark">*</span>
+          <input
+            v-model="convertForm.customerContactName"
+            required
+            maxlength="128"
+          />
+        </label>
+        <label>
+          项目地址<span class="required-mark">*</span>
+          <input v-model="convertForm.projectAddress" required maxlength="512" />
+        </label>
+        <label>
+          拟任项目负责人<span class="required-mark">*</span>
+          <select v-model="convertForm.proposedManagerId" required>
+            <option value="" disabled>请选择</option>
+            <option
+              v-for="person in employees"
+              :key="person.id"
+              :value="person.id"
+            >
+              {{ person.name }}{{ person.positionName ? ` · ${person.positionName}` : "" }}
+            </option>
+          </select>
+        </label>
+        <label>
+          项目投资规模（万元）<span class="required-mark">*</span>
+          <input
+            v-model.number="convertForm.investmentAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            required
+          />
+        </label>
+        <label>
+          预计收入（万元）<span class="required-mark">*</span>
           <input
             v-model.number="convertForm.estimatedRevenue"
             type="number"
@@ -1104,7 +1283,7 @@ watch(
           />
         </label>
         <label>
-          预计开始
+          预计开始<span class="required-mark">*</span>
           <input v-model="convertForm.estimatedStartOn" type="date" required />
         </label>
         <label>
@@ -1112,11 +1291,15 @@ watch(
           <input v-model="convertForm.estimatedEndOn" type="date" required />
         </label>
         <label>
-          投标方式
-          <select v-model="convertForm.biddingMethod">
-            <option value="PUBLIC">公开投标</option>
-            <option value="NEGOTIATION">商务洽谈</option>
-            <option value="NONE">无需投标</option>
+          投标方式<span class="required-mark">*</span>
+          <select v-model="convertForm.biddingMethod" required>
+            <option
+              v-for="item in biddingMethodOptions"
+              :key="item.itemCode"
+              :value="item.valueText"
+            >
+              {{ item.label }}
+            </option>
           </select>
         </label>
         <label class="wide">

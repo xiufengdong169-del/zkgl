@@ -55,6 +55,9 @@ describe("auth adapter CLI verifier loading", () => {
       await expect(
         verifierModule.verifyAccessToken("local-admin-token-0001"),
       ).resolves.toEqual({ uid: "cb-admin-001" });
+      await expect(
+        verifierModule.verifyAccessToken("local-username:dongxiufeng"),
+      ).resolves.toEqual({ uid: "local-username:dongxiufeng" });
     } finally {
       if (previousFlag === undefined) delete process.env.LOCAL_AUTH_ALLOW_EXAMPLE_TOKENS;
       else process.env.LOCAL_AUTH_ALLOW_EXAMPLE_TOKENS = previousFlag;

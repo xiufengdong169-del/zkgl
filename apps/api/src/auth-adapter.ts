@@ -16,8 +16,9 @@ export type AccessTokenVerifier = (
 ) => Promise<AccessTokenVerification | string>;
 
 const bearerPattern = /^Bearer\s+(.+)$/i;
-const tokenPattern = /^[A-Za-z0-9._~+/=-]{16,8192}$/;
+const tokenPattern = /^[A-Za-z0-9._~+/=:%-]{16,8192}$/;
 const uidPattern = /^[A-Za-z0-9:_-]{6,128}$/;
+const localUsernameUidPattern = /^local-username:[A-Za-z0-9._~%-]{1,128}$/;
 
 function headerValue(
   headers: IncomingHttpHeaders,
@@ -39,7 +40,10 @@ export function extractBearerAccessToken(headers: IncomingHttpHeaders) {
 export function normalizeVerifiedUid(result: AccessTokenVerification | string) {
   const uid = typeof result === "string" ? result : result.uid;
   const normalized = uid.trim();
-  if (!uidPattern.test(normalized)) {
+  if (
+    !uidPattern.test(normalized) &&
+    !localUsernameUidPattern.test(normalized)
+  ) {
     throw new Error("Invalid verified UID");
   }
   return normalized;

@@ -46,6 +46,7 @@ import {
 } from "./settlements.js";
 import {
   contactInput,
+  contactUpdateInput,
   counterpartyInput,
   counterpartyUpdateInput,
   visitInput,
@@ -90,6 +91,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
     permission: "crm.counterparty.read",
     input: z.object({}).default({}),
   },
+  "dictionary.projectOptions": {
+    permission: "project.application.read",
+    input: z.object({}).default({}),
+  },
   "lead.list": { permission: "lead.read", input: listInput },
   "lead.detail": {
     permission: "lead.read",
@@ -117,6 +122,10 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "project.application.detail": {
     permission: "project.application.read",
     input: z.object({ applicationId: z.string().min(1) }),
+  },
+  "project.employee.options": {
+    permission: "project.application.create",
+    input: z.object({}).default({}),
   },
   "project.application.update": {
     permission: "project.application.create",
@@ -348,6 +357,14 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
   "crm.contact.create": {
     permission: "crm.contact.create",
     input: contactInput,
+  },
+  "crm.contact.update": {
+    permission: "crm.contact.create",
+    input: contactUpdateInput,
+  },
+  "crm.contact.delete": {
+    permission: "crm.contact.create",
+    input: z.object({ contactId: z.string().min(1) }),
   },
   "crm.visit.create": { permission: "crm.visit.create", input: visitInput },
   "crm.visit.update": {
@@ -585,6 +602,29 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       status: z.enum(["ENABLED", "DISABLED"]),
     }),
   },
+  "admin.positionAssignment.update": {
+    permission: "system.admin",
+    input: z
+      .object({
+        assignmentId: z.string().min(1),
+        positionCode: z.string().min(2).max(64),
+        employeeId: z.string().min(1),
+        startsOn: z.iso.date(),
+        endsOn: z.iso.date().nullable().optional(),
+        isDelegate: z.boolean().default(false),
+        status: z.enum(["ENABLED", "DISABLED"]),
+      })
+      .refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
+        message: "结束日期不得早于开始日期",
+        path: ["endsOn"],
+      }),
+  },
+  "admin.positionAssignment.delete": {
+    permission: "system.admin",
+    input: z.object({
+      assignmentId: z.string().min(1),
+    }),
+  },
   "admin.projectGrant.create": {
     permission: "system.admin",
     input: z
@@ -627,9 +667,8 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
       code: z
         .string()
         .trim()
-        .min(2)
         .max(64)
-        .regex(/^[A-Z][A-Z0-9_]*$/, "角色编码应使用大写字母、数字和下划线"),
+        .default(""),
       name: z.string().trim().min(2).max(128),
       permissionIds: z.array(z.string().min(1)).max(300).default([]),
     }),
@@ -695,7 +734,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         .min(3)
         .max(64)
         .regex(/^[A-Za-z0-9._@-]+$/, "账号只能包含字母、数字和 . _ @ -"),
-      cloudbaseUid: z.string().trim().min(6).max(128),
+      cloudbaseUid: z.string().trim().min(1).max(128),
       roleIds: z.array(z.string().min(1)).min(1).max(20),
     }),
   },
@@ -709,7 +748,7 @@ export const actionDefinitions: Record<string, ActionDefinition> = {
         .min(3)
         .max(64)
         .regex(/^[A-Za-z0-9._@-]+$/, "账号只能包含字母、数字和 . _ @ -"),
-      cloudbaseUid: z.string().trim().min(6).max(128),
+      cloudbaseUid: z.string().trim().min(1).max(128),
     }),
   },
   "admin.user.status": {

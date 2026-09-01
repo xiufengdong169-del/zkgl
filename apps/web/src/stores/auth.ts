@@ -37,7 +37,8 @@ const localAuthTokensByUsername: Record<string, string> = {
 }
 
 function localAuthTokenFor(username: string) {
-  return localAuthTokensByUsername[username.trim().toLowerCase()] ?? 'local-admin-token-0001'
+  const normalized = username.trim()
+  return localAuthTokensByUsername[normalized.toLowerCase()] ?? `local-username:${encodeURIComponent(normalized)}`
 }
 
 export const useAuthStore = defineStore('auth', {

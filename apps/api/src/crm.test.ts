@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { contactInput, counterpartyInput, visitInput } from './crm.js'
 
 describe('CRM input validation', () => {
-  it('联系人必须有联系方式', () => {
+  it('联系人必须填写部门', () => {
     expect(contactInput.safeParse({ counterpartyId: 'c1', name: '张三', ownerId: 'u1' }).success).toBe(false)
   })
 
   it('接受合法往来单位', () => {
-    expect(counterpartyInput.safeParse({ name: '测试客户有限公司', type: 'CUSTOMER', ownerId: 'u1' }).success).toBe(true)
+    expect(counterpartyInput.safeParse({ name: '测试客户有限公司', type: 'CUSTOMER', industry: '信息化/软件', address: '广州市天河区', ownerId: 'u1' }).success).toBe(true)
   })
 
   it('拜访至少包含一名参与人员', () => {

@@ -13,16 +13,20 @@ export const projectApplicationInput = z
     projectName: z.string().trim().min(2).max(255),
     customerId: z.string().min(1),
     sourceLeadId: z.string().nullable().optional(),
+    customerLeadDepartment: z.string().trim().min(1).max(128),
+    customerContactName: z.string().trim().min(1).max(128),
+    projectAddress: z.string().trim().min(1).max(512),
     projectType: z.string().trim().min(1).max(64),
     background: z.string().trim().nullable().optional(),
     serviceScope: z.string().trim().min(2),
+    investmentAmount: z.number().nonnegative().max(9999999999999999),
     estimatedRevenue: z.number().nonnegative().max(9999999999999999),
     estimatedCost: z.number().nonnegative().max(9999999999999999),
     estimatedStartOn: z.iso.date(),
     estimatedEndOn: z.iso.date(),
     proposedManagerId: z.string().min(1),
     memberSuggestions: z.array(memberSuggestionInput).default([]),
-    biddingMethod: z.string().trim().max(64).nullable().optional(),
+    biddingMethod: z.string().trim().min(1).max(64),
     riskDescription: z.string().trim().nullable().optional(),
     necessity: z.string().trim().min(2),
   })
@@ -83,9 +87,13 @@ export interface ProjectApplicationRecord {
   applicationCode: string;
   projectName: string;
   customerId: string;
+  customerLeadDepartment: string;
+  customerContactName: string;
+  projectAddress: string;
   projectType: string;
   serviceScope: string;
   proposedManagerId: string;
+  investmentAmount: number;
   estimatedRevenue: number;
   estimatedCost: number;
   status: ProjectApplicationStatus;

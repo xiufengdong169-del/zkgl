@@ -214,6 +214,8 @@ const dictionaryItems = ref<DictionaryItem[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
+const accountNotice = ref<string | null>(null);
+const accountError = ref<string | null>(null);
 const saving = ref(false);
 const activeTab = ref<
   | "organization"
@@ -391,6 +393,15 @@ const assignmentForm = ref({
   startsOn: new Date().toISOString().slice(0, 10),
   endsOn: "",
   isDelegate: false,
+});
+const editingAssignmentId = ref("");
+const assignmentEdit = ref({
+  positionCode: "",
+  employeeId: "",
+  startsOn: "",
+  endsOn: "",
+  isDelegate: false,
+  status: "ENABLED" as "ENABLED" | "DISABLED",
 });
 const projectGrantForm = ref({
   projectId: "",
@@ -595,18 +606,30 @@ async function createEmployee() {
 async function createAccount() {
   error.value = null;
   notice.value = null;
+  accountError.value = null;
+  accountNotice.value = null;
+  if (!account.value.cloudbaseUid.trim()) {
+    accountError.value = "请填写本地/身份 UID。";
+    return;
+  }
   if (!account.value.roleIds.length) {
-    error.value = "请至少勾选一个账号角色";
+    accountError.value = "请至少勾选一个账号角色";
     return;
   }
   saving.value = true;
   try {
     await callApi("admin.user.create", account.value);
-    notice.value = "账号角色已保存";
     await load();
-    closeAccountForm();
+    const employeeName =
+      employees.value.find((item) => item.id === account.value.employeeId)
+        ?.name || "该人员";
+    const savedUser = userForEmployee(account.value.employeeId);
+    account.value.roleIds = savedUser ? userRoleIds(savedUser) : account.value.roleIds;
+    accountNotice.value = `${employeeName} 的账号角色已保存。`;
+    notice.value = accountNotice.value;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "账号创建失败";
+    accountError.value = e instanceof Error ? e.message : "账号创建失败";
+    error.value = accountError.value;
   } finally {
     saving.value = false;
   }
@@ -615,6 +638,8 @@ async function createAccount() {
 async function saveAccountInfo(user: User) {
   error.value = null;
   notice.value = null;
+  accountError.value = null;
+  accountNotice.value = null;
   saving.value = true;
   try {
     await callApi("admin.user.update", {
@@ -623,9 +648,11 @@ async function saveAccountInfo(user: User) {
       cloudbaseUid: account.value.cloudbaseUid,
     });
     await load();
-    notice.value = `${user.employeeName} 的登录账号信息已保存`;
+    accountNotice.value = `${user.employeeName} 的登录账号信息已保存`;
+    notice.value = accountNotice.value;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "账号信息保存失败";
+    accountError.value = e instanceof Error ? e.message : "账号信息保存失败";
+    error.value = accountError.value;
   } finally {
     saving.value = false;
   }
@@ -633,12 +660,14 @@ async function saveAccountInfo(user: User) {
 
 async function createPositionAssignment() {
   saving.value = true;
+  error.value = null;
   try {
     await callApi("admin.positionAssignment.create", {
       ...assignmentForm.value,
       endsOn: assignmentForm.value.endsOn || null,
     });
     await load();
+    notice.value = "岗位任职已保存";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "岗位任职保存失败";
   } finally {
@@ -646,14 +675,76 @@ async function createPositionAssignment() {
   }
 }
 async function togglePositionAssignment(item: PositionAssignment) {
+  saving.value = true;
+  error.value = null;
   try {
     await callApi("admin.positionAssignment.status", {
       assignmentId: item.id,
       status: item.status === "ENABLED" ? "DISABLED" : "ENABLED",
     });
     await load();
+    notice.value = item.status === "ENABLED" ? "岗位任职已停用" : "岗位任职已启用";
   } catch (e) {
     error.value = e instanceof Error ? e.message : "任职状态更新失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+function startEditPositionAssignment(item: PositionAssignment) {
+  editingAssignmentId.value = item.id;
+  assignmentEdit.value = {
+    positionCode: item.positionCode,
+    employeeId: item.employeeId,
+    startsOn: String(item.startsOn).slice(0, 10),
+    endsOn: item.endsOn ? String(item.endsOn).slice(0, 10) : "",
+    isDelegate: Boolean(item.isDelegate),
+    status: item.status,
+  };
+}
+
+function cancelEditPositionAssignment() {
+  editingAssignmentId.value = "";
+}
+
+async function savePositionAssignment(item: PositionAssignment) {
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.positionAssignment.update", {
+      assignmentId: item.id,
+      ...assignmentEdit.value,
+      endsOn: assignmentEdit.value.endsOn || null,
+    });
+    editingAssignmentId.value = "";
+    await load();
+    notice.value = "岗位任职已修改";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "岗位任职修改失败";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deletePositionAssignment(item: PositionAssignment) {
+  if (
+    !confirmAction(
+      `确认删除「${item.positionName} · ${item.employeeName}」这条岗位任职记录？`,
+    )
+  )
+    return;
+  saving.value = true;
+  error.value = null;
+  try {
+    await callApi("admin.positionAssignment.delete", {
+      assignmentId: item.id,
+    });
+    await load();
+    notice.value = "岗位任职已删除，可以重新配置具体人员";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "岗位任职删除失败";
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -705,12 +796,16 @@ function userHasRole(user: User, roleId: string) {
 async function setRoles(user: User, values: string[]) {
   error.value = null;
   notice.value = null;
+  accountError.value = null;
+  accountNotice.value = null;
   try {
     await callApi("admin.user.role.set", { userId: user.id, roleIds: values });
     await load();
-    notice.value = `${user.employeeName} 的账号角色已保存`;
+    accountNotice.value = `${user.employeeName} 的账号角色已保存`;
+    notice.value = accountNotice.value;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "授权失败";
+    accountError.value = e instanceof Error ? e.message : "授权失败";
+    error.value = accountError.value;
   }
 }
 
@@ -725,6 +820,8 @@ async function toggleUserRole(user: User, roleId: string, event: Event) {
 async function toggleUserStatus(item: User) {
   error.value = null;
   notice.value = null;
+  accountError.value = null;
+  accountNotice.value = null;
   try {
     const result = await callApi<{ cloudbaseSyncRequired: boolean }>(
       "admin.user.status",
@@ -733,11 +830,14 @@ async function toggleUserStatus(item: User) {
         status: item.status === "ENABLED" ? "DISABLED" : "ENABLED",
       },
     );
-    if (result.cloudbaseSyncRequired)
-      notice.value = "内部账号状态已更新；请同步更新云开发身份账号状态。";
+    if (result.cloudbaseSyncRequired) {
+      accountNotice.value = "内部账号状态已更新；请同步更新云开发身份账号状态。";
+      notice.value = accountNotice.value;
+    }
     await load();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "账号状态更新失败";
+    accountError.value = e instanceof Error ? e.message : "账号状态更新失败";
+    error.value = accountError.value;
   }
 }
 
@@ -1212,6 +1312,8 @@ function prepareEmployeeCreate() {
 }
 
 function prepareAccountCreate(person?: Employee) {
+  accountNotice.value = null;
+  accountError.value = null;
   const currentUser = person ? userForEmployee(person.id) : undefined;
   account.value = {
     employeeId: person?.id || "",
@@ -1228,6 +1330,8 @@ function prepareAccountCreate(person?: Employee) {
 function closeAccountForm() {
   showAccountForm.value = false;
   accountPanelEmployeeId.value = "";
+  accountNotice.value = null;
+  accountError.value = null;
   account.value = {
     employeeId: "",
     username: "",
@@ -1810,9 +1914,9 @@ onMounted(load);
               <h3>新增角色</h3>
               <input
                 v-model="roleForm.code"
-                placeholder="角色编码，如 FINANCE_ASSISTANT"
-                required
+                placeholder="角色编码，可不填，如 HR_ADMINISTRATION"
               />
+              <p class="muted">编码可留空，系统会按角色名称自动生成；角色名称可填中文。</p>
               <input v-model="roleForm.name" placeholder="角色名称" required />
               <select v-model="roleForm.permissionIds" multiple>
                 <option
@@ -2141,6 +2245,19 @@ onMounted(load);
                           收起
                         </button>
                       </header>
+                      <p
+                        v-if="accountError"
+                        class="account-feedback account-feedback-error"
+                      >
+                        {{ accountError }}
+                      </p>
+                      <p
+                        v-else-if="accountNotice"
+                        class="account-feedback account-feedback-success"
+                        role="status"
+                      >
+                        {{ accountNotice }}
+                      </p>
 
                       <div
                         v-if="userForEmployee(person.id)"
@@ -2162,7 +2279,8 @@ onMounted(load);
                             >本地/身份 UID<input
                               v-model="account.cloudbaseUid"
                               required
-                              placeholder="本地/身份 UID"
+                              maxlength="128"
+                              placeholder="例如 H001 或 cb-lpc-001"
                           /></label>
                           <small
                             >状态：{{
@@ -2229,7 +2347,8 @@ onMounted(load);
                         <label
                           >本地/身份 UID<input
                             v-model="account.cloudbaseUid"
-                            placeholder="例如 cb-lpc-001"
+                            placeholder="例如 H001 或 cb-lpc-001"
+                            maxlength="128"
                             required
                         /></label>
                         <fieldset class="role-checkbox-field">
@@ -2249,7 +2368,9 @@ onMounted(load);
                             </label>
                           </div>
                         </fieldset>
-                        <button :disabled="saving">保存账号映射</button>
+                        <button :disabled="saving">
+                          {{ saving ? "保存中…" : "保存账号映射" }}
+                        </button>
                         <button type="button" @click="closeAccountForm">
                           取消
                         </button>
@@ -2620,13 +2741,87 @@ onMounted(load);
                 {{ statusText(assignment.status) }}
               </p>
             </div>
-            <button
-              class="small-status-button"
-              type="button"
-              @click="togglePositionAssignment(assignment)"
+            <div class="row-actions">
+              <button
+                class="small-status-button"
+                type="button"
+                :disabled="saving"
+                @click="startEditPositionAssignment(assignment)"
+              >
+                修改
+              </button>
+              <button
+                class="small-status-button"
+                type="button"
+                :disabled="saving"
+                @click="togglePositionAssignment(assignment)"
+              >
+                {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
+              </button>
+              <button
+                class="danger-link"
+                type="button"
+                :disabled="saving"
+                @click="deletePositionAssignment(assignment)"
+              >
+                删除
+              </button>
+            </div>
+            <form
+              v-if="editingAssignmentId === assignment.id"
+              class="inline-edit-form assignment-edit-form"
+              @submit.prevent="savePositionAssignment(assignment)"
             >
-              {{ assignment.status === "ENABLED" ? "停用" : "启用" }}
-            </button>
+              <label
+                >审批岗位<select v-model="assignmentEdit.positionCode" required>
+                  <option value="" disabled>请选择</option>
+                  <option
+                    v-for="position in positions"
+                    :key="position.code"
+                    :value="position.code"
+                  >
+                    {{ position.name }}
+                  </option>
+                </select></label
+              ><label
+                >任职人员<select v-model="assignmentEdit.employeeId" required>
+                  <option value="" disabled>请选择</option>
+                  <option
+                    v-for="person in employees"
+                    :key="person.id"
+                    :value="person.id"
+                  >
+                    {{ person.name }}
+                  </option>
+                </select></label
+              ><label
+                >开始日期<input
+                  v-model="assignmentEdit.startsOn"
+                  type="date"
+                  required /></label
+              ><label
+                >结束日期<input
+                  v-model="assignmentEdit.endsOn"
+                  type="date" /></label
+              ><label
+                >状态<select v-model="assignmentEdit.status">
+                  <option value="ENABLED">启用</option>
+                  <option value="DISABLED">停用</option>
+                </select></label
+              ><label class="checkbox-line"
+                ><input v-model="assignmentEdit.isDelegate" type="checkbox" /><span
+                  >代理任职</span
+                ></label
+              ><button :disabled="saving">保存修改</button>
+              <button
+                class="secondary"
+                type="button"
+                :disabled="saving"
+                @click="cancelEditPositionAssignment"
+              >
+                取消
+              </button>
+            </form>
           </article>
           <p v-if="!positionAssignments.length">暂无岗位任职</p>
         </section>
@@ -4021,6 +4216,59 @@ onMounted(load);
   background: #dcecff;
 }
 
+.assignment-edit-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d8e4f3;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.assignment-edit-form input,
+.assignment-edit-form select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cdd7e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.assignment-edit-form option {
+  font-size: 18px;
+}
+
+.assignment-edit-form .checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #cdd7e5;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 18px;
+}
+
+.assignment-edit-form .checkbox-line input {
+  width: 18px;
+  height: 18px;
+}
+
+.assignment-edit-form button {
+  width: auto;
+  margin: 0;
+  padding: 10px 16px;
+}
+
 .account-role-panel {
   margin-top: 14px;
 }
@@ -4050,6 +4298,25 @@ onMounted(load);
 .account-inline-panel p {
   margin: 6px 0 0;
   color: #667085;
+}
+
+.account-feedback {
+  margin: -4px 0 0 !important;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.account-feedback-success {
+  border: 1px solid #b7ebc6;
+  background: #f0fdf4;
+  color: #166534 !important;
+}
+
+.account-feedback-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b !important;
 }
 
 .account-inline-panel header button {
@@ -4248,6 +4515,7 @@ onMounted(load);
   .member-toolbar,
   .org-toolbar,
   .position-assignment-form,
+  .assignment-edit-form,
   .position-list .data-row {
     grid-template-columns: 1fr;
     display: grid;
@@ -4255,6 +4523,7 @@ onMounted(load);
 
   .position-assignment-form button,
   .position-list .small-status-button,
+  .assignment-edit-form button,
   .node-edit-grid button {
     width: 100%;
   }

@@ -138,10 +138,10 @@ CREATE TABLE IF NOT EXISTS crm_counterparty (
   short_name VARCHAR(128) NULL,
   credit_code VARCHAR(32) NULL UNIQUE,
   counterparty_type VARCHAR(32) NOT NULL,
-  industry VARCHAR(128) NULL,
+  industry VARCHAR(128) NOT NULL,
   scale_code VARCHAR(32) NULL,
   region VARCHAR(128) NULL,
-  address VARCHAR(512) NULL,
+  address VARCHAR(512) NOT NULL,
   phone VARCHAR(32) NULL,
   website VARCHAR(255) NULL,
   invoice_title VARCHAR(255) NULL,
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS crm_contact (
   counterparty_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(128) NOT NULL,
   gender VARCHAR(16) NULL,
-  department_name VARCHAR(128) NULL,
+  department_name VARCHAR(128) NOT NULL,
   position_name VARCHAR(128) NULL,
   mobile VARCHAR(32) NULL,
   phone VARCHAR(32) NULL,
@@ -234,10 +234,13 @@ CREATE TABLE IF NOT EXISTS mkt_lead (
   lead_code VARCHAR(64) NOT NULL UNIQUE,
   project_name VARCHAR(255) NOT NULL,
   customer_id BIGINT UNSIGNED NOT NULL,
+  customer_lead_department VARCHAR(128) NOT NULL,
+  customer_contact_name VARCHAR(128) NOT NULL,
+  project_address VARCHAR(512) NOT NULL,
   source_code VARCHAR(64) NOT NULL,
   source_description VARCHAR(500) NULL,
   discovered_on DATE NOT NULL,
-  estimated_amount DECIMAL(18,2) NULL,
+  estimated_amount DECIMAL(18,2) NOT NULL,
   estimated_start_on DATE NULL,
   project_type VARCHAR(64) NOT NULL,
   project_background TEXT NULL,
@@ -398,7 +401,8 @@ INSERT INTO sys_dictionary_type(type_code,name,description,created_by,updated_by
 VALUES
 ('CRM_COUNTERPARTY_TYPE','往来单位类型','客户管理中往来单位的类型下拉项',0,0),
 ('CRM_COOPERATION_STATUS','合作状态','客户管理中往来单位的合作状态下拉项',0,0),
-('CRM_INDUSTRY','所属行业','客户管理中往来单位的行业下拉项',0,0)
+('CRM_INDUSTRY','所属行业','客户管理中往来单位的行业下拉项',0,0),
+('PROJECT_BIDDING_METHOD','投标方式','立项申请中的投标方式下拉项',0,0)
 ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description);
 
 INSERT INTO sys_dictionary_item(type_id,item_code,label,value_text,sort_order,created_by,updated_by)
@@ -423,6 +427,9 @@ JOIN (
   UNION ALL SELECT 'CRM_INDUSTRY','FINANCIAL_SERVICE','金融服务','金融服务',70
   UNION ALL SELECT 'CRM_INDUSTRY','MANUFACTURING','制造业','制造业',80
   UNION ALL SELECT 'CRM_INDUSTRY','OTHER','其他','其他',90
+  UNION ALL SELECT 'PROJECT_BIDDING_METHOD','PUBLIC','公开投标','PUBLIC',10
+  UNION ALL SELECT 'PROJECT_BIDDING_METHOD','NEGOTIATION','商务洽谈','NEGOTIATION',20
+  UNION ALL SELECT 'PROJECT_BIDDING_METHOD','NONE','无需投标','NONE',30
 ) x ON x.type_code=t.type_code
 ON DUPLICATE KEY UPDATE label=VALUES(label),value_text=VALUES(value_text),sort_order=VALUES(sort_order);
 
@@ -441,16 +448,20 @@ CREATE TABLE IF NOT EXISTS prj_project_application (
   project_name VARCHAR(255) NOT NULL,
   customer_id BIGINT UNSIGNED NOT NULL,
   source_lead_id BIGINT UNSIGNED NULL,
+  customer_lead_department VARCHAR(128) NOT NULL,
+  customer_contact_name VARCHAR(128) NOT NULL,
+  project_address VARCHAR(512) NOT NULL,
   project_type VARCHAR(64) NOT NULL,
   background TEXT NULL,
   service_scope TEXT NOT NULL,
+  investment_amount DECIMAL(18,2) NOT NULL,
   estimated_revenue DECIMAL(18,2) NOT NULL,
   estimated_cost DECIMAL(18,2) NOT NULL,
   estimated_profit DECIMAL(18,2) GENERATED ALWAYS AS (estimated_revenue - estimated_cost) STORED,
   estimated_start_on DATE NOT NULL,
   estimated_end_on DATE NOT NULL,
   proposed_manager_id BIGINT UNSIGNED NOT NULL,
-  bidding_method VARCHAR(64) NULL,
+  bidding_method VARCHAR(64) NOT NULL,
   risk_description TEXT NULL,
   necessity TEXT NOT NULL,
   applicant_id BIGINT UNSIGNED NOT NULL,

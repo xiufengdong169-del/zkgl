@@ -5,9 +5,9 @@ export const counterpartyInput = z.object({
   shortName: z.string().trim().max(128).nullable().optional(),
   creditCode: z.string().trim().min(15).max(32).nullable().optional(),
   type: z.string().trim().min(1).max(64),
-  industry: z.string().trim().max(128).nullable().optional(),
+  industry: z.string().trim().min(1).max(128),
   region: z.string().trim().max(128).nullable().optional(),
-  address: z.string().trim().max(512).nullable().optional(),
+  address: z.string().trim().min(1).max(512),
   phone: z.string().trim().max(32).nullable().optional(),
   website: z.url().max(255).nullable().optional(),
   invoiceTitle: z.string().trim().max(255).nullable().optional(),
@@ -29,7 +29,7 @@ export const contactInput = z.object({
   counterpartyId: z.string().min(1),
   name: z.string().trim().min(1).max(128),
   gender: z.enum(['MALE', 'FEMALE', 'UNSPECIFIED']).nullable().optional(),
-  departmentName: z.string().trim().max(128).nullable().optional(),
+  departmentName: z.string().trim().min(1).max(128),
   positionName: z.string().trim().max(128).nullable().optional(),
   mobile: z.string().trim().max(32).nullable().optional(),
   phone: z.string().trim().max(32).nullable().optional(),
@@ -39,8 +39,12 @@ export const contactInput = z.object({
   relationshipLevel: z.enum(['UNKNOWN', 'NORMAL', 'GOOD', 'STRONG']).nullable().optional(),
   decisionRole: z.string().trim().max(64).nullable().optional(),
   remark: z.string().trim().max(1000).nullable().optional()
-}).refine((value) => Boolean(value.mobile || value.phone || value.email || value.wechat), {
-  message: '联系人至少需要一种联系方式'
+})
+
+export const contactUpdateInput = contactInput.omit({
+  counterpartyId: true,
+}).extend({
+  contactId: z.string().min(1),
 })
 
 export const visitInput = z.object({
@@ -65,9 +69,11 @@ export const visitUpdateInput = visitInput.omit({
   generateLead: true,
 }).extend({
   visitId: z.string().min(1),
+  generateLead: z.boolean().optional(),
 })
 
 export type CounterpartyInput = z.infer<typeof counterpartyInput>
 export type ContactInput = z.infer<typeof contactInput>
+export type ContactUpdateInput = z.infer<typeof contactUpdateInput>
 export type VisitInput = z.infer<typeof visitInput>
 export type VisitUpdateInput = z.infer<typeof visitUpdateInput>

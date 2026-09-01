@@ -20,15 +20,20 @@ const roleNameMap: Record<string, string> = {
   MARKET_BUSINESS: "市场商务",
   PROJECT_MANAGER: "项目经理",
   PROJECT_MEMBER: "项目成员",
+  BID_STAFF: "投标人员",
   BIDDER: "投标人员",
   FINANCE: "商务财务",
   EMPLOYEE: "普通员工",
+  HR_ADMINISTRATION: "人事行政",
 };
 
 const currentUserText = computed(() => {
   const roles = auth.user?.roleCodes ?? [];
   if (!roles.length) return "未分配角色";
-  return roles.map((role) => roleNameMap[role] || role).join("、");
+  const roleNames = auth.user?.roleNames ?? [];
+  return roles
+    .map((role, index) => roleNames[index] || roleNameMap[role] || role)
+    .join("、");
 });
 
 async function signOut() {

@@ -71,14 +71,43 @@ export const demoUser: SessionUser = {
 }
 
 const projects = [
-  { id: 'p-001', code: 'ZK-2026-001', projectName: '广州智慧园区全过程咨询', status: 'IN_PROGRESS', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
+  {
+    id: 'p-001',
+    code: 'ZK-2026-001',
+    projectName: '广州智慧园区全过程咨询',
+    status: 'IN_PROGRESS',
+    projectManagerId: 'emp-demo-admin',
+    managerName: '演示经理',
+    applicationCustomerLeadDepartment: '建设管理部',
+    applicationCustomerContactName: '陈主任',
+    applicationProjectAddress: '广州市天河区演示路 88 号',
+    applicationInvestmentAmount: '5000000.00'
+  },
   { id: 'p-002', code: 'ZK-2026-002', projectName: '市政更新工程造价管控', status: 'PENDING_ACCEPTANCE', projectManagerId: 'emp-demo-admin', managerName: '演示经理' },
   { id: 'p-003', code: 'ZK-2026-003', projectName: '产业园投标与合同履约项目', status: 'PREPARING', projectManagerId: 'emp-demo-admin', managerName: '演示经理' }
 ]
 
 const customers = [
-  { id: 'c-001', code: 'DW-2026-001', name: '广州城建投资有限公司', shortName: '广州城投', type: 'OWNER', cooperationStatus: 'ACTIVE' },
-  { id: 'c-002', code: 'DW-2026-002', name: '南沙产业园开发集团', shortName: '南沙园区', type: 'OWNER', cooperationStatus: 'ACTIVE' }
+  {
+    id: 'c-001',
+    code: 'DW-2026-001',
+    name: '广州城建投资有限公司',
+    shortName: '广州城投',
+    type: 'OWNER',
+    industry: 'CONSTRUCTION',
+    address: '广州市天河区演示路 88 号',
+    cooperationStatus: 'ACTIVE'
+  },
+  {
+    id: 'c-002',
+    code: 'DW-2026-002',
+    name: '南沙产业园开发集团',
+    shortName: '南沙园区',
+    type: 'OWNER',
+    industry: 'CONSTRUCTION',
+    address: '广州市南沙区演示大道 66 号',
+    cooperationStatus: 'ACTIVE'
+  }
 ]
 
 const employees = [
@@ -213,14 +242,23 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
       code: 'LA-2026-001',
       projectName: '广州智慧园区全过程咨询',
       customerId: 'c-001',
+      customerName: '广州城建投资有限公司',
+      sourceLeadId: 'l-001',
+      sourceLeadCode: 'XS-2026-001',
+      sourceLeadName: '白云片区全过程咨询机会',
+      customerLeadDepartment: '建设管理部',
+      customerContactName: '陈主任',
+      projectAddress: '广州市天河区演示路 88 号',
       projectType: 'CONSULTING',
       background: '演示立项背景',
       serviceScope: '全过程咨询、造价管控与履约协同',
+      investmentAmount: 5000000,
       estimatedRevenue: 3200000,
       estimatedCost: 2340000,
       estimatedStartOn: '2026-08-01',
       estimatedEndOn: '2027-01-31',
       proposedManagerId: 'emp-demo-admin',
+      proposedManagerName: '演示经理',
       biddingMethod: 'PUBLIC',
       riskDescription: '合同签订周期需持续跟踪',
       necessity: '展示立项、审批、项目生成闭环',
@@ -240,10 +278,91 @@ export async function demoCallApi<T>(action: string, payload?: unknown): Promise
     money: { contractAmount: '3200000.00', invoicedAmount: '960000.00', receivedAmount: '780000.00', paidAmount: '80000.00' },
     financialVisible: true
   } as T
+  if (action === 'crm.counterparty.detail') return {
+    counterparty: {
+      ...customers[0],
+      phone: '020-88888888',
+      region: null,
+      website: null,
+      invoiceTitle: '广州城建投资有限公司',
+      taxNumber: '91440100DEMO000001',
+      bankName: '中国建设银行广州演示支行',
+      counterpartyBankAccount: '4400********0001',
+      bankBranchCode: '105581000001',
+      remark: '演示往来单位',
+      version: 1
+    },
+    contacts: [
+      {
+        id: 'contact-001',
+        name: '陈主任',
+        departmentName: '建设管理部',
+        positionName: '主任',
+        mobile: '13800000000',
+        email: 'chen@example.invalid',
+        isKeyContact: true
+      }
+    ],
+    visits: [
+      {
+        id: 'visit-001',
+        code: 'BF-2026-001',
+        contactId: 'contact-001',
+        visitedAt: '2026-08-20T10:00:00.000Z',
+        method: 'ONSITE',
+        location: '广州市天河区演示路 88 号',
+        purpose: '了解客户近期项目需求',
+        communication: '沟通全过程咨询服务需求',
+        customerNeeds: '需要全过程咨询、造价控制与进度协同',
+        opportunityAssessment: '客户意向明确，可继续推进',
+        nextAction: '准备项目建议书',
+        nextFollowUpAt: '2026-08-25',
+        generateLead: true,
+        version: 1
+      }
+    ]
+  } as T
   if (action === 'crm.counterparty.list') return list(customers)
   if (action === 'lead.list') return list([
-    { id: 'l-001', code: 'XS-2026-001', projectName: '白云片区全过程咨询机会', customerId: 'c-001', ownerId: 'emp-demo-admin', successProbability: 70, status: 'FOLLOWING', nextFollowUpAt: '2026-08-25' }
+    {
+      id: 'l-001',
+      code: 'XS-2026-001',
+      projectName: '白云片区全过程咨询机会',
+      customerId: 'c-001',
+      ownerId: 'emp-demo-admin',
+      successProbability: 70,
+      status: 'FOLLOWING',
+      nextFollowUpAt: '2026-08-25',
+      customerLeadDepartment: '建设管理部',
+      customerContactName: '陈主任',
+      projectAddress: '广州市天河区演示路 88 号'
+    }
   ])
+  if (action === 'lead.detail') return {
+    id: 'l-001',
+    code: 'XS-2026-001',
+    projectName: '白云片区全过程咨询机会',
+    customerId: 'c-001',
+    customerName: '广州城建投资有限公司',
+    customerLeadDepartment: '建设管理部',
+    customerContactName: '陈主任',
+    projectAddress: '广州市天河区演示路 88 号',
+    ownerId: 'emp-demo-admin',
+    ownerName: '演示经理',
+    source: 'CUSTOMER_VISIT',
+    estimatedAmount: 3200000,
+    projectType: 'CONSULTING',
+    successProbability: 70,
+    discoveredOn: '2026-08-20',
+    expectedStartOn: '2026-09-01',
+    nextFollowUpAt: '2026-08-25',
+    requirementSummary: '客户拟启动全过程咨询项目。',
+    communication: '已沟通项目范围、投资规模和服务周期。',
+    nextAction: '准备项目建议书',
+    status: 'FOLLOWING',
+    version: 1,
+    followUps: []
+  } as T
   if (action === 'contract.list') return list(contracts)
   if (action === 'contract.summary') return { incomeAmount: '3200000.00', expenseAmount: '680000.00', expiringCount: 1 } as T
   if (action === 'bid.application.list') return list(bidApplications)

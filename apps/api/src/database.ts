@@ -94,6 +94,7 @@ interface UserRow extends RowDataPacket {
 }
 interface CodeRow extends RowDataPacket {
   code: string;
+  name?: string;
 }
 interface ScopeRow extends RowDataPacket {
   scope_type: string;
@@ -139,16 +140,41 @@ export async function findSessionUserByCloudbaseUid(
   pool: Pool,
   uid: string,
 ): Promise<SessionUser | null> {
+  const localExampleTokensAllowed =
+    String(process.env.LOCAL_AUTH_ALLOW_EXAMPLE_TOKENS).toLowerCase() ===
+    "true";
+  const localUsernamePrefix = "local-username:";
+  const localUsername =
+    localExampleTokensAllowed && uid.startsWith(localUsernamePrefix)
+      ? decodeURIComponent(uid.slice(localUsernamePrefix.length)).trim()
+      : "";
   const [users] = await pool.execute<UserRow[]>(
-    `SELECT CAST(id AS CHAR) id, cloudbase_uid, CAST(employee_id AS CHAR) employee_id,
+    localUsername
+      ? `SELECT CAST(id AS CHAR) id, cloudbase_uid, CAST(employee_id AS CHAR) employee_id,
+            CAST(department_id AS CHAR) department_id, status
+       FROM iam_user WHERE (username = ? OR cloudbase_uid = ?) AND is_deleted = 0 LIMIT 1`
+      : `SELECT CAST(id AS CHAR) id, cloudbase_uid, CAST(employee_id AS CHAR) employee_id,
             CAST(department_id AS CHAR) department_id, status
        FROM iam_user WHERE cloudbase_uid = ? AND is_deleted = 0 LIMIT 1`,
-    [uid],
+    localUsername ? [localUsername, localUsername] : [uid],
   );
-  const user = users[0];
+  let user = users[0];
+  if (!user && localExampleTokensAllowed && uid === "cb-admin-001") {
+    const [adminUsers] = await pool.execute<UserRow[]>(
+      `SELECT CAST(u.id AS CHAR) id, u.cloudbase_uid, CAST(u.employee_id AS CHAR) employee_id,
+              CAST(u.department_id AS CHAR) department_id, u.status
+         FROM iam_user u
+         JOIN iam_user_role ur ON ur.user_id=u.id
+         JOIN iam_role r ON r.id=ur.role_id
+        WHERE u.is_deleted=0 AND u.status='ENABLED' AND r.code='ADMIN'
+        ORDER BY u.id
+        LIMIT 1`,
+    );
+    user = adminUsers[0];
+  }
   if (!user) return null;
   const [roles] = await pool.execute<CodeRow[]>(
-    `SELECT r.code FROM iam_role r JOIN iam_user_role ur ON ur.role_id=r.id
+    `SELECT r.code,r.name FROM iam_role r JOIN iam_user_role ur ON ur.role_id=r.id
       WHERE ur.user_id=? AND r.status='ENABLED' AND r.is_deleted=0`,
     [user.id],
   );
@@ -173,6 +199,7 @@ export async function findSessionUserByCloudbaseUid(
     departmentId: user.department_id,
     enabled: user.status === "ENABLED",
     roleCodes: roles.map((row) => row.code),
+    roleNames: roles.map((row) => row.name || row.code),
     permissionCodes: permissions.map((row) => row.code),
     sensitiveFieldAccess: resolveSensitiveFieldAccess(sensitiveGrants),
     dataScopes: scopes

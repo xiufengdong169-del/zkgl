@@ -19,6 +19,13 @@ function tokenMap() {
 }
 
 export async function verifyAccessToken(accessToken) {
+  if (
+    String(process.env.LOCAL_AUTH_ALLOW_EXAMPLE_TOKENS).toLowerCase() === "true" &&
+    accessToken.startsWith("local-username:")
+  ) {
+    const username = accessToken.slice("local-username:".length).trim();
+    if (username) return { uid: `local-username:${username}` };
+  }
   const uid = tokenMap()[accessToken];
   if (!uid) throw new Error("Unknown local access token");
   return { uid };

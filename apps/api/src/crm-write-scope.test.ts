@@ -258,6 +258,6 @@ describe("CRM write data scopes", () => {
     const leadInsert = connection.calls.find((call) =>
       call.sql.startsWith("INSERT INTO mkt_lead"),
     )!;
-    expect(leadInsert.params[5]).toBe("2026-08-24");
+    expect(leadInsert.params[8]).toBe("2026-08-24");
   });
 });
